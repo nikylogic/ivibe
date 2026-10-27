@@ -5,111 +5,102 @@
 <p>
   <a href="https://github.com/nikylogic/ivibe/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nikylogic/ivibe/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-7c5cff"></a>
-  <img alt="Status: in active development" src="https://img.shields.io/badge/status-in%20active%20development-ff5c8a">
+  <img alt="Status: pre-release" src="https://img.shields.io/badge/status-pre--release-ff5c8a">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational">
   <img alt="Built with Meta Muse" src="https://img.shields.io/badge/built%20with-Meta%20Muse%20models-0866ff">
 </p>
 
 <p>
-  <a href="https://ivibe.tech"><b>Website</b></a> ·
+  <a href="#status"><b>Status</b></a> ·
   <a href="docs/architecture.md"><b>Architecture</b></a> ·
-  <a href="#roadmap"><b>Roadmap</b></a> ·
   <a href="CONTRIBUTING.md"><b>Contributing</b></a>
 </p>
 
 </div>
 
-**iVibe turns a 60-second screen recording with your voice into a correct bug explanation, proof images and a fix prompt ready to paste into Cursor, Claude or ChatGPT.**
+**Show the bug and talk it through. iVibe writes the fix prompt, with annotated screenshots as proof, and pastes it straight into Claude Code, Cursor or ChatGPT.**
 
-Press a hotkey, show the bug while you talk about it, press it again. iVibe redacts secrets on your device, finds the exact moment things broke, explains why, and backs every claim with a frame and a timestamp.
+Press a shortcut, show what's wrong while you explain it, press it again. iVibe hides secrets on your device, works out what you meant, and pastes the result into the app you were typing in. No report window, no copy-paste.
 
 > [!NOTE]
-> iVibe is being built in public for the [Meta Global AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon) (Oct 27 – Nov 4, 2026). The first release is planned for **Nov 4, 2026**. Star or watch the repo to follow along.
+> iVibe is being built in public for the [Meta Global AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon) (Oct 27 – Nov 4, 2026). It runs from source on Windows today; the first installers are planned for **Nov 4, 2026**. See [Status](#status) for exactly what works.
 
-## Why iVibe
+## Three modes
 
-Most bugs aren't a single moment. You click **Save**, a spinner turns, nothing happens, and three seconds later an error appears in the console. A screenshot shows one of those moments; an AI coding tool needs all of them, in order, with the exact error text.
+| Mode        | You give it              | It pastes                                                                         | Shortcut on Windows                                      |
+| ----------- | ------------------------ | --------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Fix**     | Your screen + your voice | A fix prompt for your coding agent, with annotated screenshots that prove the bug | `Ctrl` + `Caps Lock`                                     |
+| **Prompt**  | Your voice               | A clear, structured prompt from what you rambled                                  | `Alt` + `Caps Lock`                                      |
+| **Dictate** | Your voice               | Your own words, cleaned up: no "um", no false starts                              | Hold `Caps Lock` to talk, or double-press for hands-free |
 
-New developers feel this the most: they don't yet know which error matters, which moment to capture or what context the AI needs. iVibe watches the whole sequence for them.
-
-|                                           | Screenshot + chat | Screen recorder | **iVibe** |
-| ----------------------------------------- | :---------------: | :-------------: | :-------: |
-| Captures the sequence, not one moment     |         –         |        ✓        |   **✓**   |
-| Finds the break moment automatically      |         –         |        –        |   **✓**   |
-| Copies error text exactly (OCR)           |         –         |        –        |   **✓**   |
-| Redacts API keys and tokens before upload |         –         |        –        |   **✓**   |
-| Every claim cites a frame and timestamp   |         –         |        –        |   **✓**   |
-| Writes a fix prompt for your AI tool      |         –         |        –        |   **✓**   |
+Every shortcut can be changed in Settings. Results land where you were typing: screenshots are pasted as images into chat apps and Claude Code, and as file paths into other terminal agents. If you switched apps meanwhile, the result waits on the clipboard and pastes into the next text field you click, or with `Ctrl` + `Alt` + `V`.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  A["Hotkey<br/>screen + voice, ≤ 60 s"] --> B["On-device OCR<br/>and redaction"]
-  B --> C["Evidence bundle<br/>frames · clip · narration · timeline"]
-  C --> D["Agent<br/>Muse Spark finds the break<br/>and inspects frames"]
-  D --> E["Claim verifier<br/>drops anything without evidence"]
-  E --> F["Report<br/>root cause · proof images · fix prompt"]
+  A["Shortcut<br/>screen + voice"] --> B["On your device<br/>OCR · secrets painted over"]
+  A --> C["Live captions<br/>Muse Voice Transcribe"]
+  B --> D["Muse Spark 1.3<br/>transcript + redacted frames<br/>→ fix prompt + proof picks"]
+  C --> D
+  D --> E["SAM 3.1<br/>snaps highlights<br/>to the UI element"]
+  E --> F["Pasted into your app<br/>text + annotated screenshots"]
 ```
 
-1. **Record.** A global hotkey records your screen and microphone for up to 60 seconds.
-2. **Protect.** Every frame is read with on-device OCR. Anything that looks like a key, token or `.env` line is covered with an opaque box before it can be encoded or uploaded.
-3. **Analyze.** An agent built on Meta's Muse Spark reads the timeline, finds candidate break moments, zooms into frames and searches the OCR text.
-4. **Verify.** Every claim must cite a frame, an OCR line or a moment in your narration. Claims that don't resolve are dropped. Error messages are copied from OCR, never retyped by the model.
-5. **Ship the fix.** You get a plain-English explanation, "what to check next", 2–3 highlighted proof images and a structured prompt for Cursor, Claude or ChatGPT.
-
-## Privacy by design
-
-These are the guarantees v0.1 is built around; the [roadmap](#roadmap) shows progress.
-
-- **Redaction happens on your device**, in the desktop app and in the browser recorder. Only a redacted frame type can be encoded or uploaded, and a CI leak test fails the build if a planted secret ever reaches an upload.
-- **Bring your own key, free forever.** With your own Meta Model API key, recordings go from your device straight to Meta. Our servers never see the key or the recording.
-- **Nothing is kept.** Cloud runs delete their files after the report is delivered (desktop) or after 24 hours (web).
-- **No training on your recordings.** iVibe only calls models whose inputs are not used for training; the allowlist is enforced in code and tested in CI.
+1. **Record.** A shortcut captures the screen under your cursor and your microphone. Captions appear as you talk.
+2. **Protect.** Every keyframe is read with on-device OCR (PP-OCRv5). API keys, tokens, `.env` lines and password managers are painted over before a frame can leave the recorder.
+3. **Write.** One Muse Spark call reads your narration, the redacted keyframes and their text, and returns the prompt and which frames prove the bug. Prompts are built from layers: fixed rules, the mode, the app you're pasting into, and what you told iVibe about yourself.
+4. **Prove.** SAM 3.1 snaps each highlight to the exact button or error; the screenshots are annotated on your device.
+5. **Paste.** iVibe pastes into the app you were in, each screenshot after the sentence about it, and keeps a copy in History.
 
 ## Built on Meta's models
 
-| Job                                                               | Model                           |
-| ----------------------------------------------------------------- | ------------------------------- |
-| Agent: find the break moment, inspect frames, form the root cause | Muse Spark 1.3 (Meta Model API) |
-| Open-weight engine for iVibe Cloud                                | Muse Spark Open (via Baseten)   |
-| Narration with turn timestamps, including mixed Hindi and English | Muse Voice Transcribe           |
-| Proof highlights on the chosen frames                             | SAM 3.1                         |
-| Optional deep analysis                                            | Muse Wonder                     |
+| Job                                                             | Model                 | Status  |
+| --------------------------------------------------------------- | --------------------- | ------- |
+| Write the fix prompt, structured prompt or cleaned-up dictation | Muse Spark 1.3        | In use  |
+| Live captions and the narration transcript                      | Muse Voice Transcribe | In use  |
+| Snap proof highlights to the UI element                         | SAM 3.1               | In use  |
+| Open-weight engine for iVibe Cloud                              | Muse Spark Open       | Planned |
+| Optional deep analysis                                          | Muse Wonder           | Planned |
 
-## Two ways to use it
+All calls use the Meta Model API with `store: false`.
 
-|                         | **Bring your own key**      | **iVibe Cloud**                                    |
-| ----------------------- | --------------------------- | -------------------------------------------------- |
-| Price                   | Free forever                | Credits: free starter credits, then plans or packs |
-| AI billing              | Your Meta Model API account | Included in credits                                |
-| Where the analysis runs | On your device              | On iVibe's servers, on the redacted bundle only    |
-| Setup                   | Paste your key once         | Sign in with GitHub or Google                      |
+## Privacy
 
-## Platforms
+- **Secrets are hidden on your device.** Only redacted frames and your narration are sent for analysis. The app's self-test plants a GitHub token on screen and fails if it isn't painted over.
+- **Bring your own key, free forever.** Your Meta Model API key is encrypted with your system keychain and used only by the app's main process. Recordings go from your device straight to Meta.
+- **History stays on your device.** The last 200 results and their screenshots are kept locally, can be turned off, and can be cleared in Settings.
 
-|             | Windows   | macOS                       | Linux             |
-| ----------- | --------- | --------------------------- | ----------------- |
-| Desktop app | ✓ (x64)   | ✓ (Apple silicon and Intel) | ✓ (AppImage, deb) |
-| Updates     | Automatic | In-app banner               | Automatic         |
+## Status
 
-Early builds are not code-signed yet: Windows shows a SmartScreen prompt and macOS asks you to approve the app once in **System Settings → Privacy & Security**. Every download comes with a SHA-256 checksum and a build-provenance attestation from this repository's CI.
+Updated **Oct 28, 2026**. The full breakdown is in [docs/architecture.md §16.0](docs/architecture.md#160-build-status--oct-28-2026).
 
-## Roadmap
+**Works today (Windows, from source)**
 
-| Date (2026) | Milestone                                                        | Status         |
-| ----------- | ---------------------------------------------------------------- | -------------- |
-| Oct 27      | Foundations: monorepo, CI, Meta API spikes                       | 🔨 In progress |
-| Oct 28      | Capture, on-device OCR and redaction (Windows)                   | ⏳ Planned     |
-| Oct 29      | Evidence bundle, timeline and the agent finding the break moment | ⏳ Planned     |
-| Oct 30      | Proof images with SAM 3.1 and the claim verifier                 | ⏳ Planned     |
-| Oct 31      | Report, fix prompts and one-click copy                           | ⏳ Planned     |
-| Nov 1       | iVibe Cloud: sign-in, credits and payments                       | ⏳ Planned     |
-| Nov 2       | Evaluation on 20 real bugs against a single screenshot           | ⏳ Planned     |
-| Nov 3       | Web app: sample gallery and in-browser recorder                  | ⏳ Planned     |
-| Nov 4       | **v0.1 release** for Windows, macOS and Linux                    | ⏳ Planned     |
+- [x] Screen and microphone capture, microphone picker and level test
+- [x] On-device OCR and secret redaction
+- [x] Live captions while you record
+- [x] Fix, Prompt and Dictate, with a layered prompt stack and personal settings (your name, context, dictionary, standing instructions)
+- [x] Annotated proof screenshots with SAM 3.1
+- [x] Paste into the app you were in, copy fallback, click-to-paste, `Ctrl` + `Alt` + `V`
+- [x] Per-mode shortcuts with click-to-change; Dictate hold-to-talk and double-press hands-free
+- [x] History by mode, with search and Paste again
+- [x] CI on Windows, macOS and Linux: lint, typecheck, 104 unit tests, dependency license check
 
-The full plan, with every phase and its exit criteria, is in [docs/architecture.md §16](docs/architecture.md#16-phase-by-phase-build-plan).
+**Built, still being verified by hand**
+
+- [ ] Image paste into Claude Code and ChatGPT (text paste is confirmed)
+- [ ] Click-to-paste with a real click
+- [ ] Caps Lock gestures on a physical keyboard
+- [ ] macOS and Linux: they build and pass tests in CI, but the app hasn't been run on a real Mac or Linux desktop yet
+
+**Not started yet**
+
+- [ ] Installers and releases (unsigned Windows, macOS and Linux builds)
+- [ ] Evaluation suite: voice cases and a set of 20 recorded bugs
+- [ ] iVibe Cloud: sign-in, credits and payments
+- [ ] Web app and judge access
+- [ ] After the hackathon: Vibes (your own modes) and community plugins ([plan](docs/vibes-and-prompts.md))
 
 ## Development
 
@@ -124,7 +115,7 @@ pnpm check        # lint, format check, typecheck, tests and the dependency lice
 pnpm --filter @ivibe/desktop dev   # run the desktop app
 ```
 
-The Meta Model API experiments in [`spikes/`](spikes/) need a key: copy `.env.example` to `.env`, add `META_API_KEY`, then for example:
+Add your Meta Model API key in the app under **Settings → Meta API key**. The experiments in [`spikes/`](spikes/) read it from `.env` instead: copy `.env.example` to `.env`, set `META_API_KEY`, then for example:
 
 ```bash
 pnpm spike spikes/meta/s10-models.ts
@@ -133,15 +124,15 @@ pnpm spike spikes/meta/s10-models.ts
 ### Repository layout
 
 ```text
-apps/          desktop (Electron), web (React), api (Cloudflare Worker), cli    — arriving in P0–P1
-packages/      types · capture · vision · ocr · redact · encode · bundle ·
-               imageops · engine · agent · ui · config
+apps/desktop   Electron app: recorder, pill, app window, OS helpers (paste, shortcuts)
+packages/      capture · vision · ocr · redact · encode · engine (Meta API, prompts, proof)
+               agent · bundle · imageops · types · ui are placeholders for later phases
 spikes/        experiments that verify API and platform facts before building on them
-docs/          architecture, spike results, Muse Code log
-scripts/       repository tooling (dependency license check)
+docs/          architecture, spike results, the Vibes and prompts plan, Muse Code log
+scripts/       repository tooling (OCR model download, dependency license check)
 ```
 
-Every package's role and the decisions behind it are documented in [docs/architecture.md](docs/architecture.md).
+Every package's role and the decisions behind it are in [docs/architecture.md](docs/architecture.md); spike results are in [docs/spikes.md](docs/spikes.md).
 
 ## Contributing
 

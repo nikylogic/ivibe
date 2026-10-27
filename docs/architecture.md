@@ -5,7 +5,7 @@
 | **Version** | 2.1 · Oct 27, 2026. Product named iVibe; Workers Free plan; AGPL-3.0. Replaces 1.0 (Tauri, Cloud Run, Supabase); see §1.4 |
 | **Owner** | Nikhil P ([@nikylogic](https://github.com/nikylogic)) |
 | **Companion** | `Repro — Hackathon Product Plan.md` (goal, demo script, rules checklist) |
-| **Status** | Approved for build: hackathon phases P0–P8 (Oct 27 – Nov 4), production phases P9–P11 |
+| **Status** | In build. Progress as of Oct 28: [§16.0 Build status](#160-build-status--oct-28-2026) |
 | **Submission target** | Nov 4, 8:00 PM IST (official deadline Nov 4, 9:00 PM EST = Nov 5, 7:30 AM IST) |
 
 Sections 0–3 hold the decisions and the big picture. Sections 4–15 are the build reference for each component. Section 16 is the phase-by-phase plan. Anything marked **Spike Sx** is not verified yet and gets tested on Day 0 (§2.10).
@@ -30,7 +30,7 @@ Sections 0–3 hold the decisions and the big picture. Sections 4–15 are the b
 13. [CI/CD and releases](#13-cicd-and-releases)
 14. [Observability](#14-observability)
 15. [Testing and evaluation](#15-testing-and-evaluation)
-16. [Phase-by-phase build plan](#16-phase-by-phase-build-plan)
+16. [Phase-by-phase build plan](#16-phase-by-phase-build-plan) · [current build status](#160-build-status--oct-28-2026)
 17. [Risks and mitigations](#17-risks-and-mitigations)
 18. [Open questions](#18-open-questions)
 19. Appendices: [A. Agent tools](#appendix-a-agent-tools) · [B. Report schema](#appendix-b-report-schema) · [C. Bindings, variables and secrets](#appendix-c-bindings-variables-and-secrets) · [D. Config snippets](#appendix-d-config-snippets) · [E. Sources](#appendix-e-sources)
@@ -105,7 +105,7 @@ Sections 0–3 hold the decisions and the big picture. Sections 4–15 are the b
 | D16 | Proof images are drawn by the client from highlight geometry | Workers have no canvas; one renderer for desktop and web | Server-side rendering with a WebAssembly canvas |
 | D18 | Free testing is layered so most of it costs us nothing: sample replays and BYOK are free and unlimited; Cloud trial runs are paid from a capped trial budget, with judges' runs reserved first (§7.1) | Many users can try it while our only model money is the hackathon's API credits | Unlimited free Cloud runs; a mandatory card for trials |
 | D19 | UI built with Astryx (Meta's open-source React design system, MIT) on desktop and web | Accessible, themeable components with dark mode out of the box; one design language across apps; it is Meta tooling, which judges score | Tailwind CSS + shadcn/ui (v2.0 of this document) |
-| D20 | **Paste, don't report.** The result is pasted into the app the user was in when recording started (Claude Code, Cursor, ChatGPT, …), in one of three modes: **Fix** (screen + voice → fix prompt with proof images), **Prompt** (voice only → structured prompt) and **Dictate** (voice only → cleaned-up text). Terminal agents get proof images as file paths; chat apps and editors get them as pasted images. If focus moved, the result is copied instead of pasted. The full report is still saved in Reports | Users want the fix in their agent, not another window; voice-only modes make iVibe useful all day, not only for bugs. Detection and paste use OS tools (PowerShell user32 calls, osascript, xdotool), keeping D15's no-native-modules rule | Report-first flow (v2.x of this document) |
+| D20 | **Paste, don't report.** The result is pasted into the app the user was in when recording started (Claude Code, Cursor, ChatGPT, …), in one of three modes: **Fix** (screen + voice → fix prompt with proof images), **Prompt** (voice only → structured prompt) and **Dictate** (voice only → cleaned-up text). Terminal agents get proof images as file paths; chat apps and editors get them as pasted images. If focus moved, the result is copied instead of pasted. Every result is kept on the device in History | Users want the fix in their agent, not another window; voice-only modes make iVibe useful all day, not only for bugs. Detection and paste use OS tools (PowerShell user32 calls, osascript, xdotool), keeping D15's no-native-modules rule | Report-first flow (v2.x of this document) |
 | D21 | **Layered prompts, measured.** Every model call is built from core rules (fixed) → vibe instructions → destination style → the user's personal settings and dictionary → the inputs as marked-up data. Prompts live as Markdown files, and `pnpm eval` scores every change on fixed cases before it ships. Details: [vibes-and-prompts.md](vibes-and-prompts.md) §4 | One prompt per mode stops scaling once users write their own; prompt changes need evidence, not taste | Hard-coded prompt strings per mode |
 | D22 | **Vibes: user-made modes with a tool checklist.** A vibe is one Markdown file that ticks the tools it needs (voice, screenshots, screen text, video, selection, clipboard, app context, AI writer, highlights, image generation or editing) and its outputs (paste, show in the pill, copy, file, link, webhook). The runner builds the pipeline from the ticks and enforces them. Fix, Prompt and Dictate become built-in vibes. No code runs inside iVibe. Details: [vibes-and-prompts.md](vibes-and-prompts.md) | Full freedom of use case without giving shared code access to the screen and keyboard; the checklist makes cost and data use visible before a vibe runs | JavaScript plugins (a shared plugin could be a keylogger); fixed modes only |
 | D23 | **Community plugins (after the hackathon).** Developers ship code that adds tools, UI (app pages, pill panels, result renderers, settings) and vibes, installed from a signed marketplace at ivibe.tech/plugins. Each plugin runs sandboxed: logic in an isolated process and UI in sandboxed frames, reaching recordings (redacted only), the network (declared domains), models (through a broker with a spending cap) and paste only through a permission-checked broker. The SDK is MIT; paid plugins sell through Dodo. Details: [vibes-and-prompts.md](vibes-and-prompts.md) §8 | Lets the community extend iVibe beyond what vibes can express, without trusting plugin code with the screen, keys or keyboard | Unsandboxed Node plugins (as in many Electron apps); vibes only |
@@ -445,7 +445,7 @@ Engine utility process (Node): BYOK agent loop; gets the key from main per run, 
 | Main window | Home (Record button and hotkey hint), Privacy review, Analysis (live agent trace), Report, History, Settings, Account |
 | Onboarding | Permissions (macOS), choice of AI source (Cloud free credits or BYOK), hotkey test, "try a sample" run |
 
-**Default shortcuts:** one per mode. On Windows: Dictate `Caps Lock`, Fix `Ctrl+Caps Lock`, Prompt `Alt+Caps Lock`. Windows still toggles Caps Lock when a registered hotkey fires, so the helper presses it again to switch it back off and the echo is ignored. macOS can't register Caps Lock (it is a modifier there), so macOS and Linux default to `Ctrl+Alt+D/F/P` (`Ctrl+Option` on macOS). Any of them stops a recording. Users change them by clicking the keycaps next to the mode switch or in Settings → General; while a new one is being recorded, the shortcuts are unregistered so the keys reach the window. `Ctrl+Alt+V` pastes the last result. Don't use `Ctrl/Cmd+Shift+R`: browsers use it for hard reload. If registration fails, the keycaps show a warning and ask for another combination.
+**Default shortcuts:** one per mode. On Windows: Dictate `Caps Lock`, Fix `Ctrl+Caps Lock`, Prompt `Alt+Caps Lock`. Windows still toggles Caps Lock when a registered hotkey fires, so once a press or gesture is over, the helper switches it back off with the shortcuts briefly unregistered (otherwise that key press would fire them again). Dictate has gestures on Windows: hold to talk, double-press for hands-free and double-press again to stop (`main/gesture.ts`); hotkeys only report presses, so the helper reports the release (`GetAsyncKeyState`). Fix and Prompt start and stop on a press. macOS can't register Caps Lock (it is a modifier there), so macOS and Linux default to `Ctrl+Alt+D/F/P` (`Ctrl+Option` on macOS), press to start and stop. Users change shortcuts by clicking the keycaps next to the mode switch or in Settings → Shortcuts; while a new one is recorded, main unregisters the shortcuts and reads the keys with `before-input-event` (a bare Alt would otherwise open the hidden menu bar). `Ctrl+Alt+V` pastes the last result. Don't use `Ctrl/Cmd+Shift+R`: browsers use it for hard reload. If registration fails, the keycaps show a warning and ask for another combination.
 
 ### 4.4 Recording state machine
 
@@ -2092,6 +2092,53 @@ gantt
 **Electron pays off in P7:** the browser recorder reuses the capture, OCR and redaction packages built for the desktop in P1, so P7 mostly wires up a page.
 
 **If teammates join:** person A owns desktop, capture and OCR; person B owns the agent, prompts and eval; person C owns Cloud, billing and web.
+
+### 16.0 Build status — Oct 28, 2026
+
+An honest snapshot after two build sessions (27 commits on `main`, CI green). The product changed shape on Oct 27: instead of a report window, iVibe now **pastes** the result into the app you were using (D20), in three modes. That pulled most of P1–P4's desktop work forward and pushed the P0 cloud and release work back. Statuses: ✅ works and is tested · 🟡 built but not fully verified · ⏳ not started.
+
+**Desktop app (Windows)**
+
+| Area | Status | Notes |
+|---|---|---|
+| App shell | ✅ | Electron 45, electron-vite, React 19, Astryx UI. Tray, floating collapsible sidebar, centred Record page, light and dark themes. |
+| Capture | ✅ | Display under the cursor, no picker (S11); microphone as 16 kHz WAV; microphone picker and 5-s level test in Settings. |
+| On-device OCR and redaction | ✅ | PP-OCRv5 on ONNX Runtime Web in the recorder (S12). Keys, tokens, `.env` lines and password managers are painted over before a frame leaves the recorder. The self-test plants a GitHub token and fails if it isn't redacted. OCR takes about 1.6 s per keyframe, over the 700 ms target; incremental OCR is not done. |
+| Live captions | ✅ | Each sentence is sent to Muse Voice Transcribe while recording continues; shown in the pill and on the Record page. |
+| Three modes (D20) | ✅ | **Fix**: Muse Spark 1.3 reads the transcript, redacted keyframes and OCR lines and returns a fix prompt plus which frames prove it (JSON Schema). **Prompt** and **Dictate**: voice only, minimal reasoning, about 1.2–2 s (S17). |
+| Prompt stack (D21) | ✅ | Core rules → task → destination style → personal settings → inputs as tagged data. Personal: name, about, dictionary, standing instructions, dictate in English. |
+| Proof screenshots | ✅ | SAM 3.1 box prompts snap the model's highlights to the UI element (S6); drawn on the device and saved as PNGs. |
+| Delivery | 🟡 | Detects the target app and pastes, each screenshot after the line about it; terminal agents other than Claude Code get file paths. If focus moved, the result is copied, then pasted into the next text field the user clicks (Windows UI Automation) or with Ctrl+Alt+V. Text paste is confirmed by hand (Zed). **Image paste into Claude Code and ChatGPT, and a real click-to-paste, are not yet confirmed by hand.** |
+| Recording pill (HUD) | ✅ | Captions, level, a panel that expands to show the result with Copy and Open. |
+| Shortcuts | 🟡 | One per mode, rebindable by clicking the keycaps, in their own Settings section. Windows defaults: Dictate Caps Lock, Fix Ctrl+Caps Lock, Prompt Alt+Caps Lock; Caps Lock is switched back off after each use. Dictate: hold to talk, double-press for hands-free. Gesture logic has unit tests and the key-state check was probed with simulated keys; **not yet tried on a physical keyboard**. macOS and Linux: press to start and stop. |
+| History | ✅ | Every result kept on the device (last 200, with screenshots), by mode, with search, Paste again, Copy and Delete; Keep history and Clear history in Settings. |
+| Settings | ✅ | Dialog with sections: General, Shortcuts, Meta API key, Personal, Microphone, Privacy, About. |
+| BYOK key | ✅ | Stored with `safeStorage`, used only in the main process; calls go from the device to Meta with `store: false`. |
+
+**Platforms, CI and release**
+
+| Area | Status | Notes |
+|---|---|---|
+| CI | ✅ | Lint, format, typecheck, 104 unit tests (redact 29, engine 41, desktop 12, encode 9, vision 7, OCR 6) and the dependency license check on Windows, macOS and Linux. CLA workflow. |
+| macOS and Linux app | 🟡 | Builds and tests pass in CI; the app has **never been run on a real Mac or Linux desktop**. Permissions flow not built. |
+| Installers and releases | ⏳ | No `release.yml`, no installers, no download page yet. |
+
+**Cloud, web and judging**
+
+| Area | Status | Notes |
+|---|---|---|
+| iVibe Cloud (Worker, Better Auth, D1 credits, R2) | ⏳ | Cloudflare account and the `ivibe.tech` domain exist; nothing is deployed. |
+| Payments (Dodo) | ⏳ | Not started. |
+| Web app and judge access (§8, §9) | ⏳ | Not started. |
+| Evaluation (`pnpm eval`, 20-bug set, demo bug app) | ⏳ | Not started. |
+
+**Plan changes so far**
+
+- The agent loop, claim verifier and evidence bundle (`packages/agent`, `bundle`, `imageops`) were replaced for the hackathon by one structured Muse Spark call per recording (D20). Those packages are still placeholders.
+- Reports became History, and results stay off the Record page: the pill shows each result as it lands.
+- Vibes (D22) and community plugins (D23) are planned for after the hackathon.
+
+**Next, in order:** installers (unsigned Windows and macOS builds from CI) → the eval suite and demo bug app → judge access (Worker, Better Auth, D1 credits, a thin Dodo checkout) → README, landing page and video. Human checks still needed: image paste into Claude Code and ChatGPT, click-to-paste, the Caps Lock gestures on a real keyboard.
 
 ### 16.1 Hackathon phases
 
