@@ -9,7 +9,9 @@ import { Link } from "@astryxdesign/core/Link";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
+import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import type { Personal } from "@ivibe/engine";
 import type { AppInfo } from "../../shared/ipc.ts";
 import { signal } from "../shared/theme.tsx";
 import { Shortcut } from "../shared/shortcut.tsx";
@@ -247,6 +249,71 @@ function MicTest({ microphone }: { microphone: string }) {
   );
 }
 
+const splitWords = (text: string) =>
+  text
+    .split(/[,\n]/)
+    .map((word) => word.trim())
+    .filter(Boolean);
+
+/**
+ * Prompt stack layer 4: who the user is. Edited locally and saved when focus leaves the form, so
+ * the trimming done on save never fights the user's typing.
+ */
+function PersonalForm({ personal, onSave }: { personal: Personal; onSave: (p: Personal) => void }) {
+  const [draft, setDraft] = useState({ ...personal, words: personal.dictionary.join(", ") });
+  const save = () => onSave({ ...draft, dictionary: splitWords(draft.words) });
+  return (
+    <div {...stylex.props(styles.body)} onBlur={save}>
+      <TextInput
+        label="Your name"
+        placeholder="Nikhil"
+        value={draft.name}
+        onChange={(name) => setDraft({ ...draft, name })}
+        width="100%"
+      />
+      <TextArea
+        label="About you"
+        description="Your role and stack, so prompts have the right context."
+        placeholder="Full-stack developer. We use Next.js, Supabase and pnpm."
+        value={draft.about}
+        rows={2}
+        maxLength={300}
+        onChange={(about) => setDraft({ ...draft, about })}
+      />
+      <TextArea
+        label="Your words"
+        description="Names and terms to always spell your way, separated by commas."
+        placeholder="iVibe, Muse Spark, Supabase, Asha"
+        value={draft.words}
+        rows={2}
+        onChange={(words) => setDraft({ ...draft, words })}
+      />
+      <TextArea
+        label="Always"
+        description="Standing instructions for every result."
+        placeholder="Use pnpm, not npm. No emoji."
+        value={draft.instructions}
+        rows={2}
+        maxLength={500}
+        onChange={(instructions) => setDraft({ ...draft, instructions })}
+      />
+      <Switch
+        label="Dictate in English"
+        description="Translate Hindi or Hinglish when dictating. Prompts for AI agents are always in English."
+        value={draft.dictationLanguage === "english"}
+        onChange={(english) => {
+          const next = {
+            ...draft,
+            dictationLanguage: english ? ("english" as const) : ("keep" as const),
+          };
+          setDraft(next);
+          onSave({ ...next, dictionary: splitWords(next.words) });
+        }}
+      />
+    </div>
+  );
+}
+
 export function SettingsPage({
   info,
   byok,
@@ -270,6 +337,15 @@ export function SettingsPage({
         note="Encrypted with your system keychain. Calls go from this device straight to Meta."
       >
         <MetaKey byok={byok} />
+      </Row>
+
+      <Row title="Personal" note="Used in every result: your name, context and the words you use.">
+        {current ? (
+          <PersonalForm
+            personal={current.personal}
+            onSave={(personal) => settings.change({ personal })}
+          />
+        ) : null}
       </Row>
 
       <Row title="Microphone" note="The one iVibe listens to while you record.">

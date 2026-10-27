@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { Personal } from "@ivibe/engine";
+
 /**
  * The IPC contract between the main process and the app's windows (docs/architecture.md §4.12).
  * Each window's preload exposes only its own subset.
@@ -25,6 +27,8 @@ export interface Settings {
   microphone: string;
   /** When a result could only be copied, paste it into the next text field the user clicks. */
   clickToPaste: boolean;
+  /** What the user told iVibe about themselves (prompt stack layer 4). */
+  personal: Personal;
 }
 
 export interface RecordingResult {

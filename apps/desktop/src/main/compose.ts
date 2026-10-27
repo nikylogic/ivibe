@@ -11,7 +11,14 @@ import {
   writeFixPrompt,
   writePrompt,
 } from "@ivibe/engine";
-import type { ClientOptions, ProofShot, TargetApp, TranscriptLine } from "@ivibe/engine";
+import type {
+  ClientOptions,
+  Personal,
+  ProofShot,
+  TargetApp,
+  TranscriptLine,
+  WriterContext,
+} from "@ivibe/engine";
 import type {
   EvidenceFrame,
   OutputMode,
@@ -58,6 +65,7 @@ export interface ComposeRequest {
   apiKey: string;
   autoPaste: boolean;
   proofImages: boolean;
+  personal: Personal;
   /** Renders a proof screenshot in the recorder window; returns the PNG as base64. */
   draw: (drawing: ProofDrawing) => Promise<string>;
 }
@@ -185,14 +193,15 @@ export async function compose(
   const { mode, destination, transcript, apiKey, frames } = request;
   const { target } = destination;
   const client: ClientOptions = { apiKey, fetch: net.fetch as typeof fetch };
+  const context: WriterContext = { target, personal: request.personal };
 
   let payload: Payload;
   let proof: RenderedProof[] = [];
   if (mode !== "fix") {
     const text =
       mode === "dictate"
-        ? await cleanUpDictation(transcript, client)
-        : await writePrompt(transcript, target, client);
+        ? await cleanUpDictation(transcript, context, client)
+        : await writePrompt(transcript, context, client);
     if (!text) throw new Error("Muse Spark returned an empty result. Try again.");
     payload = { text, proof: [] };
   } else {
@@ -200,7 +209,7 @@ export async function compose(
     const fix = await writeFixPrompt(
       {
         transcript,
-        target,
+        context,
         proof: wantsProof,
         frames: frames.map((frame) => ({
           id: frame.id,

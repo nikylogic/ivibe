@@ -282,7 +282,7 @@ Every model call is built from five layers, in this order. The fixed layers come
 | Judge                | Muse Spark at high effort scores 1–5 for being faithful, actionable, fitting the destination, and keeping your corrections. It sees the expected facts, not an expected text                                                     |
 | Report               | Per case, per vibe and overall, with a diff against the last run, saved to `evals/results/`. The summary goes in the README as proof for the "technical depth" judging criterion                                                 |
 
-A run costs about $0.30. Prompts move out of TypeScript into versioned files (`packages/engine/prompts/`), so every change is a readable diff with a score next to it.
+A run costs about $0.30. Each layer is its own small module in `packages/engine/src/prompts/` (core, tasks, destinations, personal, stack), so every change is a readable diff with a score next to it. They become Markdown files when Vibes arrive, since vibe bodies are Markdown.
 
 ---
 

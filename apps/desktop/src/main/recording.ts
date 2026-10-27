@@ -293,6 +293,7 @@ export class RecordingController extends EventEmitter<{
         apiKey: key,
         autoPaste: settings.autoPaste,
         proofImages: settings.proofImages,
+        personal: settings.personal,
         draw: (drawing) =>
           this.#recorder().webContents.executeJavaScript(
             `window.ivibeRecorder.annotate(${JSON.stringify(drawing)})`,

@@ -13,3 +13,5 @@ export * from "./proof.ts";
 export * from "./responses.ts";
 export * from "./targets.ts";
 export * from "./writers.ts";
+export * from "./prompts/destinations.ts";
+export * from "./prompts/personal.ts";

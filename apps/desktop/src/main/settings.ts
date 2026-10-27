@@ -3,6 +3,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { app } from "electron";
+import { EMPTY_PERSONAL, normalizePersonal } from "@ivibe/engine";
 import type { Settings } from "../shared/ipc.ts";
 
 /** User preferences, stored as JSON in the app's data folder. */
@@ -13,6 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
   proofImages: true,
   microphone: "",
   clickToPaste: true,
+  personal: EMPTY_PERSONAL,
 };
 
 const file = () => join(app.getPath("userData"), "settings.json");
@@ -23,7 +25,7 @@ export function readSettings(): Settings {
   if (cached) return cached;
   try {
     const stored = JSON.parse(readFileSync(file(), "utf8")) as Partial<Settings>;
-    cached = { ...DEFAULT_SETTINGS, ...stored };
+    cached = { ...DEFAULT_SETTINGS, ...stored, personal: normalizePersonal(stored.personal) };
   } catch {
     cached = { ...DEFAULT_SETTINGS };
   }
@@ -39,6 +41,9 @@ export function updateSettings(change: Partial<Settings>): Settings {
   if (typeof change.proofImages === "boolean") next.proofImages = change.proofImages;
   if (typeof change.microphone === "string") next.microphone = change.microphone;
   if (typeof change.clickToPaste === "boolean") next.clickToPaste = change.clickToPaste;
+  if (change.personal !== undefined) {
+    next.personal = normalizePersonal({ ...next.personal, ...change.personal });
+  }
   writeFileSync(file(), JSON.stringify(next, null, 2));
   cached = next;
   return next;
