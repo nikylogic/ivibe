@@ -9,6 +9,7 @@ import type {
   HistoryEntry,
   RecordingStatus,
   Settings,
+  ShortcutKey,
   ShortcutStatus,
 } from "../shared/ipc.ts";
 
@@ -66,6 +67,8 @@ const api = {
     pause: (paused: boolean): Promise<void> => ipcRenderer.invoke(Channels.shortcutsPause, paused),
     onChange: (listener: (status: ShortcutStatus) => void) =>
       subscribe(Channels.shortcutsChanged, listener),
+    /** Keys pressed while paused; the page itself doesn't receive them. */
+    onKey: (listener: (key: ShortcutKey) => void) => subscribe(Channels.shortcutsKey, listener),
   },
 };
 

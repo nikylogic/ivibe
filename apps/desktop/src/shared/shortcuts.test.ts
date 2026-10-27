@@ -5,6 +5,7 @@ import {
   acceleratorFromEvent,
   acceleratorKeys,
   defaultShortcuts,
+  heldModifiers,
   isValidAccelerator,
 } from "./shortcuts.ts";
 
@@ -52,6 +53,11 @@ describe("shortcuts", () => {
     expect(acceleratorFromEvent(key("ControlLeft", { ctrl: true }))).toEqual({ type: "pending" });
     expect(acceleratorFromEvent(key("KeyA")).type).toBe("invalid");
     expect(acceleratorFromEvent(key("KeyA", { shift: true })).type).toBe("invalid");
+  });
+
+  it("shows the modifiers held so far", () => {
+    expect(heldModifiers(key("ControlLeft", { ctrl: true, alt: true }))).toBe("Control+Alt");
+    expect(heldModifiers(key("KeyA"))).toBe("");
   });
 
   it("validates stored accelerators", () => {

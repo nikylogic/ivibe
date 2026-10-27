@@ -186,6 +186,17 @@ export interface AppInfo {
 /** Which mode shortcuts are registered; false means another app holds the keys. */
 export type ShortcutStatus = Record<OutputMode, boolean>;
 
+/** A key press forwarded from main while the user records a new shortcut. */
+export interface ShortcutKey {
+  type: "down" | "up";
+  /** KeyboardEvent.code, e.g. "CapsLock", "KeyD", "ControlLeft". */
+  code: string;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  metaKey: boolean;
+}
+
 /** Commands from the recorder window to main. */
 export type RecorderEvent =
   | { type: "started"; width: number; height: number }
@@ -241,6 +252,7 @@ export const Channels = {
   recordingFeedback: "recording.feedback",
   settingsChanged: "settings.changed",
   shortcutsChanged: "shortcuts.changed",
+  shortcutsKey: "shortcuts.key",
   historyChanged: "history.changed",
   // recorder ↔ main
   recorderCommand: "recorder.command",

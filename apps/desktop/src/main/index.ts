@@ -24,6 +24,7 @@ import type {
   RecorderEvent,
   RecordingStatus,
   Settings,
+  ShortcutKey,
   ShortcutStatus,
 } from "../shared/ipc.ts";
 import { PASTE_SHORTCUT } from "../shared/shortcuts.ts";
@@ -207,20 +208,53 @@ function registerShortcuts(): void {
   broadcast(Channels.shortcutsChanged, shortcutStatus);
 }
 
+/** Forwards keys to the UI while a new shortcut is recorded (see {@link pauseShortcuts}). */
+let captureKeys: ((event: Electron.Event, input: Electron.Input) => void) | null = null;
+let captureContents: Electron.WebContents | null = null;
+
+function stopCapture(): void {
+  if (captureKeys && captureContents && !captureContents.isDestroyed()) {
+    captureContents.off("before-input-event", captureKeys);
+  }
+  captureKeys = null;
+  captureContents = null;
+}
+
 /**
- * Lets the settings UI hear the keys while the user records a new shortcut. The pause lifts
- * itself, so a closed window can't leave iVibe without shortcuts.
+ * While the user records a new shortcut, the mode shortcuts are unregistered and the window's
+ * keys are read here, before Electron's menu sees them: otherwise a bare Alt opens the hidden
+ * menu bar and takes focus from the page. The pause lifts itself, so a closed window can't leave
+ * iVibe without shortcuts.
  */
-function pauseShortcuts(paused: boolean): void {
+function pauseShortcuts(paused: boolean, contents?: Electron.WebContents): void {
   clearTimeout(shortcutsPaused);
-  if (paused) {
+  stopCapture();
+  if (paused && contents) {
     unregisterShortcuts();
-    shortcutsPaused = setTimeout(() => pauseShortcuts(false), 20_000);
+    captureContents = contents;
+    captureKeys = (event, input) => {
+      event.preventDefault();
+      if (input.type !== "keyDown" && input.type !== "keyUp") return;
+      if (input.isAutoRepeat) return;
+      const key: ShortcutKey = {
+        type: input.type === "keyDown" ? "down" : "up",
+        code: input.code,
+        ctrlKey: input.control,
+        altKey: input.alt,
+        shiftKey: input.shift,
+        metaKey: input.meta,
+      };
+      contents.send(Channels.shortcutsKey, key);
+    };
+    contents.on("before-input-event", captureKeys);
+    shortcutsPaused = setTimeout(() => pauseShortcuts(false), 30_000);
     return;
   }
   shortcutsPaused = undefined;
+  // Pressing Caps Lock while recording toggled it; the press that undoes that would fire the
+  // shortcut just registered.
+  ignoreShortcutsUntil = Date.now() + 600;
   registerShortcuts();
-  // Recording a Caps Lock shortcut toggled Caps Lock.
   if (!SELF_TEST) void capsLockOff();
 }
 
@@ -438,7 +472,7 @@ function registerIpc(): void {
   ipcMain.handle(Channels.shortcutsStatus, (): ShortcutStatus => shortcutStatus);
   ipcMain.handle(Channels.shortcutsPause, (event, paused: unknown) => {
     if (event.sender !== uiWindow?.webContents) return;
-    pauseShortcuts(paused === true);
+    pauseShortcuts(paused === true, event.sender);
   });
   ipcMain.on(Channels.recorderEvent, (event, payload: RecorderEvent) => {
     // Only the recorder window may report recorder events.
@@ -591,9 +625,24 @@ async function finishSelfTest(status: RecordingStatus): Promise<void> {
     );
     await settle();
     await snapshot(uiWindow, "ui-shortcut-capture-dark");
-    await uiWindow?.webContents.executeJavaScript(
-      `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }))`,
-    );
+    // Real key events through Electron's input pipeline: hold Ctrl, then Ctrl+F9 saves it.
+    uiWindow?.webContents.sendInputEvent({
+      type: "keyDown",
+      keyCode: "Control",
+      modifiers: ["control"],
+    });
+    await settle();
+    await snapshot(uiWindow, "ui-shortcut-held-dark");
+    uiWindow?.webContents.sendInputEvent({
+      type: "keyDown",
+      keyCode: "F9",
+      modifiers: ["control"],
+    });
+    uiWindow?.webContents.sendInputEvent({ type: "keyUp", keyCode: "F9", modifiers: ["control"] });
+    uiWindow?.webContents.sendInputEvent({ type: "keyUp", keyCode: "Control" });
+    await settle();
+    await snapshot(uiWindow, "ui-shortcut-saved-dark");
+    console.log("IVIBE_SELFTEST shortcuts", JSON.stringify(readSettings().shortcuts));
   }
   if (status.phase !== "review") app.exit(1);
   else if (status.mode !== "fix") app.exit(status.result ? 0 : 4);

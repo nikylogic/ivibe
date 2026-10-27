@@ -524,6 +524,7 @@ export function SettingsPanel({
                       settings={settings}
                       status={shortcutStatus}
                       isMac={isMac}
+                      align="end"
                     />
                   </div>
                 ))}

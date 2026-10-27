@@ -81,12 +81,8 @@ export function acceleratorFromEvent(event: {
 }): CaptureResult {
   const key = keyFromCode(event.code);
   if (!key) return { type: "pending" };
-  const modifiers = [
-    event.ctrlKey && "Control",
-    event.altKey && "Alt",
-    event.shiftKey && "Shift",
-    event.metaKey && "Super",
-  ].filter(Boolean) as string[];
+  const prefix = heldModifiers(event);
+  const modifiers = prefix ? prefix.split("+") : [];
   if (modifiers.length === 0 && !STANDALONE.test(key)) {
     return { type: "invalid", message: "Add Ctrl, Alt or Shift, or use Caps Lock or an F key." };
   }
@@ -94,6 +90,23 @@ export function acceleratorFromEvent(event: {
     return { type: "invalid", message: "Shift alone would block typing. Add Ctrl or Alt." };
   }
   return { type: "shortcut", accelerator: [...modifiers, key].join("+") };
+}
+
+/** The modifiers held in a key event, as an accelerator prefix ("Control+Alt"), for live display. */
+export function heldModifiers(event: {
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  metaKey: boolean;
+}): string {
+  return [
+    event.ctrlKey && "Control",
+    event.altKey && "Alt",
+    event.shiftKey && "Shift",
+    event.metaKey && "Super",
+  ]
+    .filter(Boolean)
+    .join("+");
 }
 
 /** Whether a stored value is an accelerator this app could have produced. */
