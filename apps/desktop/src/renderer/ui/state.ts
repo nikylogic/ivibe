@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { IvibeApi } from "../../preload/ui.ts";
-import type { AppInfo, ByokStatus, RecordingStatus, Settings } from "../../shared/ipc.ts";
+import type {
+  AppInfo,
+  ByokStatus,
+  RecordingStatus,
+  Settings,
+  ShortcutStatus,
+} from "../../shared/ipc.ts";
 
 declare global {
   interface Window {
@@ -31,6 +37,15 @@ export function useAppInfo(): AppInfo | null {
     void window.ivibe.app.info().then(setInfo);
   }, []);
   return info;
+}
+
+export function useShortcutStatus(): ShortcutStatus | null {
+  const [status, setStatus] = useState<ShortcutStatus | null>(null);
+  useEffect(() => {
+    void window.ivibe.shortcuts.status().then(setStatus);
+    return window.ivibe.shortcuts.onChange(setStatus);
+  }, []);
+  return status;
 }
 
 export interface SettingsState {

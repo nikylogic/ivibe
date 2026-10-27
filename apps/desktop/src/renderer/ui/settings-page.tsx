@@ -13,9 +13,11 @@ import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Info, KeyRound, Mic, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import type { Personal } from "@ivibe/engine";
-import type { AppInfo } from "../../shared/ipc.ts";
+import type { AppInfo, OutputMode, ShortcutStatus } from "../../shared/ipc.ts";
+import { PASTE_SHORTCUT } from "../../shared/shortcuts.ts";
 import { signal } from "../shared/theme.tsx";
 import { Shortcut } from "../shared/shortcut.tsx";
+import { ShortcutButton } from "./shortcut-button.tsx";
 import { ipcMessage } from "./state.ts";
 import type { ByokState, SettingsState } from "./state.ts";
 
@@ -86,7 +88,10 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 16,
+    minHeight: 36,
   },
+  // Lines the fixed paste keys up with the editable ones, which have padding for their border.
+  fixedKeys: { paddingInline: 9 },
   body: { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 },
   inline: { display: "flex", alignItems: "flex-end", gap: 8 },
   fixed: { flexShrink: 0 },
@@ -397,6 +402,12 @@ const SECTIONS: { id: SettingsSection; label: string; note: string; icon: typeof
   { id: "about", label: "About", note: "Version, license and source.", icon: Info },
 ];
 
+const SHORTCUT_ROWS: { mode: OutputMode; label: string }[] = [
+  { mode: "dictate", label: "Dictate" },
+  { mode: "fix", label: "Fix" },
+  { mode: "prompt", label: "Prompt" },
+];
+
 /** The settings, shown in a dialog over the app: sections on the left, one at a time on the right. */
 export function SettingsPanel({
   section,
@@ -405,6 +416,7 @@ export function SettingsPanel({
   info,
   byok,
   settings,
+  shortcutStatus,
 }: {
   section: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
@@ -412,6 +424,7 @@ export function SettingsPanel({
   info: AppInfo | null;
   byok: ByokState;
   settings: SettingsState;
+  shortcutStatus: ShortcutStatus | null;
 }) {
   const current = settings.settings;
   const microphones = useMicrophones();
@@ -470,19 +483,32 @@ export function SettingsPanel({
                   onChange={(clickToPaste) => settings.change({ clickToPaste })}
                 />
               </Row>
-              <Row title="Shortcuts" note="These work from any app.">
-                <div {...stylex.props(styles.shortcutRow)}>
-                  <Text size="sm">
-                    {info?.hotkeyRegistered === false
-                      ? "Start or stop a recording · taken by another app"
-                      : "Start or stop a recording"}
-                  </Text>
-                  <Shortcut isMac={isMac} />
-                </div>
+              <Row
+                title="Shortcuts"
+                note="These work from any app. Press a mode's shortcut to start recording in that mode, and any of them to stop. Click one to change it."
+              >
+                {SHORTCUT_ROWS.map(({ mode, label }) => (
+                  <div key={mode} {...stylex.props(styles.shortcutRow)}>
+                    <Text size="sm">{label}</Text>
+                    <ShortcutButton
+                      mode={mode}
+                      settings={settings}
+                      status={shortcutStatus}
+                      isMac={isMac}
+                    />
+                  </div>
+                ))}
                 <div {...stylex.props(styles.shortcutRow)}>
                   <Text size="sm">Paste the last result</Text>
-                  <Shortcut isMac={isMac} letter="V" />
+                  <div {...stylex.props(styles.fixedKeys)}>
+                    <Shortcut accelerator={PASTE_SHORTCUT} isMac={isMac} />
+                  </div>
                 </div>
+                {current?.shortcuts.dictate === "Capslock" && (
+                  <Text color="secondary" size="sm">
+                    While iVibe runs, Caps Lock records instead of switching to capitals.
+                  </Text>
+                )}
               </Row>
             </>
           )}

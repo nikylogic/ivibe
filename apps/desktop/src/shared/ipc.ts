@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Personal } from "@ivibe/engine";
+import type { ShortcutMap } from "./shortcuts.ts";
 
 /**
  * The IPC contract between the main process and the app's windows (docs/architecture.md §4.12).
@@ -29,6 +30,8 @@ export interface Settings {
   clickToPaste: boolean;
   /** What the user told iVibe about themselves (prompt stack layer 4). */
   personal: Personal;
+  /** The global shortcut that records in each mode. */
+  shortcuts: ShortcutMap;
 }
 
 export interface RecordingResult {
@@ -155,9 +158,10 @@ export interface AppInfo {
   version: string;
   platform: NodeJS.Platform;
   arch: string;
-  hotkey: string;
-  hotkeyRegistered: boolean;
 }
+
+/** Which mode shortcuts are registered; false means another app holds the keys. */
+export type ShortcutStatus = Record<OutputMode, boolean>;
 
 /** Commands from the recorder window to main. */
 export type RecorderEvent =
@@ -192,6 +196,9 @@ export const Channels = {
   settingsSet: "settings.set",
   resultCopy: "result.copy",
   proofOpen: "result.proof-open",
+  shortcutsStatus: "shortcuts.status",
+  /** Lets the UI hear the current shortcuts while the user records a new one. */
+  shortcutsPause: "shortcuts.pause",
   // HUD → main
   hudInteractive: "hud.interactive",
   hudOpenApp: "hud.open-app",
@@ -202,6 +209,7 @@ export const Channels = {
   recordingLevel: "recording.level",
   recordingFeedback: "recording.feedback",
   settingsChanged: "settings.changed",
+  shortcutsChanged: "shortcuts.changed",
   // recorder ↔ main
   recorderCommand: "recorder.command",
   recorderEvent: "recorder.event",

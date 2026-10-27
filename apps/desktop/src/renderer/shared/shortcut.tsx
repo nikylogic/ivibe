@@ -2,6 +2,7 @@
 
 import * as stylex from "@stylexjs/stylex";
 import type { StyleXStyles } from "@stylexjs/stylex";
+import { acceleratorKeys } from "../../shared/shortcuts.ts";
 
 const styles = stylex.create({
   row: { display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "inherit" },
@@ -25,16 +26,13 @@ const styles = stylex.create({
 });
 
 /**
- * A Control+Alt shortcut as keycaps (Ctrl+Alt+R records by default). Astryx's Kbd always draws
- * macOS symbols for Ctrl and Alt, so Windows and Linux get their own key names here.
+ * A shortcut as keycaps, from an Electron accelerator. Astryx's Kbd always draws macOS symbols
+ * for Ctrl and Alt, so Windows and Linux get their own key names here.
  */
-export function Shortcut({ isMac, letter = "R" }: { isMac: boolean; letter?: string }) {
-  const keys = isMac ? ["⌃", "⌥", letter] : ["Ctrl", "Alt", letter];
+export function Shortcut({ accelerator, isMac }: { accelerator: string; isMac: boolean }) {
+  const keys = acceleratorKeys(accelerator, isMac);
   return (
-    <kbd
-      {...stylex.props(styles.row)}
-      aria-label={isMac ? `Control Option ${letter}` : `Control Alt ${letter}`}
-    >
+    <kbd {...stylex.props(styles.row)} aria-label={accelerator.split("+").join(" ")}>
       {keys.map((key) => (
         <span key={key} {...stylex.props(styles.key)}>
           {key}

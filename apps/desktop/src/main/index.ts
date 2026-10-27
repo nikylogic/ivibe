@@ -24,11 +24,19 @@ import type {
   RecorderEvent,
   RecordingStatus,
   Settings,
+  ShortcutStatus,
 } from "../shared/ipc.ts";
+import { PASTE_SHORTCUT } from "../shared/shortcuts.ts";
 import { byokStatus, clearByokKey, readByokKey, saveByokKey } from "./byok.ts";
 import { trayIcons } from "./icons.ts";
 import { ClickToPaste } from "./click-to-paste.ts";
-import { disposeOsBridge, focusedWindow, isOwnWindow, warmUpOsBridge } from "./os-bridge.ts";
+import {
+  capsLockOff,
+  disposeOsBridge,
+  focusedWindow,
+  isOwnWindow,
+  warmUpOsBridge,
+} from "./os-bridge.ts";
 import { readSettings, updateSettings } from "./settings.ts";
 import { RecordingController } from "./recording.ts";
 import {
@@ -40,9 +48,6 @@ import {
   HUD_SIZE,
 } from "./windows.ts";
 
-const HOTKEY = "Control+Alt+R";
-/** Pastes the latest result into whatever has focus, laid out for that app. */
-const PASTE_HOTKEY = "Control+Alt+V";
 /** Dev only: --ivibe-snapshot=<dir> runs the self-test and saves PNGs of each window state. */
 const SNAPSHOT_DIR = process.argv.find((arg) => arg.startsWith("--ivibe-snapshot="))?.split("=")[1];
 const SELF_TEST = process.argv.includes("--ivibe-selftest") || SNAPSHOT_DIR !== undefined;
@@ -72,7 +77,7 @@ let uiWindow: BrowserWindow | null = null;
 let hudWindow: BrowserWindow | null = null;
 let recorderWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let hotkeyRegistered = false;
+let shortcutStatus: ShortcutStatus = { fix: false, prompt: false, dictate: false };
 let quitting = false;
 
 const recorder = () => {
@@ -139,6 +144,75 @@ function broadcast(channel: string, value: unknown): void {
   for (const window of [uiWindow, hudWindow]) {
     if (window && !window.isDestroyed()) window.webContents.send(channel, value);
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Mode shortcuts (settings.shortcuts): each starts a recording in its mode; any of them stops one.
+
+let registeredShortcuts: string[] = [];
+let shortcutsPaused: ReturnType<typeof setTimeout> | undefined;
+/** Caps Lock presses iVibe sends to undo the toggle fire the shortcut again; they're ignored. */
+let ignoreShortcutsUntil = 0;
+
+function onModeShortcut(mode: OutputMode, accelerator: string): void {
+  if (Date.now() < ignoreShortcutsUntil) return;
+  if (accelerator.split("+").includes("Capslock")) {
+    ignoreShortcutsUntil = Date.now() + 400;
+    void capsLockOff();
+  }
+  const { phase } = recording.status;
+  if (phase === "recording" || phase === "starting") {
+    void recording.stop();
+    return;
+  }
+  if (readSettings().mode !== mode) changeSettings({ mode });
+  void startRecording();
+}
+
+function unregisterShortcuts(): void {
+  for (const accelerator of registeredShortcuts) globalShortcut.unregister(accelerator);
+  registeredShortcuts = [];
+}
+
+function registerShortcuts(): void {
+  unregisterShortcuts();
+  const { shortcuts } = readSettings();
+  // Test runs leave the user's keys (Caps Lock included) alone.
+  if (SELF_TEST) {
+    shortcutStatus = { fix: true, prompt: true, dictate: true };
+    return;
+  }
+  const status = { ...shortcutStatus };
+  for (const mode of Object.keys(shortcuts) as OutputMode[]) {
+    const accelerator = shortcuts[mode];
+    let ok = false;
+    try {
+      ok = globalShortcut.register(accelerator, () => onModeShortcut(mode, accelerator));
+    } catch {
+      // An accelerator this platform can't express counts as unavailable.
+    }
+    if (ok) registeredShortcuts.push(accelerator);
+    status[mode] = ok;
+  }
+  shortcutStatus = status;
+  broadcast(Channels.shortcutsChanged, shortcutStatus);
+}
+
+/**
+ * Lets the settings UI hear the keys while the user records a new shortcut. The pause lifts
+ * itself, so a closed window can't leave iVibe without shortcuts.
+ */
+function pauseShortcuts(paused: boolean): void {
+  clearTimeout(shortcutsPaused);
+  if (paused) {
+    unregisterShortcuts();
+    shortcutsPaused = setTimeout(() => pauseShortcuts(false), 20_000);
+    return;
+  }
+  shortcutsPaused = undefined;
+  registerShortcuts();
+  // Recording a Caps Lock shortcut toggled Caps Lock.
+  if (!SELF_TEST) void capsLockOff();
 }
 
 function toggleRecording(): void {
@@ -223,6 +297,7 @@ const MODE_LABELS: Record<OutputMode, string> = {
 function changeSettings(change: Partial<Settings>): Settings {
   const settings = updateSettings(change);
   broadcast(Channels.settingsChanged, settings);
+  if (change.shortcuts && shortcutsPaused === undefined) registerShortcuts();
   updateTrayMenu();
   return settings;
 }
@@ -235,7 +310,6 @@ function updateTrayMenu(): void {
     Menu.buildFromTemplate([
       {
         label: recordingNow ? "Stop recording" : "Start recording",
-        accelerator: HOTKEY,
         click: toggleRecording,
       },
       ...(recordingNow ? [{ label: "Cancel recording", click: () => recording.cancel() }] : []),
@@ -309,9 +383,12 @@ function registerIpc(): void {
     version: app.getVersion(),
     platform: process.platform,
     arch: process.arch,
-    hotkey: HOTKEY,
-    hotkeyRegistered,
   }));
+  ipcMain.handle(Channels.shortcutsStatus, (): ShortcutStatus => shortcutStatus);
+  ipcMain.handle(Channels.shortcutsPause, (event, paused: unknown) => {
+    if (event.sender !== uiWindow?.webContents) return;
+    pauseShortcuts(paused === true);
+  });
   ipcMain.on(Channels.recorderEvent, (event, payload: RecorderEvent) => {
     // Only the recorder window may report recorder events.
     if (event.sender !== recorderWindow?.webContents) return;
@@ -440,12 +517,23 @@ async function finishSelfTest(status: RecordingStatus): Promise<void> {
     await click("Personal");
     await settle();
     await snapshot(uiWindow, "ui-settings-personal-dark");
+    await click("General");
+    await settle();
+    await snapshot(uiWindow, "ui-settings-general-dark");
     await uiWindow?.webContents.executeJavaScript(
       `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
     );
     await click("Collapse sidebar");
     await settle();
     await snapshot(uiWindow, "ui-collapsed-dark");
+    await uiWindow?.webContents.executeJavaScript(
+      `document.querySelector('[aria-label^="Shortcut "]')?.click()`,
+    );
+    await settle();
+    await snapshot(uiWindow, "ui-shortcut-capture-dark");
+    await uiWindow?.webContents.executeJavaScript(
+      `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }))`,
+    );
   }
   if (status.phase !== "review") app.exit(1);
   else if (status.mode !== "fix") app.exit(status.result ? 0 : 4);
@@ -494,8 +582,8 @@ void app.whenReady().then(() => {
   tray.on("click", () => showUi());
   updateTrayMenu();
 
-  hotkeyRegistered = globalShortcut.register(HOTKEY, toggleRecording);
-  globalShortcut.register(PASTE_HOTKEY, () => void pasteLastResult());
+  registerShortcuts();
+  globalShortcut.register(PASTE_SHORTCUT, () => void pasteLastResult());
 
   if (SELF_TEST) {
     recorderWindow.webContents.once("did-finish-load", runSelfTest);

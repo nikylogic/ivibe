@@ -14,6 +14,7 @@ import type {
   RecordingResult,
   RecordingStatus,
   RecordingSummary,
+  ShortcutStatus,
   TranscriptSegment,
 } from "../../shared/ipc.ts";
 import type { SettingsState } from "./state.ts";
@@ -21,6 +22,7 @@ import { formatClock, signal } from "../shared/theme.tsx";
 import { asSentence } from "../shared/transcript.ts";
 import { Waveform, useLevelHistory } from "../shared/waveform.tsx";
 import { Shortcut } from "../shared/shortcut.tsx";
+import { ShortcutButton } from "./shortcut-button.tsx";
 
 const styles = stylex.create({
   page: {
@@ -35,6 +37,7 @@ const styles = stylex.create({
   },
   hero: { display: "flex", flexDirection: "column", gap: 14 },
   modes: { display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" },
+  modeRow: { display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" },
   result: {
     margin: 0,
     padding: 20,
@@ -185,20 +188,33 @@ const MODES: { mode: OutputMode; label: string; note: string; lede: string }[] =
 
 const modeInfo = (mode: OutputMode) => MODES.find((entry) => entry.mode === mode) ?? MODES[0]!;
 
-function ModeSwitch({ settings, isLocked }: { settings: SettingsState; isLocked: boolean }) {
+function ModeSwitch({
+  settings,
+  isLocked,
+  shortcutStatus,
+  isMac,
+}: {
+  settings: SettingsState;
+  isLocked: boolean;
+  shortcutStatus: ShortcutStatus | null;
+  isMac: boolean;
+}) {
   const mode = settings.settings?.mode ?? "fix";
   return (
     <div {...stylex.props(styles.modes)}>
-      <SegmentedControl
-        label="What a recording turns into"
-        value={mode}
-        isDisabled={isLocked || !settings.settings}
-        onChange={(value) => settings.change({ mode: value as OutputMode })}
-      >
-        {MODES.map((entry) => (
-          <SegmentedControlItem key={entry.mode} value={entry.mode} label={entry.label} />
-        ))}
-      </SegmentedControl>
+      <div {...stylex.props(styles.modeRow)}>
+        <SegmentedControl
+          label="What a recording turns into"
+          value={mode}
+          isDisabled={isLocked || !settings.settings}
+          onChange={(value) => settings.change({ mode: value as OutputMode })}
+        >
+          {MODES.map((entry) => (
+            <SegmentedControlItem key={entry.mode} value={entry.mode} label={entry.label} />
+          ))}
+        </SegmentedControl>
+        <ShortcutButton mode={mode} settings={settings} status={shortcutStatus} isMac={isMac} />
+      </div>
       <Text color="secondary" size="sm">
         {modeInfo(mode).note}
       </Text>
@@ -206,7 +222,15 @@ function ModeSwitch({ settings, isLocked }: { settings: SettingsState; isLocked:
   );
 }
 
-function Recorder({ status, info }: { status: RecordingStatus; info: AppInfo | null }) {
+function Recorder({
+  status,
+  accelerator,
+  isMac,
+}: {
+  status: RecordingStatus;
+  accelerator: string | null;
+  isMac: boolean;
+}) {
   const isRecording = status.phase === "recording" || status.phase === "starting";
   const levels = useLevelHistory(window.ivibe.recording.onLevel, 48, isRecording);
 
@@ -259,11 +283,13 @@ function Recorder({ status, info }: { status: RecordingStatus; info: AppInfo | n
         icon={<Mic size={16} strokeWidth={2} />}
         onClick={() => void window.ivibe.recording.start()}
       />
-      <div {...stylex.props(styles.hint)}>
-        <Text color="secondary">or press</Text>
-        <Shortcut isMac={info?.platform === "darwin"} />
-        <Text color="secondary">from any app</Text>
-      </div>
+      {accelerator && (
+        <div {...stylex.props(styles.hint)}>
+          <Text color="secondary">or press</Text>
+          <Shortcut accelerator={accelerator} isMac={isMac} />
+          <Text color="secondary">from any app</Text>
+        </div>
+      )}
     </div>
   );
 }
@@ -427,13 +453,17 @@ export function RecordPage({
   status,
   info,
   settings,
+  shortcutStatus,
 }: {
   status: RecordingStatus;
   info: AppInfo | null;
   settings: SettingsState;
+  shortcutStatus: ShortcutStatus | null;
 }) {
   const busy = status.phase !== "idle" && status.phase !== "review" && status.phase !== "error";
   const mode = (busy ? status.mode : settings.settings?.mode) ?? "fix";
+  const isMac = info?.platform === "darwin";
+  const isTaken = shortcutStatus?.[mode] === false;
   return (
     <div {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.hero)}>
@@ -449,19 +479,21 @@ export function RecordPage({
         </Text>
       </div>
 
-      <ModeSwitch settings={settings} isLocked={busy} />
+      <ModeSwitch
+        settings={settings}
+        isLocked={busy}
+        shortcutStatus={shortcutStatus}
+        isMac={isMac}
+      />
 
-      <Recorder status={status} info={info} />
+      <Recorder
+        status={status}
+        accelerator={isTaken ? null : (settings.settings?.shortcuts[mode] ?? null)}
+        isMac={isMac}
+      />
 
       {status.phase === "error" && status.error && (
         <Banner status="error" title="The recording stopped" description={status.error} />
-      )}
-      {info && !info.hotkeyRegistered && (
-        <Banner
-          status="warning"
-          title="Another app is using the shortcut"
-          description="Start recordings from the button above or the tray icon."
-        />
       )}
 
       {status.phase !== "idle" && <TranscriptSection status={status} />}

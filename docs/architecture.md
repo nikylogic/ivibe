@@ -445,7 +445,7 @@ Engine utility process (Node): BYOK agent loop; gets the key from main per run, 
 | Main window | Home (Record button and hotkey hint), Privacy review, Analysis (live agent trace), Report, History, Settings, Account |
 | Onboarding | Permissions (macOS), choice of AI source (Cloud free credits or BYOK), hotkey test, "try a sample" run |
 
-**Default hotkey:** `Ctrl+Alt+R` on Windows and Linux, `Ctrl+Option+R` on macOS (the Electron accelerator `Control+Alt+R` covers both), configurable. Don't use `Ctrl/Cmd+Shift+R`: browsers use it for hard reload, and users will be in a browser when bugs happen. If registration fails, onboarding asks for another combination.
+**Default shortcuts:** one per mode. On Windows: Dictate `Caps Lock`, Fix `Ctrl+Caps Lock`, Prompt `Alt+Caps Lock`. Windows still toggles Caps Lock when a registered hotkey fires, so the helper presses it again to switch it back off and the echo is ignored. macOS can't register Caps Lock (it is a modifier there), so macOS and Linux default to `Ctrl+Alt+D/F/P` (`Ctrl+Option` on macOS). Any of them stops a recording. Users change them by clicking the keycaps next to the mode switch or in Settings → General; while a new one is being recorded, the shortcuts are unregistered so the keys reach the window. `Ctrl+Alt+V` pastes the last result. Don't use `Ctrl/Cmd+Shift+R`: browsers use it for hard reload. If registration fails, the keycaps show a warning and ask for another combination.
 
 ### 4.4 Recording state machine
 

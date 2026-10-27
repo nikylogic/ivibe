@@ -2,7 +2,13 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 import { Channels } from "../shared/ipc.ts";
-import type { AppInfo, ByokStatus, RecordingStatus, Settings } from "../shared/ipc.ts";
+import type {
+  AppInfo,
+  ByokStatus,
+  RecordingStatus,
+  Settings,
+  ShortcutStatus,
+} from "../shared/ipc.ts";
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
   const handler = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -38,6 +44,13 @@ const api = {
   },
   app: {
     info: (): Promise<AppInfo> => ipcRenderer.invoke(Channels.appInfo),
+  },
+  shortcuts: {
+    status: (): Promise<ShortcutStatus> => ipcRenderer.invoke(Channels.shortcutsStatus),
+    /** Unregisters the mode shortcuts while a new one is being recorded. */
+    pause: (paused: boolean): Promise<void> => ipcRenderer.invoke(Channels.shortcutsPause, paused),
+    onChange: (listener: (status: ShortcutStatus) => void) =>
+      subscribe(Channels.shortcutsChanged, listener),
   },
 };
 

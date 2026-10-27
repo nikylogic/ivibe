@@ -13,7 +13,13 @@ import { mount, signal } from "../shared/theme.tsx";
 import { RecordPage } from "./record-page.tsx";
 import { SettingsPanel } from "./settings-page.tsx";
 import type { SettingsSection } from "./settings-page.tsx";
-import { useAppInfo, useByok, useRecordingStatus, useSettings } from "./state.ts";
+import {
+  useAppInfo,
+  useByok,
+  useRecordingStatus,
+  useSettings,
+  useShortcutStatus,
+} from "./state.ts";
 import type { ByokState, Page } from "./state.ts";
 
 /** Remembers whether the sidebar was collapsed; a convenience, so failures are ignored. */
@@ -123,6 +129,7 @@ function App() {
   const info = useAppInfo();
   const byok = useByok();
   const settings = useSettings();
+  const shortcutStatus = useShortcutStatus();
 
   const collapsible = {
     isCollapsed: collapsed,
@@ -189,7 +196,14 @@ function App() {
 
       <main {...stylex.props(styles.main)}>
         <div {...withClass("drag-region", styles.titleBar)} />
-        {page === "record" && <RecordPage status={status} info={info} settings={settings} />}
+        {page === "record" && (
+          <RecordPage
+            status={status}
+            info={info}
+            settings={settings}
+            shortcutStatus={shortcutStatus}
+          />
+        )}
         {page === "reports" && (
           <div {...stylex.props(styles.center)}>
             <EmptyState
@@ -219,6 +233,7 @@ function App() {
             info={info}
             byok={byok}
             settings={settings}
+            shortcutStatus={shortcutStatus}
           />
         )}
       </Dialog>

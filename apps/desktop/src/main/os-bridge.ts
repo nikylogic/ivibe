@@ -35,6 +35,7 @@ Add-Type -Namespace IVibe -Name Win32 -MemberDefinition @'
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(System.IntPtr h, System.Text.StringBuilder s, int n);
 [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, System.UIntPtr extra);
 [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vk);
+[DllImport("user32.dll")] public static extern short GetKeyState(int vk);
 '@
 $uia = $false
 try { Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes; $uia = $true } catch {}
@@ -66,6 +67,14 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
           $out.editable = ($type -eq 'ControlType.Edit' -or $type -eq 'ControlType.Document') -and -not $c.IsPassword -and $c.IsEnabled
         } catch {}
       }
+    } elseif ($line -eq 'capsoff') {
+      # A Caps Lock shortcut still toggles Caps Lock; press it again to undo that.
+      $on = ([IVibe.Win32]::GetKeyState(0x14) -band 1) -ne 0
+      if ($on) {
+        [IVibe.Win32]::keybd_event(0x14, 0x3a, 0, [System.UIntPtr]::Zero)
+        [IVibe.Win32]::keybd_event(0x14, 0x3a, 2, [System.UIntPtr]::Zero)
+      }
+      $out = @{ toggled = $on }
     } elseif ($line -match '^paste (\d+) (ctrl|alt)$') {
       $target = [System.IntPtr][int64]$Matches[1]
       if ([IVibe.Win32]::GetForegroundWindow() -ne $target) {
@@ -288,6 +297,16 @@ export async function pasteInto(target: FocusedWindow, kind: PasteKind): Promise
     // Fall through to copy.
   }
   return false;
+}
+
+/**
+ * Turns Caps Lock off after a Caps Lock shortcut toggled it. Windows only; resolves to whether
+ * it had to press the key, which fires the shortcut again for the caller to ignore.
+ */
+export async function capsLockOff(): Promise<boolean> {
+  if (!windows) return false;
+  const result = await windows.request<{ toggled?: boolean }>("capsoff");
+  return result?.toggled === true;
 }
 
 /** Whether a focused window belongs to iVibe itself (its HUD or main window). */
