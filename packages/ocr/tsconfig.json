@@ -1,7 +1,8 @@
 {
   "extends": "@ivibe/config/tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker"]
+    "lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker"],
+    "types": ["node"]
   },
   "include": ["src"]
 }

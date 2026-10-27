@@ -6,13 +6,21 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./web": "./src/web.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "@ivibe/config": "workspace:*"
+    "@ivibe/config": "workspace:*",
+    "@napi-rs/canvas": "^1.0.13",
+    "@types/node": "^26.6.5",
+    "onnxruntime-node": "^1.30.0"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.30.0",
+    "ppu-paddle-ocr": "^6.6.1"
   }
 }

@@ -119,7 +119,9 @@ The full plan, with every phase and its exit criteria, is in [docs/architecture.
 git clone https://github.com/nikylogic/ivibe.git
 cd ivibe
 pnpm install
+pnpm ocr:fetch    # download the on-device OCR models (13 MB, hash-checked)
 pnpm check        # lint, format check, typecheck, tests and the dependency license check
+pnpm --filter @ivibe/desktop dev   # run the desktop app
 ```
 
 The Meta Model API experiments in [`spikes/`](spikes/) need a key: copy `.env.example` to `.env`, add `META_API_KEY`, then for example:

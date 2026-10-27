@@ -20,6 +20,16 @@ export interface RecordingSummary {
     appSwitches: number;
   };
   audio: { seconds: number; bytes: number; peakRms: number; silent: boolean };
+  /** On-device OCR and redaction (docs/architecture.md §4.8–4.9). */
+  privacy: {
+    ocrEngine: string;
+    framesScanned: number;
+    lines: number;
+    /** Redaction boxes per rule. */
+    redactions: Record<string, number>;
+    blackouts: number;
+    ocrMsAverage: number;
+  };
   cursorSamples: number;
 }
 

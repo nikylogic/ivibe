@@ -24,6 +24,8 @@
     "@ivibe/capture": "workspace:*",
     "@ivibe/config": "workspace:*",
     "@ivibe/encode": "workspace:*",
+    "@ivibe/ocr": "workspace:*",
+    "@ivibe/redact": "workspace:*",
     "@ivibe/vision": "workspace:*",
     "@stylexjs/babel-plugin": "^0.19.1",
     "@stylexjs/stylex": "^0.19.1",

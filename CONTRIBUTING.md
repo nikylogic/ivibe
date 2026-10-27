@@ -14,8 +14,11 @@ Thanks for your interest in iVibe. This guide covers how to set up the project, 
 
 ```bash
 pnpm install
+pnpm ocr:fetch
 pnpm check
 ```
+
+`pnpm ocr:fetch` downloads the PaddleOCR models the recorder runs on-device. They are checked against pinned SHA-256 hashes and kept out of git.
 
 `pnpm check` runs everything CI runs: ESLint, Prettier, TypeScript, Vitest and the dependency license check.
 
@@ -26,6 +29,7 @@ pnpm check
 | `pnpm typecheck`      | Type-check every package                           |
 | `pnpm test`           | Run every package's tests                          |
 | `pnpm licenses:check` | Fail on dependencies outside the license allowlist |
+| `pnpm ocr:fetch`      | Download the OCR models for tests and the app      |
 | `pnpm spike <file>`   | Run a spike with `.env` loaded                     |
 
 ## Making a change

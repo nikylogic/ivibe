@@ -32,3 +32,6 @@ spikes/fixtures/private/
 .DS_Store
 Thumbs.db
 *.log
+
+# OCR models and ONNX Runtime files (pnpm ocr:fetch)
+apps/desktop/src/renderer/public/ocr/

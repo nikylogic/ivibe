@@ -2,8 +2,7 @@
 
 import { join, normalize, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { BrowserWindow } from "electron";
-import { Menu, Tray, app, globalShortcut, ipcMain, net, protocol } from "electron";
+import { BrowserWindow, Menu, Tray, app, globalShortcut, ipcMain, net, protocol } from "electron";
 import { Channels } from "../shared/ipc.ts";
 import type { AppInfo, RecorderEvent, RecordingStatus } from "../shared/ipc.ts";
 import { byokStatus, clearByokKey, saveByokKey } from "./byok.ts";
@@ -168,9 +167,33 @@ function registerIpc(): void {
   });
 }
 
-// Self-test: record a few seconds without user input and print the summary (CI and Spike S11).
+/**
+ * A fake editor screen with a fake token, shown during the self-test so the recording proves
+ * OCR and redaction end to end. The token is assembled at run time to keep secret scanners quiet.
+ */
+function showSelfTestFixture(): BrowserWindow {
+  const token = ["ghp", "_", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"].join("");
+  const html = `<!doctype html><body style="margin:0;background:#1e1e1e;color:#d4d4d4;
+    font:28px/1.8 Consolas,Menlo,monospace;padding:48px">
+    <div>// settings.ts</div><div>function saveDraft(form) {</div>
+    <div>&nbsp;&nbsp;const token = "${token}";</div>
+    <div>TypeError: Cannot read properties of undefined</div></body>`;
+  const { workArea } = displayUnderCursor();
+  const fixture = new BrowserWindow({
+    ...workArea,
+    frame: false,
+    alwaysOnTop: true,
+    webPreferences: { sandbox: true, contextIsolation: true, javascript: false },
+  });
+  void fixture.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  return fixture;
+}
+
+// Self-test: record a few seconds without user input and print the summary (CI and Spikes S11
+// and S12). It fails unless the fixture's token was found and redacted.
 function runSelfTest(): void {
   console.log("IVIBE_SELFTEST start");
+  showSelfTestFixture();
   setTimeout(() => void startRecording(), 1500);
   setTimeout(() => void recording.stop(), 5000);
   setTimeout(() => {
@@ -181,7 +204,8 @@ function runSelfTest(): void {
 
 function finishSelfTest(status: RecordingStatus): void {
   console.log(`IVIBE_SELFTEST result ${JSON.stringify(status)}`);
-  app.exit(status.phase === "review" ? 0 : 1);
+  if (status.phase !== "review") app.exit(1);
+  else app.exit(status.summary?.privacy.redactions["github-token"] ? 0 : 3);
 }
 
 app.on("second-instance", (_event, argv) => {

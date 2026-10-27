@@ -3,11 +3,17 @@
 /**
  * The hidden recorder window (docs/architecture.md §4.2). Raw frames exist only here, in
  * memory, and never cross IPC: main receives progress events and, after redaction, the
- * finished bundle.
+ * finished bundle. Every keyframe is OCR-scanned and redacted as soon as it is kept, and the
+ * raw bitmap is closed.
  */
 
 import { FrameSampler, MicRecorder } from "@ivibe/capture";
 import { NARRATION_SAMPLE_RATE, encodeWav, resample, rms, toDbfs } from "@ivibe/encode";
+import { frameId } from "@ivibe/ocr";
+import type { OcrEngine } from "@ivibe/ocr";
+import { createWebOcr } from "@ivibe/ocr/web";
+import { redact, scanFrame } from "@ivibe/redact";
+import type { RedactedFrame } from "@ivibe/redact";
 import {
   KeyframeSelector,
   THUMB_HEIGHT,
@@ -40,6 +46,10 @@ const SILENCE_DBFS = -50;
 
 const bridge = window.ivibeRecorderBridge;
 
+// Models and ONNX Runtime are served by the app (pnpm ocr:fetch), so loading needs no network.
+const ocrReady: Promise<OcrEngine> = createWebOcr({ baseUrl: "/ocr/" });
+ocrReady.catch((error: unknown) => console.error("OCR failed to load:", error));
+
 class Session {
   readonly #options: StartOptions;
   #stream: MediaStream | null = null;
@@ -55,7 +65,19 @@ class Session {
   #size = { width: 0, height: 0 };
 
   readonly keyframes: Keyframe[] = [];
+  /** Keyframes after OCR and redaction; the only frames that may leave this window. */
+  readonly redacted: RedactedFrame[] = [];
+  #privacyQueue: Promise<void> = Promise.resolve();
+  #ocrMs = 0;
   stats = { sampled: 0, changed: 0, motion: 0, appSwitches: 0 };
+  privacy = {
+    ocrEngine: "",
+    framesScanned: 0,
+    lines: 0,
+    redactions: {} as Record<string, number>,
+    blackouts: 0,
+    ocrMsAverage: 0,
+  };
   wav: Uint8Array | null = null;
 
   constructor(options: StartOptions) {
@@ -117,13 +139,47 @@ class Session {
     if (change?.probableAppSwitch) this.stats.appSwitches++;
 
     const keep = this.#selector.consider(timeMs, change ? change.changeClass : "first");
-    if (keep) this.keyframes.push({ timeMs, bitmap });
+    if (keep) this.#keep({ timeMs, bitmap });
 
     // Always remember the newest frame so it can become the final keyframe.
     if (this.#lastBitmap && !this.keyframes.some((k) => k.bitmap === this.#lastBitmap!.bitmap)) {
       this.#lastBitmap.bitmap.close();
     }
     this.#lastBitmap = { timeMs, bitmap };
+  }
+
+  /** Queues a keyframe for OCR and redaction, one at a time so capture never waits on it. */
+  #keep(keyframe: Keyframe): void {
+    this.keyframes.push(keyframe);
+    const index = this.keyframes.length - 1;
+    this.#privacyQueue = this.#privacyQueue.then(() => this.#scan(index, keyframe));
+  }
+
+  async #scan(index: number, keyframe: Keyframe): Promise<void> {
+    const ocr = await ocrReady;
+    const id = frameId(index);
+    const started = performance.now();
+    const lines = await ocr.recognize(keyframe.bitmap, { frame: id });
+    this.#ocrMs += performance.now() - started;
+
+    const report = scanFrame(lines, {
+      width: keyframe.bitmap.width,
+      height: keyframe.bitmap.height,
+    });
+    const frame = redact({ id, tMs: keyframe.timeMs, image: keyframe.bitmap }, report);
+    this.redacted.push(frame);
+    // The raw pixels are no longer needed once a painted copy exists.
+    if (frame.image !== keyframe.bitmap) keyframe.bitmap.close();
+
+    const privacy = this.privacy;
+    privacy.ocrEngine = ocr.name;
+    privacy.framesScanned++;
+    privacy.lines += lines.length;
+    if (report.blackout) privacy.blackouts++;
+    for (const box of report.boxes) {
+      privacy.redactions[box.rule] = (privacy.redactions[box.rule] ?? 0) + 1;
+    }
+    privacy.ocrMsAverage = Math.round(this.#ocrMs / privacy.framesScanned);
   }
 
   async stop(): Promise<void> {
@@ -134,8 +190,9 @@ class Session {
     const last = this.#lastBitmap;
     if (last && !this.keyframes.some((k) => k.bitmap === last.bitmap)) {
       this.#selector.keepFinal();
-      this.keyframes.push(last);
+      this.#keep(last);
     }
+    this.#lastBitmap = null;
 
     const durationMs = performance.now() - this.#startedAt;
     let audioSeconds = 0;
@@ -146,6 +203,8 @@ class Session {
       audioSeconds = samples.length / NARRATION_SAMPLE_RATE;
       this.#peakRms = Math.max(this.#peakRms, rms(samples));
     }
+
+    await this.#privacyQueue;
 
     bridge.emit({
       type: "finished",
@@ -159,6 +218,7 @@ class Session {
           peakRms: this.#peakRms,
           silent: toDbfs(this.#peakRms) < SILENCE_DBFS,
         },
+        privacy: this.privacy,
       },
     });
   }
@@ -174,7 +234,9 @@ class Session {
   /** Drops every frame and the audio from memory. */
   dispose(): void {
     for (const keyframe of this.keyframes) keyframe.bitmap.close();
+    for (const frame of this.redacted) frame.image.close();
     this.keyframes.length = 0;
+    this.redacted.length = 0;
     this.#lastBitmap?.bitmap.close();
     this.#lastBitmap = null;
     this.wav = null;

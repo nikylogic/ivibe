@@ -2,9 +2,12 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# Install scripts: only Electron needs one (it downloads its binary).
+# Install scripts: Electron and ONNX Runtime for Node (OCR tests) download binaries.
 allowBuilds:
   electron: true
+  onnxruntime-node: true
+  # Version check only.
+  protobufjs: false
   # Prints a setup hint only.
   "@astryxdesign/core": false
   # Squirrel.Windows tooling; we package with NSIS.

@@ -56,7 +56,23 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+const RULE_LABELS: Record<string, string> = {
+  "high-entropy": "random-looking tokens",
+  "env-line": ".env values",
+  "connection-string": "connection passwords",
+  "sensitive-app": "password manager screens",
+};
+
+function describeRedactions(redactions: Record<string, number>): string {
+  const entries = Object.entries(redactions);
+  if (entries.length === 0) return "No secrets found on screen.";
+  const parts = entries.map(([rule, count]) => `${count} × ${RULE_LABELS[rule] ?? rule}`);
+  return `Hidden before anything leaves this device: ${parts.join(", ")}.`;
+}
+
 function RecordingResult({ summary }: { summary: RecordingSummary }) {
+  const { privacy } = summary;
+  const hidden = Object.values(privacy.redactions).reduce((sum, count) => sum + count, 0);
   return (
     <Card padding={5}>
       <VStack gap={4}>
@@ -74,10 +90,17 @@ function RecordingResult({ summary }: { summary: RecordingSummary }) {
             label="Narration"
             value={summary.audio.silent ? "Silent" : `${summary.audio.seconds.toFixed(1)} s`}
           />
+          <Stat label="Text lines read" value={String(privacy.lines)} />
+          <Stat label="Secrets hidden" value={String(hidden)} />
+          <Stat label="OCR per frame" value={`${privacy.ocrMsAverage} ms`} />
         </HStack>
+        <Banner
+          status={hidden > 0 ? "warning" : "success"}
+          title={privacy.blackouts > 0 ? "A password manager was blacked out" : "Redaction done"}
+          description={describeRedactions(privacy.redactions)}
+        />
         <Text color="secondary">
-          Frames stay in memory on this device. Redaction and analysis run next; nothing has been
-          uploaded.
+          Frames stay in memory on this device and nothing has been uploaded.
         </Text>
       </VStack>
     </Card>

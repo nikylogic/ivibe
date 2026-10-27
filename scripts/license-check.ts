@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /**
- * Fails when a production dependency uses a license outside the allowlist.
+ * Fails when any dependency of any workspace package uses a license outside the allowlist.
+ * Development dependencies count too: Vite bundles the desktop app's devDependencies into it.
  *
  * iVibe is AGPL-3.0 and also sold under a commercial license, so every dependency must be
  * permissive: GPL-family code could not be included in the commercial license.
@@ -24,7 +25,14 @@ const ALLOWED = new Set([
   "Unlicense",
   "BlueOak-1.0.0",
   "Python-2.0",
+  "WTFPL",
 ]);
+
+/** Packages whose license field isn't a valid SPDX ID, checked by hand. */
+const REVIEWED: Record<string, string> = {
+  // "BSD" in package.json; the LICENSE file is the 3-clause BSD license.
+  "css-mediaquery": "BSD-3-Clause",
+};
 
 /** Our own workspace packages are AGPL-3.0 by design. */
 const isOwnPackage = (name: string) => name === "ivibe" || name.startsWith("@ivibe/");
@@ -45,7 +53,7 @@ function isAllowedExpression(expression: string): boolean {
 }
 
 function main(): void {
-  const raw = execSync("pnpm licenses list --prod --json", { encoding: "utf8" });
+  const raw = execSync("pnpm licenses list --recursive --json", { encoding: "utf8" });
   const byLicense = (raw.trim() ? JSON.parse(raw) : {}) as Record<string, LicensedPackage[]>;
 
   const violations: string[] = [];
@@ -54,7 +62,7 @@ function main(): void {
     for (const pkg of packages) {
       if (isOwnPackage(pkg.name)) continue;
       checked++;
-      if (!isAllowedExpression(license)) {
+      if (!isAllowedExpression(REVIEWED[pkg.name] ?? license)) {
         violations.push(`${pkg.name}@${pkg.versions?.join(", ") ?? "?"}: ${license}`);
       }
     }
@@ -65,7 +73,7 @@ function main(): void {
     for (const line of violations) console.error(`  - ${line}`);
     process.exit(1);
   }
-  console.log(`License check passed: ${checked} production dependencies, all on the allowlist.`);
+  console.log(`License check passed: ${checked} dependencies, all on the allowlist.`);
 }
 
 main();

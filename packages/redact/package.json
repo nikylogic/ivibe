@@ -14,5 +14,8 @@
   },
   "devDependencies": {
     "@ivibe/config": "workspace:*"
+  },
+  "dependencies": {
+    "@ivibe/ocr": "workspace:*"
   }
 }

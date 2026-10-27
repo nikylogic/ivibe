@@ -22,7 +22,8 @@
     "format:check": "prettier --check .",
     "licenses:check": "node scripts/license-check.ts",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm licenses:check",
-    "spike": "node --env-file-if-exists=.env"
+    "spike": "node --env-file-if-exists=.env",
+    "ocr:fetch": "node scripts/fetch-ocr-models.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
