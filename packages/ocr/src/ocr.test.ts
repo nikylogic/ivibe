@@ -99,7 +99,8 @@ describe.runIf(haveModels)("PP-OCRv5 on onnxruntime-node", () => {
     const text = lines.map((l) => l.text).join("\n");
     console.log(`OCR ${lines.length} lines in ${elapsed.toFixed(0)} ms:\n${text}`);
     expect(text).toContain("saveDraft");
-    expect(text).toMatch(/ghp_A1b2C3d4/);
+    // Some fonts make OCR read the underscore as a space; the redaction rules allow for it.
+    expect(text).toMatch(/ghp[_ ]A1b2C3d4/);
     expect(text).toContain("TypeError");
   });
 });

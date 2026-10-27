@@ -2,7 +2,8 @@
 
 /**
  * Secret detection rules (docs/architecture.md §4.9). Patterns describe the shape of a secret
- * rather than exact characters, because OCR misreads some of them (l as 1, O as 0).
+ * rather than exact characters, because OCR misreads some of them (l as 1, O as 0, and `_` as a
+ * space in some fonts).
  */
 
 export type RuleId =
@@ -33,13 +34,16 @@ export interface PatternRule {
 /** Rules 1, 2 and 4: always applied, in this order. */
 export const PATTERN_RULES: readonly PatternRule[] = [
   // 1. Provider tokens. Anthropic comes before OpenAI, whose `sk-` prefix it shares.
-  { id: "meta-key", pattern: /\bLLM_[A-Za-z0-9_|-]{16,}/g },
+  { id: "meta-key", pattern: /\bLLM[_ ][A-Za-z0-9_|-]{16,}/g },
   { id: "anthropic-key", pattern: /\bsk-ant-[A-Za-z0-9_-]{20,}/g },
   { id: "openai-key", pattern: /\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,}/g },
   { id: "aws-key", pattern: /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g },
-  { id: "github-token", pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,})/g },
+  {
+    id: "github-token",
+    pattern: /\b(?:gh[pousr][_ ][A-Za-z0-9]{30,}|github[_ ]pat[_ ][A-Za-z0-9_]{40,})/g,
+  },
   { id: "google-key", pattern: /\bAIza[0-9A-Za-z_-]{30,}/g },
-  { id: "stripe-key", pattern: /\b(?:sk|rk|pk)_(?:live|test)_[0-9A-Za-z]{16,}/g },
+  { id: "stripe-key", pattern: /\b(?:sk|rk|pk)[_ ](?:live|test)[_ ][0-9A-Za-z]{16,}/g },
   { id: "slack-token", pattern: /\bxox[abprs]-[0-9A-Za-z-]{10,}/g },
   { id: "jwt", pattern: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g },
   { id: "private-key", pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g },

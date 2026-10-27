@@ -45,11 +45,12 @@ describe("provider tokens", () => {
     expect(rulesFor(`  value: ${secret}`)[0]).toBe(rule);
   });
 
-  it("survives OCR misreads", () => {
-    // OCR read l2 as 112 and O5 as 05 in Spike S12.
-    expect(rulesFor(join("ghp_", "A1b2C3d4E5f6G7h8I9j0K112M3n405p6Q7r8"))).toEqual([
-      "github-token",
-    ]);
+  it.each([
+    // Misreads seen in Spike S12: l2 as 112 and O5 as 05 (Windows), `_` as a space (Linux).
+    join("ghp_", "A1b2C3d4E5f6G7h8I9j0K112M3n405p6Q7r8"),
+    join("ghp ", "A1b2C3d4E5f6G7h8I9j0K1l2M3n405p6Q7r8"),
+  ])("survives the OCR misread in %s", (text) => {
+    expect(rulesFor(text)).toEqual(["github-token"]);
   });
 });
 
