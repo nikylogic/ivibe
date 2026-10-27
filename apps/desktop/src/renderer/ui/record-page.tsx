@@ -203,10 +203,13 @@ function Recorder({
   status,
   accelerator,
   isMac,
+  canHold,
 }: {
   status: RecordingStatus;
   accelerator: string | null;
   isMac: boolean;
+  /** The shortcut supports hold-to-talk and double-press (Dictate on Windows). */
+  canHold: boolean;
 }) {
   const isRecording = status.phase === "recording" || status.phase === "starting";
   const isBusy = status.phase === "finalizing" || status.phase === "writing";
@@ -283,8 +286,20 @@ function Recorder({
 
       {!isRecording && !isBusy && (
         <div {...stylex.props(styles.hint)}>
-          <Text color="secondary">{accelerator ? "Click or press" : "Click to record"}</Text>
-          {accelerator && <Shortcut accelerator={accelerator} isMac={isMac} />}
+          {!accelerator ? (
+            <Text color="secondary">Click to record</Text>
+          ) : canHold ? (
+            <>
+              <Text color="secondary">Hold</Text>
+              <Shortcut accelerator={accelerator} isMac={isMac} />
+              <Text color="secondary">to talk, or double-press for hands-free</Text>
+            </>
+          ) : (
+            <>
+              <Text color="secondary">Click or press</Text>
+              <Shortcut accelerator={accelerator} isMac={isMac} />
+            </>
+          )}
         </div>
       )}
     </div>
@@ -328,6 +343,7 @@ export function RecordPage({
           status={status}
           accelerator={isTaken ? null : (settings.settings?.shortcuts[mode] ?? null)}
           isMac={isMac}
+          canHold={mode === "dictate" && info?.platform === "win32"}
         />
       </div>
 

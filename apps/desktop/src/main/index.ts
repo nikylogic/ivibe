@@ -35,9 +35,12 @@ import {
   capsLockOff,
   disposeOsBridge,
   focusedWindow,
+  isKeyHeld,
   isOwnWindow,
+  virtualKey,
   warmUpOsBridge,
 } from "./os-bridge.ts";
+import { DictateGesture } from "./gesture.ts";
 import { readSettings, updateSettings } from "./settings.ts";
 import { fallbackText } from "./compose.ts";
 import {
@@ -161,22 +164,65 @@ function broadcast(channel: string, value: unknown): void {
 
 let registeredShortcuts: string[] = [];
 let shortcutsPaused: ReturnType<typeof setTimeout> | undefined;
-/** Caps Lock presses iVibe sends to undo the toggle fire the shortcut again; they're ignored. */
-let ignoreShortcutsUntil = 0;
 
-function onModeShortcut(mode: OutputMode, accelerator: string): void {
-  if (Date.now() < ignoreShortcutsUntil) return;
-  if (accelerator.split("+").includes("Capslock")) {
-    ignoreShortcutsUntil = Date.now() + 400;
-    void capsLockOff();
-  }
+const isRecordingNow = () => {
   const { phase } = recording.status;
-  if (phase === "recording" || phase === "starting") {
-    void recording.stop();
-    return;
-  }
+  return phase === "recording" || phase === "starting";
+};
+
+function startInMode(mode: OutputMode): void {
   if (readSettings().mode !== mode) changeSettings({ mode });
   void startRecording();
+}
+
+/** Hold to talk, or double-press for hands-free (main/gesture.ts). */
+const dictateGesture = new DictateGesture({
+  isHeld: async () => {
+    const vk = virtualKey(readSettings().shortcuts.dictate);
+    return vk !== null && (await isKeyHeld(vk)) === true;
+  },
+  isRecording: isRecordingNow,
+  start: () => startInMode("dictate"),
+  stop: () => void recording.stop(),
+  cancel: () => recording.cancel(),
+  settled: () => void settleCapsLock(),
+});
+
+/** Gestures need to see the key come back up, which only the Windows helper can. */
+const canHold = (accelerator: string) =>
+  process.platform === "win32" && virtualKey(accelerator) !== null;
+
+function onModeShortcut(mode: OutputMode, accelerator: string): void {
+  if (mode === "dictate" && canHold(accelerator)) {
+    // Another mode's recording: this press stops it, like any shortcut.
+    if (isRecordingNow() && dictateGesture.state === "idle") void recording.stop();
+    else dictateGesture.press();
+    return;
+  }
+  if (isRecordingNow()) void recording.stop();
+  else startInMode(mode);
+  void settleCapsLock();
+}
+
+let settlingCaps = false;
+
+/**
+ * A Caps Lock shortcut still toggles Caps Lock. Once a press (or gesture) is over, switch it back
+ * off, with the shortcuts unregistered so that key press doesn't fire them again.
+ */
+async function settleCapsLock(): Promise<void> {
+  if (process.platform !== "win32" || SELF_TEST || settlingCaps) return;
+  if (!registeredShortcuts.some((accelerator) => accelerator.split("+").includes("Capslock"))) {
+    return;
+  }
+  settlingCaps = true;
+  unregisterShortcuts();
+  try {
+    await capsLockOff();
+  } finally {
+    if (shortcutsPaused === undefined) registerShortcuts();
+    settlingCaps = false;
+  }
 }
 
 function unregisterShortcuts(): void {
@@ -251,11 +297,10 @@ function pauseShortcuts(paused: boolean, contents?: Electron.WebContents): void 
     return;
   }
   shortcutsPaused = undefined;
-  // Pressing Caps Lock while recording toggled it; the press that undoes that would fire the
-  // shortcut just registered.
-  ignoreShortcutsUntil = Date.now() + 600;
+  dictateGesture.reset();
   registerShortcuts();
-  if (!SELF_TEST) void capsLockOff();
+  // Pressing Caps Lock while recording a shortcut toggled it.
+  void settleCapsLock();
 }
 
 function toggleRecording(): void {

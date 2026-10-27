@@ -512,13 +512,17 @@ export function SettingsPanel({
                   onChange={(clickToPaste) => settings.change({ clickToPaste })}
                 />
               </Row>
-              <Row
-                title="Shortcuts"
-                note="These work from any app. Press a mode's shortcut to start recording in that mode, and any of them to stop. Click one to change it."
-              >
+              <Row title="Shortcuts" note="These work from any app. Click one to change it.">
                 {SHORTCUT_ROWS.map(({ mode, label }) => (
                   <div key={mode} {...stylex.props(styles.shortcutRow)}>
-                    <Text size="sm">{label}</Text>
+                    <div {...stylex.props(styles.label)}>
+                      <Text size="sm">{label}</Text>
+                      {mode === "dictate" && info?.platform === "win32" && (
+                        <Text color="secondary" size="sm">
+                          Hold to talk, or double-press to go hands-free and again to stop.
+                        </Text>
+                      )}
+                    </div>
                     <ShortcutButton
                       mode={mode}
                       settings={settings}

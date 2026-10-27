@@ -67,6 +67,8 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
           $out.editable = ($type -eq 'ControlType.Edit' -or $type -eq 'ControlType.Document') -and -not $c.IsPassword -and $c.IsEnabled
         } catch {}
       }
+    } elseif ($line -match '^held (\d+)$') {
+      $out = @{ held = ([IVibe.Win32]::GetAsyncKeyState([int]$Matches[1]) -band 0x8000) -ne 0 }
     } elseif ($line -eq 'capsoff') {
       # A Caps Lock shortcut still toggles Caps Lock; press it again to undo that.
       $on = ([IVibe.Win32]::GetKeyState(0x14) -band 1) -ne 0
@@ -297,6 +299,43 @@ export async function pasteInto(target: FocusedWindow, kind: PasteKind): Promise
     // Fall through to copy.
   }
   return false;
+}
+
+/** Windows virtual-key codes for the key part of an accelerator. */
+const NAMED_KEYS: Record<string, number> = {
+  Capslock: 0x14,
+  Space: 0x20,
+  Enter: 0x0d,
+  Tab: 0x09,
+  Backspace: 0x08,
+  Delete: 0x2e,
+  Insert: 0x2d,
+  Home: 0x24,
+  End: 0x23,
+  PageUp: 0x21,
+  PageDown: 0x22,
+  Left: 0x25,
+  Up: 0x26,
+  Right: 0x27,
+  Down: 0x28,
+};
+
+export function virtualKey(accelerator: string): number | null {
+  const key = accelerator.split("+").pop() ?? "";
+  if (/^[A-Z0-9]$/.test(key)) return key.charCodeAt(0);
+  const f = /^F(\d{1,2})$/.exec(key);
+  if (f) return 0x6f + Number(f[1]);
+  return NAMED_KEYS[key] ?? null;
+}
+
+/**
+ * Whether a key is physically down, for hold-to-talk. Windows only; null where it can't tell,
+ * and callers fall back to press-to-toggle.
+ */
+export async function isKeyHeld(vk: number): Promise<boolean | null> {
+  if (!windows) return null;
+  const result = await windows.request<{ held?: boolean }>(`held ${vk}`, 1000);
+  return result ? result.held === true : null;
 }
 
 /**
