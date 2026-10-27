@@ -226,6 +226,9 @@ importers:
       '@ivibe/encode':
         specifier: workspace:*
         version: link:../../packages/encode
+      '@ivibe/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@ivibe/ocr':
         specifier: workspace:*
         version: link:../../packages/ocr
@@ -312,6 +315,9 @@ importers:
       '@ivibe/config':
         specifier: workspace:*
         version: link:../config
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
 
   packages/imageops:
     devDependencies:

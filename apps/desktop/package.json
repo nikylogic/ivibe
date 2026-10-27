@@ -26,6 +26,7 @@
     "@ivibe/capture": "workspace:*",
     "@ivibe/config": "workspace:*",
     "@ivibe/encode": "workspace:*",
+    "@ivibe/engine": "workspace:*",
     "@ivibe/ocr": "workspace:*",
     "@ivibe/redact": "workspace:*",
     "@ivibe/vision": "workspace:*",

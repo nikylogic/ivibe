@@ -109,7 +109,8 @@ export function createHudWindow(display: Display): BrowserWindow {
     alwaysOnTop: true,
     skipTaskbar: true,
     hasShadow: false,
-    focusable: true,
+    // Clicking Stop must not take focus from the app the result gets pasted into (D20).
+    focusable: false,
     webPreferences: {
       preload: preload("hud"),
       sandbox: true,

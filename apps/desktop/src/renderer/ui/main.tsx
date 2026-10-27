@@ -12,7 +12,7 @@ import { withClass } from "../shared/shortcut.tsx";
 import { mount, signal } from "../shared/theme.tsx";
 import { RecordPage } from "./record-page.tsx";
 import { SettingsPage } from "./settings-page.tsx";
-import { useAppInfo, useByok, useRecordingStatus } from "./state.ts";
+import { useAppInfo, useByok, useRecordingStatus, useSettings } from "./state.ts";
 import type { ByokState, Page } from "./state.ts";
 
 const styles = stylex.create({
@@ -80,6 +80,7 @@ function App() {
   const status = useRecordingStatus();
   const info = useAppInfo();
   const byok = useByok();
+  const settings = useSettings();
 
   const sideNav = (
     <SideNav
@@ -122,7 +123,7 @@ function App() {
     >
       <div {...stylex.props(styles.content)}>
         <div {...withClass("drag-region", styles.titleBar)} />
-        {page === "record" && <RecordPage status={status} info={info} />}
+        {page === "record" && <RecordPage status={status} info={info} settings={settings} />}
         {page === "reports" && (
           <div {...stylex.props(styles.center)}>
             <EmptyState
@@ -135,7 +136,7 @@ function App() {
             />
           </div>
         )}
-        {page === "settings" && <SettingsPage info={info} byok={byok} />}
+        {page === "settings" && <SettingsPage info={info} byok={byok} settings={settings} />}
       </div>
     </AppShell>
   );

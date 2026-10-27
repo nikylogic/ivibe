@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { IvibeApi } from "../../preload/ui.ts";
-import type { AppInfo, ByokStatus, RecordingStatus } from "../../shared/ipc.ts";
+import type { AppInfo, ByokStatus, RecordingStatus, Settings } from "../../shared/ipc.ts";
 
 declare global {
   interface Window {
@@ -31,6 +31,25 @@ export function useAppInfo(): AppInfo | null {
     void window.ivibe.app.info().then(setInfo);
   }, []);
   return info;
+}
+
+export interface SettingsState {
+  settings: Settings | null;
+  change: (change: Partial<Settings>) => void;
+}
+
+/** Settings shared with main; the tray menu can change them too. */
+export function useSettings(): SettingsState {
+  const [settings, setSettings] = useState<Settings | null>(null);
+  useEffect(() => {
+    void window.ivibe.settings.get().then(setSettings);
+    return window.ivibe.settings.onChange(setSettings);
+  }, []);
+  const change = useCallback((next: Partial<Settings>) => {
+    setSettings((current) => (current ? { ...current, ...next } : current));
+    void window.ivibe.settings.set(next).then(setSettings);
+  }, []);
+  return { settings, change };
 }
 
 /** IPC errors arrive as "Error invoking remote method 'x': Error: message". */

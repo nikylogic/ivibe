@@ -5,7 +5,33 @@
  * Each window's preload exposes only its own subset.
  */
 
-export type RecordingPhase = "idle" | "starting" | "recording" | "finalizing" | "review" | "error";
+/** finalizing: capture stopped, redaction finishing; writing: Muse Spark is writing the result. */
+export type RecordingPhase =
+  "idle" | "starting" | "recording" | "finalizing" | "writing" | "review" | "error";
+
+/**
+ * What a recording turns into (docs/architecture.md D20): a fix prompt from screen and voice,
+ * a prompt from voice only, or cleaned-up dictation.
+ */
+export type OutputMode = "fix" | "prompt" | "dictate";
+
+export interface Settings {
+  mode: OutputMode;
+  /** Paste into the app that had focus; when off, results are only copied. */
+  autoPaste: boolean;
+  /** Fix mode: attach redacted screenshots as proof. */
+  proofImages: boolean;
+}
+
+export interface RecordingResult {
+  mode: OutputMode;
+  text: string;
+  /** Friendly name of the app it went to ("Claude Code"). */
+  targetName: string;
+  delivery: "pasted" | "copied";
+  /** Screenshots that went with it: pasted images or files referenced by path. */
+  proofImages: number;
+}
 
 export interface RecordingSummary {
   id: string;
@@ -55,6 +81,20 @@ export interface RecordingStatus {
   summary?: RecordingSummary;
   captions?: CaptionsMode;
   transcript?: TranscriptSegment[];
+  /** The mode this recording runs in, fixed when it starts. */
+  mode?: OutputMode;
+  /** The app the result will go to, detected when recording starts. */
+  targetName?: string;
+  result?: RecordingResult;
+}
+
+/** A redacted keyframe sent to main for Fix mode. Only RedactedFrame pixels reach this type. */
+export interface EvidenceFrame {
+  id: string;
+  tMs: number;
+  jpeg: Uint8Array;
+  /** OCR text with secrets masked. */
+  ocr: string;
 }
 
 /** Short-lived notes for the recording pill. */
@@ -83,7 +123,12 @@ export type RecorderEvent =
   /** A finished sentence of narration as 16 kHz WAV, for live captions. Audio only, never frames. */
   | { type: "utterance"; startMs: number; endMs: number; wav: Uint8Array }
   | { type: "feedback"; feedback: RecordingFeedback }
-  | { type: "finished"; summary: Omit<RecordingSummary, "id" | "startedAt" | "cursorSamples"> }
+  | {
+      type: "finished";
+      summary: Omit<RecordingSummary, "id" | "startedAt" | "cursorSamples">;
+      /** Fix mode only: redacted keyframes picked for the model. */
+      frames: EvidenceFrame[];
+    }
   | { type: "cancelled" }
   | { type: "error"; message: string };
 
@@ -100,6 +145,9 @@ export const Channels = {
   byokClear: "byok.clear",
   byokStatus: "byok.status",
   appInfo: "app.info",
+  settingsGet: "settings.get",
+  settingsSet: "settings.set",
+  resultCopy: "result.copy",
   // HUD → main
   hudInteractive: "hud.interactive",
   hudOpenApp: "hud.open-app",
@@ -107,6 +155,7 @@ export const Channels = {
   recordingState: "recording.state",
   recordingLevel: "recording.level",
   recordingFeedback: "recording.feedback",
+  settingsChanged: "settings.changed",
   // recorder ↔ main
   recorderCommand: "recorder.command",
   recorderEvent: "recorder.event",

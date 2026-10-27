@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import {
   BrowserWindow,
   Menu,
+  clipboard,
   nativeTheme,
   Tray,
   app,
@@ -14,10 +15,19 @@ import {
   net,
   protocol,
 } from "electron";
+import type { Display } from "electron";
 import { Channels } from "../shared/ipc.ts";
-import type { AppInfo, RecorderEvent, RecordingStatus } from "../shared/ipc.ts";
+import type {
+  AppInfo,
+  OutputMode,
+  RecorderEvent,
+  RecordingStatus,
+  Settings,
+} from "../shared/ipc.ts";
 import { byokStatus, clearByokKey, readByokKey, saveByokKey } from "./byok.ts";
 import { trayIcons } from "./icons.ts";
+import { disposeOsBridge, warmUpOsBridge } from "./os-bridge.ts";
+import { readSettings, updateSettings } from "./settings.ts";
 import { RecordingController } from "./recording.ts";
 import {
   createHudWindow,
@@ -119,9 +129,8 @@ function toggleRecording(): void {
   else void startRecording();
 }
 
-async function startRecording(): Promise<void> {
+async function startRecording(display = displayUnderCursor()): Promise<void> {
   recording.reset();
-  const display = displayUnderCursor();
   if (!hudWindow || hudWindow.isDestroyed()) hudWindow = createHudWindow(display);
   await recording.start(display);
 }
@@ -151,8 +160,22 @@ function onStatus(status: RecordingStatus): void {
     clearTimeout(hudHideTimer);
     hudHideTimer = setTimeout(closeHud, status.phase === "review" ? 5000 : 7000);
     if (SELF_TEST) void finishSelfTest(status);
-    else if (status.phase === "review") showUi();
+    // A pasted result stays out of the way; only a bare recording summary opens the app.
+    else if (status.phase === "review" && !status.result) showUi();
   }
+}
+
+const MODE_LABELS: Record<OutputMode, string> = {
+  fix: "Fix: screen and voice",
+  prompt: "Prompt: voice only",
+  dictate: "Dictate: clean up and paste",
+};
+
+function changeSettings(change: Partial<Settings>): Settings {
+  const settings = updateSettings(change);
+  broadcast(Channels.settingsChanged, settings);
+  updateTrayMenu();
+  return settings;
 }
 
 function updateTrayMenu(): void {
@@ -167,6 +190,13 @@ function updateTrayMenu(): void {
         click: toggleRecording,
       },
       ...(recordingNow ? [{ label: "Cancel recording", click: () => recording.cancel() }] : []),
+      { type: "separator" },
+      ...(Object.keys(MODE_LABELS) as OutputMode[]).map((mode) => ({
+        label: MODE_LABELS[mode],
+        type: "radio" as const,
+        checked: readSettings().mode === mode,
+        click: () => changeSettings({ mode }),
+      })),
       { type: "separator" },
       { label: "Open iVibe", click: showUi },
       { type: "separator" },
@@ -195,6 +225,14 @@ function registerIpc(): void {
     return saveByokKey(key);
   });
   ipcMain.handle(Channels.byokClear, () => clearByokKey());
+  ipcMain.handle(Channels.settingsGet, () => readSettings());
+  ipcMain.handle(Channels.settingsSet, (_event, change: Partial<Settings>) =>
+    changeSettings(change ?? {}),
+  );
+  ipcMain.handle(Channels.resultCopy, async () => {
+    const text = recording.status.result?.text;
+    if (text) await clipboard.writeText(text);
+  });
   ipcMain.handle(Channels.appInfo, (): AppInfo => ({
     version: app.getVersion(),
     platform: process.platform,
@@ -214,14 +252,14 @@ function registerIpc(): void {
  * A fake editor screen with a fake token, shown during the self-test so the recording proves
  * OCR and redaction end to end. The token is assembled at run time to keep secret scanners quiet.
  */
-function showSelfTestFixture(): BrowserWindow {
+function showSelfTestFixture(display: Display): BrowserWindow {
   const token = ["ghp", "_", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"].join("");
   const html = `<!doctype html><body style="margin:0;background:#1e1e1e;color:#d4d4d4;
     font:28px/1.8 Consolas,Menlo,monospace;padding:48px">
     <div>// settings.ts</div><div>function saveDraft(form) {</div>
     <div>&nbsp;&nbsp;const token = "${token}";</div>
     <div>TypeError: Cannot read properties of undefined</div></body>`;
-  const { workArea } = displayUnderCursor();
+  const { workArea } = display;
   const fixture = new BrowserWindow({
     ...workArea,
     frame: false,
@@ -252,13 +290,34 @@ function runSelfTest(): void {
       void snapshot(uiWindow, "ui-recording");
     }, SELF_TEST_RECORD_MS - 1200);
   }
-  showSelfTestFixture();
-  setTimeout(() => void startRecording(), 1500);
-  setTimeout(() => void recording.stop(), SELF_TEST_RECORD_MS);
+  // One display for both, so moving the mouse during the test can't split them.
+  const display = displayUnderCursor();
+  showSelfTestFixture(display);
+  setTimeout(() => void startRecording(display), 1500);
+  // Time the recording from when capture starts, not from launch.
+  const stopLater = (status: RecordingStatus) => {
+    if (status.phase !== "recording") return;
+    recording.off("status", stopLater);
+    setTimeout(() => void recording.stop(), SELF_TEST_RECORD_MS - 1500);
+  };
+  recording.on("status", stopLater);
   setTimeout(() => {
     console.log("IVIBE_SELFTEST timeout", JSON.stringify(recording.status));
     app.exit(2);
   }, 30_000);
+}
+
+/**
+ * Self-tests never paste, since a keystroke would land in whatever window the developer is
+ * using. IVIBE_MODE picks the mode under test.
+ */
+function selfTestSettings(): Settings {
+  const mode = process.env.IVIBE_MODE;
+  return {
+    ...readSettings(),
+    autoPaste: false,
+    ...(mode === "fix" || mode === "prompt" || mode === "dictate" ? { mode } : {}),
+  };
 }
 
 async function finishSelfTest(status: RecordingStatus): Promise<void> {
@@ -273,6 +332,7 @@ async function finishSelfTest(status: RecordingStatus): Promise<void> {
     await snapshot(uiWindow, "ui-review-dark");
   }
   if (status.phase !== "review") app.exit(1);
+  else if (status.mode !== "fix") app.exit(status.result ? 0 : 4);
   else app.exit(status.summary?.privacy.redactions["github-token"] ? 0 : 3);
 }
 
@@ -285,7 +345,10 @@ app.on("before-quit", () => {
   quitting = true;
 });
 
-app.on("will-quit", () => globalShortcut.unregisterAll());
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
+  disposeOsBridge();
+});
 
 // Stay in the tray when every window is closed.
 app.on("window-all-closed", () => undefined);
@@ -296,7 +359,9 @@ void app.whenReady().then(() => {
     recorder,
     // Test runs have their own profile, so they read the key from the environment (.env).
     apiKey: () => readByokKey() ?? (SELF_TEST ? (process.env.META_API_KEY ?? null) : null),
+    settings: () => (SELF_TEST ? selfTestSettings() : readSettings()),
   });
+  warmUpOsBridge();
   registerIpc();
   recording.on("status", onStatus);
   recording.on("feedback", (feedback) => broadcast(Channels.recordingFeedback, feedback));

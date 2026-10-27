@@ -19,7 +19,7 @@ import {
 import { frameId } from "@ivibe/ocr";
 import type { OcrEngine } from "@ivibe/ocr";
 import { createWebOcr } from "@ivibe/ocr/web";
-import { redact, scanFrame } from "@ivibe/redact";
+import { assertRedacted, redact, scanFrame } from "@ivibe/redact";
 import type { RedactedFrame } from "@ivibe/redact";
 import {
   KeyframeSelector,
@@ -28,6 +28,7 @@ import {
   compareThumbnails,
   toGrayscale,
 } from "@ivibe/vision";
+import type { EvidenceFrame } from "../../shared/ipc.ts";
 import type { RecorderBridge } from "../../preload/recorder.ts";
 
 declare global {
@@ -41,6 +42,8 @@ interface StartOptions {
   fps: number;
   maxWidth: number;
   scaleFactor: number;
+  /** Capture the screen. Voice-only modes (Prompt, Dictate) never touch it. */
+  screen: boolean;
 }
 
 interface Keyframe {
@@ -69,6 +72,39 @@ const SECRET_LABELS: Record<string, string> = {
 
 /** Below this level (−50 dBFS) the narration counts as silence (§4.6). */
 const SILENCE_DBFS = -50;
+
+/** Keyframes sent to the model in Fix mode, and their size (Spike S3: ~1.5k tokens each). */
+const EVIDENCE_FRAMES = 8;
+const EVIDENCE_WIDTH = 1280;
+const EVIDENCE_QUALITY = 0.8;
+
+/** Spreads picks evenly over the recording, always keeping the first and last frame. */
+function pickEvenly<T>(items: readonly T[], count: number): T[] {
+  if (items.length <= count) return [...items];
+  return Array.from(
+    { length: count },
+    (_, i) => items[Math.round((i * (items.length - 1)) / (count - 1))]!,
+  );
+}
+
+async function toEvidence(frame: RedactedFrame): Promise<EvidenceFrame> {
+  assertRedacted(frame);
+  const scale = Math.min(1, EVIDENCE_WIDTH / frame.image.width);
+  const canvas = new OffscreenCanvas(
+    Math.round(frame.image.width * scale),
+    Math.round(frame.image.height * scale),
+  );
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("2D canvas unavailable");
+  context.drawImage(frame.image, 0, 0, canvas.width, canvas.height);
+  const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: EVIDENCE_QUALITY });
+  return {
+    id: frame.id,
+    tMs: Math.round(frame.tMs),
+    jpeg: new Uint8Array(await blob.arrayBuffer()),
+    ocr: frame.lines.map((line) => line.text).join("\n"),
+  };
+}
 
 const bridge = window.ivibeRecorderBridge;
 
@@ -115,14 +151,17 @@ class Session {
   }
 
   async start(): Promise<void> {
-    this.#stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: { ideal: this.#options.fps * 2, max: 15 } },
-      audio: false,
-    });
-    const track = this.#stream.getVideoTracks()[0];
-    if (!track) throw new Error("The screen stream has no video track.");
-    const settings = track.getSettings();
-    this.#size = { width: settings.width ?? 0, height: settings.height ?? 0 };
+    let track: MediaStreamTrack | null = null;
+    if (this.#options.screen) {
+      this.#stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: this.#options.fps * 2, max: 15 } },
+        audio: false,
+      });
+      track = this.#stream.getVideoTracks()[0] ?? null;
+      if (!track) throw new Error("The screen stream has no video track.");
+      const settings = track.getSettings();
+      this.#size = { width: settings.width ?? 0, height: settings.height ?? 0 };
+    }
 
     this.#mic = new MicRecorder();
     try {
@@ -133,14 +172,18 @@ class Session {
       // Recording without narration still works; the agent is told there's no audio.
       console.warn("Microphone unavailable:", error);
       this.#mic = null;
+      // Voice-only modes have nothing to record without a microphone.
+      if (!track) throw new Error("No microphone is available.", { cause: error });
     }
 
-    this.#sampler = new FrameSampler(track, {
-      intervalMs: 1000 / this.#options.fps,
-      onSample: ({ timeMs, frame }) => this.#onSample(timeMs, frame),
-    });
+    if (track) {
+      this.#sampler = new FrameSampler(track, {
+        intervalMs: 1000 / this.#options.fps,
+        onSample: ({ timeMs, frame }) => this.#onSample(timeMs, frame),
+      });
+    }
     this.#startedAt = performance.now();
-    this.#sampler.start();
+    this.#sampler?.start();
     this.#levelTimer = setInterval(() => {
       const level = this.#mic?.level ?? 0;
       this.#peakRms = Math.max(this.#peakRms, level);
@@ -278,6 +321,8 @@ class Session {
     }
 
     await this.#privacyQueue;
+    const ordered = [...this.redacted].sort((a, b) => a.tMs - b.tMs);
+    const frames = await Promise.all(pickEvenly(ordered, EVIDENCE_FRAMES).map(toEvidence));
 
     bridge.emit({
       type: "finished",
@@ -293,6 +338,7 @@ class Session {
         },
         privacy: this.privacy,
       },
+      frames,
     });
   }
 

@@ -6,13 +6,14 @@ import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Link } from "@astryxdesign/core/Link";
+import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import type { AppInfo } from "../../shared/ipc.ts";
 import { signal } from "../shared/theme.tsx";
 import { Shortcut } from "../shared/shortcut.tsx";
 import { ipcMessage } from "./state.ts";
-import type { ByokState } from "./state.ts";
+import type { ByokState, SettingsState } from "./state.ts";
 
 const styles = stylex.create({
   page: {
@@ -128,7 +129,16 @@ function MetaKey({ byok }: { byok: ByokState }) {
   );
 }
 
-export function SettingsPage({ info, byok }: { info: AppInfo | null; byok: ByokState }) {
+export function SettingsPage({
+  info,
+  byok,
+  settings,
+}: {
+  info: AppInfo | null;
+  byok: ByokState;
+  settings: SettingsState;
+}) {
+  const current = settings.settings;
   return (
     <div {...stylex.props(styles.page)}>
       <Heading level={1} xstyle={styles.title}>
@@ -140,6 +150,23 @@ export function SettingsPage({ info, byok }: { info: AppInfo | null; byok: ByokS
         note="Encrypted with your system keychain. Calls go from this device straight to Meta."
       >
         <MetaKey byok={byok} />
+      </Row>
+
+      <Row title="Output" note="Where the result goes when a recording ends.">
+        <Switch
+          label="Paste into the app I was using"
+          description="Detects Claude Code, Cursor, ChatGPT and more. When off, or if you switch apps, the result is copied instead."
+          value={current?.autoPaste ?? true}
+          isDisabled={!current}
+          onChange={(autoPaste) => settings.change({ autoPaste })}
+        />
+        <Switch
+          label="Attach screenshots as proof"
+          description="Fix mode only. Redacted screenshots are pasted into chat apps, or referenced as files for terminal agents."
+          value={current?.proofImages ?? true}
+          isDisabled={!current}
+          onChange={(proofImages) => settings.change({ proofImages })}
+        />
       </Row>
 
       <Row title="Shortcut" note="Starts and stops a recording from any app.">

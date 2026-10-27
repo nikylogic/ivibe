@@ -2,7 +2,7 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 import { Channels } from "../shared/ipc.ts";
-import type { AppInfo, ByokStatus, RecordingStatus } from "../shared/ipc.ts";
+import type { AppInfo, ByokStatus, RecordingStatus, Settings } from "../shared/ipc.ts";
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
   const handler = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -19,6 +19,15 @@ const api = {
     onState: (listener: (status: RecordingStatus) => void) =>
       subscribe(Channels.recordingState, listener),
     onLevel: (listener: (rms: number) => void) => subscribe(Channels.recordingLevel, listener),
+    /** Copies the last result again, e.g. when it couldn't be pasted. */
+    copyResult: (): Promise<void> => ipcRenderer.invoke(Channels.resultCopy),
+  },
+  settings: {
+    get: (): Promise<Settings> => ipcRenderer.invoke(Channels.settingsGet),
+    set: (change: Partial<Settings>): Promise<Settings> =>
+      ipcRenderer.invoke(Channels.settingsSet, change),
+    onChange: (listener: (settings: Settings) => void) =>
+      subscribe(Channels.settingsChanged, listener),
   },
   byok: {
     set: (key: string): Promise<ByokStatus> => ipcRenderer.invoke(Channels.byokSet, key),

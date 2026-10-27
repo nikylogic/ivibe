@@ -4,9 +4,14 @@ import { useEffect, useState } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Spinner } from "@astryxdesign/core/Spinner";
-import { AlertCircle, CheckCircle2, ShieldCheck, Square, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, ClipboardCheck, ShieldCheck, Square, X } from "lucide-react";
 import type { HudApi } from "../../preload/hud.ts";
-import type { RecordingFeedback, RecordingStatus, TranscriptSegment } from "../../shared/ipc.ts";
+import type {
+  OutputMode,
+  RecordingFeedback,
+  RecordingStatus,
+  TranscriptSegment,
+} from "../../shared/ipc.ts";
 import { withClass } from "../shared/shortcut.tsx";
 import { formatClock, mount } from "../shared/theme.tsx";
 import { asSentence } from "../shared/transcript.ts";
@@ -23,6 +28,22 @@ const SILENCE_HINT_MS = 6000;
 const TOAST_MS = 2800;
 
 const ink = "#f2efe8";
+
+/** What the user is asked to talk about, per mode. */
+const LISTENING_HINT: Record<OutputMode, string> = {
+  fix: "Listening. Describe the bug as you show it.",
+  prompt: "Listening. Say what you want built or changed.",
+  dictate: "Listening. Speak naturally.",
+};
+
+/** What gets written, for the pill's "Writing … for X" line. */
+const WRITING_LABEL: Record<OutputMode, string> = {
+  fix: "Writing your fix prompt",
+  prompt: "Writing your prompt",
+  dictate: "Cleaning up your words",
+};
+
+const isMac = navigator.userAgent.includes("Mac");
 
 const styles = stylex.create({
   frame: {
@@ -182,7 +203,7 @@ function Caption({ status, heardVoice }: { status: RecordingStatus; heardVoice: 
           {silent
             ? "We can’t hear you. Check that the right microphone is on."
             : isRecording || status.phase === "starting"
-              ? "Listening. Describe the bug as you show it."
+              ? LISTENING_HINT[status.mode ?? "fix"]
               : "No narration recorded."}
         </span>
       </div>
@@ -222,13 +243,48 @@ function Controls({ status }: { status: RecordingStatus }) {
   const remaining = status.maxMs - status.elapsedMs;
   const nearEnd = remaining <= 10_000;
 
-  if (status.phase === "finalizing") {
+  if (status.phase === "finalizing" || status.phase === "writing") {
+    const mode = status.mode ?? "fix";
+    const label =
+      status.phase === "finalizing"
+        ? mode === "fix"
+          ? "Hiding secrets on this device…"
+          : "Finishing up…"
+        : `${WRITING_LABEL[mode]}${status.targetName ? ` for ${status.targetName}` : ""}…`;
     return (
       <div {...stylex.props(styles.controls)}>
         <div {...stylex.props(styles.status)}>
           <Spinner size="sm" />
-          <span {...stylex.props(styles.statusText)}>Hiding secrets and saving the recording…</span>
+          <span {...stylex.props(styles.statusText)}>{label}</span>
         </div>
+      </div>
+    );
+  }
+
+  if (status.phase === "review" && status.result) {
+    const { result } = status;
+    const pasted = result.delivery === "pasted";
+    const proof =
+      result.proofImages > 0
+        ? ` · ${result.proofImages} screenshot${result.proofImages === 1 ? "" : "s"}`
+        : "";
+    return (
+      <div {...stylex.props(styles.controls)}>
+        <div {...stylex.props(styles.status, styles.grow)}>
+          {pasted ? (
+            <CheckCircle2 size={17} strokeWidth={2} color="#6fcf8e" />
+          ) : (
+            <ClipboardCheck size={17} strokeWidth={2} color="#6fcf8e" />
+          )}
+          <span {...stylex.props(styles.statusText)}>
+            {pasted
+              ? `Pasted into ${result.targetName}${proof}`
+              : `Copied. Press ${isMac ? "⌘V" : "Ctrl+V"} to paste${proof}`}
+          </span>
+        </div>
+        <button {...stylex.props(styles.open)} onClick={() => void window.ivibeHud.openApp()}>
+          View
+        </button>
       </div>
     );
   }
@@ -291,7 +347,7 @@ function Controls({ status }: { status: RecordingStatus }) {
           onClick={() => void window.ivibeHud.cancel()}
         />
         <IconButton
-          label="Stop and analyze"
+          label="Stop and paste"
           variant="primary"
           size="sm"
           icon={<Square size={11} strokeWidth={0} fill="currentColor" />}

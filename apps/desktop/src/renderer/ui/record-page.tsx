@@ -4,15 +4,19 @@ import * as stylex from "@stylexjs/stylex";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
-import { Mic, ShieldCheck, Square } from "lucide-react";
+import { Copy, Mic, ShieldCheck, Square } from "lucide-react";
 import type {
   AppInfo,
+  OutputMode,
+  RecordingResult,
   RecordingStatus,
   RecordingSummary,
   TranscriptSegment,
 } from "../../shared/ipc.ts";
+import type { SettingsState } from "./state.ts";
 import { formatClock, signal } from "../shared/theme.tsx";
 import { asSentence } from "../shared/transcript.ts";
 import { Waveform, useLevelHistory } from "../shared/waveform.tsx";
@@ -30,6 +34,28 @@ const styles = stylex.create({
     paddingInline: 40,
   },
   hero: { display: "flex", flexDirection: "column", gap: 14 },
+  modes: { display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" },
+  result: {
+    margin: 0,
+    padding: 20,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "var(--color-border)",
+    backgroundColor: "var(--color-background-surface)",
+    fontFamily: "inherit",
+    fontSize: 14,
+    lineHeight: 1.6,
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
+    userSelect: "text",
+  },
+  resultHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   display: { fontSize: 52, lineHeight: 1.02, letterSpacing: "-0.01em" },
   displaySoft: { fontStyle: "italic", color: "var(--color-text-secondary)" },
   lede: { maxWidth: 520, fontSize: 15, lineHeight: 1.6 },
@@ -113,15 +139,64 @@ const styles = stylex.create({
   saidFailed: { color: "var(--color-text-secondary)", fontStyle: "italic" },
 });
 
+const MODES: { mode: OutputMode; label: string; note: string; lede: string }[] = [
+  {
+    mode: "fix",
+    label: "Fix",
+    note: "Screen and voice become a fix prompt, with screenshots as proof.",
+    lede: "Show the bug and talk it through. iVibe hides secrets on this device, writes the fix prompt and pastes it into your coding agent.",
+  },
+  {
+    mode: "prompt",
+    label: "Prompt",
+    note: "Voice only. What you say becomes a clean, structured prompt.",
+    lede: "Say what you want built. iVibe turns it into a clear prompt and pastes it where you were typing.",
+  },
+  {
+    mode: "dictate",
+    label: "Dictate",
+    note: "Voice only. Your words, cleaned up and pasted as they are.",
+    lede: "Just talk. iVibe removes the ums and false starts and pastes your words where you were typing.",
+  },
+];
+
+const modeInfo = (mode: OutputMode) => MODES.find((entry) => entry.mode === mode) ?? MODES[0]!;
+
+function ModeSwitch({ settings, isLocked }: { settings: SettingsState; isLocked: boolean }) {
+  const mode = settings.settings?.mode ?? "fix";
+  return (
+    <div {...stylex.props(styles.modes)}>
+      <SegmentedControl
+        label="What a recording turns into"
+        value={mode}
+        isDisabled={isLocked || !settings.settings}
+        onChange={(value) => settings.change({ mode: value as OutputMode })}
+      >
+        {MODES.map((entry) => (
+          <SegmentedControlItem key={entry.mode} value={entry.mode} label={entry.label} />
+        ))}
+      </SegmentedControl>
+      <Text color="secondary" size="sm">
+        {modeInfo(mode).note}
+      </Text>
+    </div>
+  );
+}
+
 function Recorder({ status, info }: { status: RecordingStatus; info: AppInfo | null }) {
   const isRecording = status.phase === "recording" || status.phase === "starting";
   const levels = useLevelHistory(window.ivibe.recording.onLevel, 48, isRecording);
 
-  if (status.phase === "finalizing") {
+  if (status.phase === "finalizing" || status.phase === "writing") {
+    const target = status.targetName ? ` for ${status.targetName}` : "";
     return (
       <div {...stylex.props(styles.recorder)}>
         <Spinner size="sm" />
-        <Text>Reading the screen and hiding secrets on this device…</Text>
+        <Text>
+          {status.phase === "finalizing"
+            ? "Finishing the recording on this device…"
+            : `Muse Spark is writing the result${target}…`}
+        </Text>
       </div>
     );
   }
@@ -249,6 +324,35 @@ function TranscriptSection({ status }: { status: RecordingStatus }) {
   );
 }
 
+function Result({ result }: { result: RecordingResult }) {
+  const where =
+    result.delivery === "pasted" ? `Pasted into ${result.targetName}` : "Copied to the clipboard";
+  const proof =
+    result.proofImages > 0
+      ? ` with ${result.proofImages} screenshot${result.proofImages === 1 ? "" : "s"}`
+      : "";
+  return (
+    <section {...stylex.props(styles.section)}>
+      <div {...stylex.props(styles.resultHeader)}>
+        <Text xstyle={styles.sectionTitle}>
+          {where}
+          {proof}
+        </Text>
+        <Button
+          label="Copy"
+          variant="ghost"
+          size="sm"
+          icon={<Copy size={14} strokeWidth={2} />}
+          onClick={() => void window.ivibe.recording.copyResult()}
+        />
+      </div>
+      <pre {...stylex.props(styles.result)} data-selectable>
+        {result.text}
+      </pre>
+    </section>
+  );
+}
+
 function LastRecording({ summary }: { summary: RecordingSummary }) {
   const { privacy } = summary;
   const hidden = Object.values(privacy.redactions).reduce((sum, count) => sum + count, 0);
@@ -274,20 +378,33 @@ function LastRecording({ summary }: { summary: RecordingSummary }) {
   );
 }
 
-export function RecordPage({ status, info }: { status: RecordingStatus; info: AppInfo | null }) {
+export function RecordPage({
+  status,
+  info,
+  settings,
+}: {
+  status: RecordingStatus;
+  info: AppInfo | null;
+  settings: SettingsState;
+}) {
+  const busy = status.phase !== "idle" && status.phase !== "review" && status.phase !== "error";
+  const mode = (busy ? status.mode : settings.settings?.mode) ?? "fix";
   return (
     <div {...stylex.props(styles.page)}>
       <div {...stylex.props(styles.hero)}>
         <Heading level={1} xstyle={styles.display}>
-          Show the bug.
+          {mode === "fix" ? "Show the bug." : "Just say it."}
           <br />
-          <span {...stylex.props(styles.displaySoft)}>We’ll find the fix.</span>
+          <span {...stylex.props(styles.displaySoft)}>
+            {mode === "dictate" ? "We’ll tidy it up." : "We’ll write the prompt."}
+          </span>
         </Heading>
         <Text color="secondary" xstyle={styles.lede}>
-          Record up to a minute of your screen and talk through what went wrong. iVibe reads the
-          screen and hides secrets on this device, then finds the root cause.
+          {modeInfo(mode).lede}
         </Text>
       </div>
+
+      <ModeSwitch settings={settings} isLocked={busy} />
 
       <Recorder status={status} info={info} />
 
@@ -303,7 +420,10 @@ export function RecordPage({ status, info }: { status: RecordingStatus; info: Ap
       )}
 
       {status.phase !== "idle" && <TranscriptSection status={status} />}
-      {status.phase === "review" && status.summary && <LastRecording summary={status.summary} />}
+      {status.phase === "review" && status.result && <Result result={status.result} />}
+      {status.phase === "review" && status.summary && status.mode === "fix" && (
+        <LastRecording summary={status.summary} />
+      )}
     </div>
   );
 }

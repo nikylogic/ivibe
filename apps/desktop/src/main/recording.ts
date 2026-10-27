@@ -6,12 +6,17 @@ import { desktopCapturer, screen, session } from "electron";
 import type { BrowserWindow, Display } from "electron";
 import { Channels } from "../shared/ipc.ts";
 import type {
+  EvidenceFrame,
+  OutputMode,
   RecorderCommand,
   RecorderEvent,
   RecordingFeedback,
   RecordingStatus,
+  Settings,
   TranscriptSegment,
 } from "../shared/ipc.ts";
+import { compose, detectDestination } from "./compose.ts";
+import type { Destination } from "./compose.ts";
 import { transcribe } from "./transcribe.ts";
 
 /**
@@ -31,8 +36,9 @@ interface CursorSample {
 
 export interface RecordingControllerOptions {
   recorder: () => BrowserWindow;
-  /** The user's Meta key, for live captions; null turns captions off. */
+  /** The user's Meta key, for live captions and writing; null turns both off. */
   apiKey: () => string | null;
+  settings: () => Settings;
 }
 
 export class RecordingController extends EventEmitter<{
@@ -41,6 +47,11 @@ export class RecordingController extends EventEmitter<{
 }> {
   readonly #recorder: () => BrowserWindow;
   readonly #apiKey: () => string | null;
+  readonly #settings: () => Settings;
+  #mode: OutputMode = "fix";
+  #destination: Destination | null = null;
+  /** Captions still in flight; writing waits for them. */
+  #captions = new Set<Promise<void>>();
   #transcript: TranscriptSegment[] = [];
   #transcriptions = new AbortController();
   #status: RecordingStatus = { phase: "idle", elapsedMs: 0, maxMs: MAX_RECORDING_MS };
@@ -52,10 +63,11 @@ export class RecordingController extends EventEmitter<{
   #cursor: CursorSample[] = [];
   #stopRequested = false;
 
-  constructor({ recorder, apiKey }: RecordingControllerOptions) {
+  constructor({ recorder, apiKey, settings }: RecordingControllerOptions) {
     super();
     this.#recorder = recorder;
     this.#apiKey = apiKey;
+    this.#settings = settings;
     this.#installDisplayHandler();
   }
 
@@ -103,26 +115,36 @@ export class RecordingController extends EventEmitter<{
   }
 
   async start(display: Display): Promise<void> {
-    if (this.#status.phase === "starting" || this.#status.phase === "recording") return;
+    const busy: RecordingStatus["phase"][] = ["starting", "recording", "finalizing", "writing"];
+    if (busy.includes(this.#status.phase)) return;
     this.#display = display;
     this.#sourceId = null;
     this.#stopRequested = false;
     this.#cursor = [];
     this.#id = randomUUID();
     this.#resetTranscript();
+    this.#mode = this.#settings().mode;
+    this.#destination = null;
     this.#set({
       phase: "starting",
       elapsedMs: 0,
       error: undefined,
       summary: undefined,
+      result: undefined,
       captions: this.#apiKey() ? "on" : "no-key",
       transcript: [],
+      mode: this.#mode,
+      targetName: undefined,
     });
+    // Before any iVibe window shows: the app in front now is where the result goes.
+    this.#destination = await detectDestination();
+    this.#set({ targetName: this.#destination.target.name });
 
     const options = {
       fps: 4,
       maxWidth: 1920,
       scaleFactor: display.scaleFactor,
+      screen: this.#mode === "fix",
     };
     try {
       // executeJavaScript with userGesture=true satisfies getDisplayMedia's activation
@@ -160,7 +182,13 @@ export class RecordingController extends EventEmitter<{
   /** Back to idle after the user has seen or discarded the result. */
   reset(): void {
     if (this.#status.phase === "review" || this.#status.phase === "error") {
-      this.#set({ phase: "idle", elapsedMs: 0, error: undefined, summary: undefined });
+      this.#set({
+        phase: "idle",
+        elapsedMs: 0,
+        error: undefined,
+        summary: undefined,
+        result: undefined,
+      });
     }
   }
 
@@ -177,7 +205,6 @@ export class RecordingController extends EventEmitter<{
         break;
       case "finished":
         this.#set({
-          phase: "review",
           elapsedMs: event.summary.durationMs,
           summary: {
             ...event.summary,
@@ -186,10 +213,14 @@ export class RecordingController extends EventEmitter<{
             cursorSamples: this.#cursor.length,
           },
         });
+        void this.#write(event.frames);
         break;
-      case "utterance":
-        void this.#caption(event.startMs, event.endMs, event.wav);
+      case "utterance": {
+        const caption = this.#caption(event.startMs, event.endMs, event.wav);
+        this.#captions.add(caption);
+        void caption.finally(() => this.#captions.delete(caption));
         break;
+      }
       case "feedback":
         this.emit("feedback", event.feedback);
         break;
@@ -201,9 +232,50 @@ export class RecordingController extends EventEmitter<{
     }
   }
 
+  /** Writes the result for the recording's mode and pastes it where the user was (D20). */
+  async #write(frames: EvidenceFrame[]): Promise<void> {
+    const key = this.#apiKey();
+    if (!key) {
+      // Without a key there are no captions to write from; the recording summary still shows.
+      this.#set({ phase: "review" });
+      return;
+    }
+    const { signal } = this.#transcriptions;
+    this.#set({ phase: "writing" });
+    await Promise.all(this.#captions);
+    if (signal.aborted) return;
+
+    const transcript = this.#transcript
+      .filter((segment) => segment.state === "final")
+      .map(({ startMs, text }) => ({ startMs, text }));
+    if (transcript.length === 0 && (this.#mode !== "fix" || frames.length === 0)) {
+      this.#fail("No speech was heard, so there was nothing to paste.");
+      return;
+    }
+    const settings = this.#settings();
+    try {
+      const result = await compose({
+        id: this.#id,
+        mode: this.#mode,
+        destination: this.#destination ?? (await detectDestination()),
+        transcript,
+        frames,
+        apiKey: key,
+        autoPaste: settings.autoPaste,
+        proofImages: settings.proofImages,
+      });
+      if (signal.aborted) return;
+      this.#set({ phase: "review", result });
+    } catch (error) {
+      if (signal.aborted) return;
+      this.#fail(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   #resetTranscript(): void {
     this.#transcriptions.abort();
     this.#transcriptions = new AbortController();
+    this.#captions.clear();
     this.#transcript = [];
   }
 
