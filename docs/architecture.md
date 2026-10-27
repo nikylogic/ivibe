@@ -1916,7 +1916,7 @@ ivibe/
 
 **Third-party code:**
 
-- **Allowlist:** MIT, MIT-0, ISC, BSD-2-Clause, BSD-3-Clause, 0BSD, Apache-2.0, MPL-2.0, CC0-1.0, CC-BY-4.0, Unlicense, BlueOak-1.0.0, Python-2.0, WTFPL. The check covers every dependency of every workspace package, development ones included, because Vite bundles the desktop app's devDependencies into it. Anything else, including GPL, LGPL, AGPL, SSPL and unknown licenses, fails CI until it is reviewed. GPL-family code would be compatible with AGPL, but we couldn't include it in a commercial license.
+- **Allowlist:** MIT, MIT-0, ISC, BSD-2-Clause, BSD-3-Clause, 0BSD, Apache-2.0, MPL-2.0, CC0-1.0, CC-BY-4.0, Unlicense, BlueOak-1.0.0, Python-2.0, WTFPL, and OFL-1.1 for bundled fonts. The check covers every dependency of every workspace package, development ones included, because Vite bundles the desktop app's devDependencies into it. Anything else, including GPL, LGPL, AGPL, SSPL and unknown licenses, fails CI until it is reviewed. GPL-family code would be compatible with AGPL, but we couldn't include it in a commercial license.
 - **No code copied from GPL sources,** including snippets from answers or blogs that carry a GPL license.
 - **Model weights and assets:** the PaddleOCR models are Apache-2.0. Fonts and icons must be OFL, MIT or Apache-2.0.
 - **Notices:** `scripts/notices.ts` writes `THIRD_PARTY_NOTICES.md` from `pnpm licenses list --prod --json` plus the model and font licenses. electron-builder ships it with the app (Appendix D), and the web app serves it at `/legal/notices`. electron-builder also ships Electron's own `LICENSE` and `LICENSES.chromium.html`.

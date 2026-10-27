@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { defineConfig } from "electron-vite";
+import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { astryxStylex } from "@astryxdesign/build/vite";
 
@@ -10,6 +12,30 @@ const isolationHeaders = {
   "Cross-Origin-Opener-Policy": "same-origin",
   "Cross-Origin-Embedder-Policy": "require-corp",
 };
+
+/**
+ * The Astryx layer-split plugin links its shared stylesheet as "./assets/…" (from electron-vite's
+ * relative base), which breaks for pages in subfolders. The app is served from app://ivibe/, so
+ * an absolute link is correct for every page.
+ */
+function absoluteAstryxStylesheet(): Plugin {
+  return {
+    name: "ivibe-absolute-astryx-stylesheet",
+    apply: "build",
+    enforce: "post",
+    writeBundle({ dir }) {
+      if (!dir) return;
+      for (const page of ["ui", "hud", "recorder"]) {
+        const file = join(dir, page, "index.html");
+        const html = readFileSync(file, "utf8");
+        writeFileSync(
+          file,
+          html.replaceAll('href="./assets/astryx-stylex-', 'href="/assets/astryx-stylex-'),
+        );
+      }
+    },
+  };
+}
 
 export default defineConfig({
   main: {
@@ -34,7 +60,7 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, "src/renderer"),
-    plugins: [...astryxStylex(), react()],
+    plugins: [...astryxStylex(), react(), absoluteAstryxStylesheet()],
     server: { headers: isolationHeaders },
     build: {
       rollupOptions: {

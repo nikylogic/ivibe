@@ -26,6 +26,8 @@ const ALLOWED = new Set([
   "BlueOak-1.0.0",
   "Python-2.0",
   "WTFPL",
+  // Fonts bundled with the app (Inter, Instrument Serif); allows embedding in commercial software.
+  "OFL-1.1",
 ]);
 
 /** Packages whose license field isn't a valid SPDX ID, checked by hand. */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { join } from "node:path";
-import { BrowserWindow, screen, shell } from "electron";
+import { BrowserWindow, nativeTheme, screen, shell } from "electron";
 import type { Display } from "electron";
 
 /**
@@ -29,15 +29,26 @@ function harden(window: BrowserWindow): void {
   });
 }
 
+/** Matches --color-background-body in the renderer theme, so the title bar blends in. */
+const canvas = () =>
+  nativeTheme.shouldUseDarkColors
+    ? { color: "#121110", symbolColor: "#a39e94" }
+    : { color: "#f4f1ea", symbolColor: "#6f6a60" };
+
 export function createUiWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 980,
-    height: 700,
-    minWidth: 760,
+    width: 1080,
+    height: 720,
+    minWidth: 820,
     minHeight: 560,
     show: false,
     title: "iVibe",
-    backgroundColor: "#0b0b1a",
+    backgroundColor: canvas().color,
+    // A frameless look: macOS keeps its traffic lights, Windows and Linux get overlay controls.
+    titleBarStyle: "hidden",
+    ...(process.platform === "darwin"
+      ? { trafficLightPosition: { x: 18, y: 18 } }
+      : { titleBarOverlay: { ...canvas(), height: 44 } }),
     autoHideMenuBar: true,
     webPreferences: {
       preload: preload("ui"),
@@ -48,6 +59,14 @@ export function createUiWindow(): BrowserWindow {
   });
   harden(window);
   window.once("ready-to-show", () => window.show());
+  if (process.platform !== "darwin") {
+    const updateOverlay = () => {
+      window.setBackgroundColor(canvas().color);
+      window.setTitleBarOverlay({ ...canvas(), height: 44 });
+    };
+    nativeTheme.on("updated", updateOverlay);
+    window.once("closed", () => nativeTheme.off("updated", updateOverlay));
+  }
   void window.loadURL(pageUrl("ui"));
   return window;
 }
@@ -71,13 +90,15 @@ export function createRecorderWindow(): BrowserWindow {
   return window;
 }
 
-export const HUD_SIZE = { width: 360, height: 64 };
+// Room around the 44-px pill for its shadow.
+export const HUD_SIZE = { width: 320, height: 76 };
 
 export function createHudWindow(display: Display): BrowserWindow {
-  const { x, y, width } = display.workArea;
+  const { x, y, width, height } = display.workArea;
   const window = new BrowserWindow({
+    // Bottom centre, just above the taskbar or dock.
     x: Math.round(x + (width - HUD_SIZE.width) / 2),
-    y: y + 16,
+    y: y + height - HUD_SIZE.height - 20,
     ...HUD_SIZE,
     show: false,
     frame: false,

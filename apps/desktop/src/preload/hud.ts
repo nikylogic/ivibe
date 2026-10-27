@@ -8,16 +8,16 @@ import type { RecordingStatus } from "../shared/ipc.ts";
 const api = {
   stop: (): Promise<void> => ipcRenderer.invoke(Channels.recordingStop),
   cancel: (): Promise<void> => ipcRenderer.invoke(Channels.recordingCancel),
-  onState: (listener: (status: RecordingStatus) => void) => {
+  onState: (listener: (status: RecordingStatus) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, status: RecordingStatus) =>
       listener(status);
     ipcRenderer.on(Channels.recordingState, handler);
-    return () => ipcRenderer.removeListener(Channels.recordingState, handler);
+    return () => void ipcRenderer.removeListener(Channels.recordingState, handler);
   },
-  onLevel: (listener: (rms: number) => void) => {
+  onLevel: (listener: (rms: number) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, rms: number) => listener(rms);
     ipcRenderer.on(Channels.recordingLevel, handler);
-    return () => ipcRenderer.removeListener(Channels.recordingLevel, handler);
+    return () => void ipcRenderer.removeListener(Channels.recordingLevel, handler);
   },
 };
 

@@ -1,8 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join, normalize, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { BrowserWindow, Menu, Tray, app, globalShortcut, ipcMain, net, protocol } from "electron";
+import {
+  BrowserWindow,
+  Menu,
+  nativeTheme,
+  Tray,
+  app,
+  globalShortcut,
+  ipcMain,
+  net,
+  protocol,
+} from "electron";
 import { Channels } from "../shared/ipc.ts";
 import type { AppInfo, RecorderEvent, RecordingStatus } from "../shared/ipc.ts";
 import { byokStatus, clearByokKey, saveByokKey } from "./byok.ts";
@@ -16,9 +27,13 @@ import {
 } from "./windows.ts";
 
 const HOTKEY = "Control+Alt+R";
-const SELF_TEST = process.argv.includes("--ivibe-selftest");
+/** Dev only: --ivibe-snapshot=<dir> runs the self-test and saves PNGs of each window state. */
+const SNAPSHOT_DIR = process.argv.find((arg) => arg.startsWith("--ivibe-snapshot="))?.split("=")[1];
+const SELF_TEST = process.argv.includes("--ivibe-selftest") || SNAPSHOT_DIR !== undefined;
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// Test runs use their own profile, so they work next to a running copy of the app.
+if (SELF_TEST) app.setPath("userData", join(app.getPath("temp"), "ivibe-selftest"));
+else if (!app.requestSingleInstanceLock()) app.quit();
 
 // app:// serves the built renderer with cross-origin isolation (WebAssembly threads for OCR)
 // and a strict CSP. It must be registered before the app is ready.
@@ -116,7 +131,7 @@ function onStatus(status: RecordingStatus): void {
     hudWindow = null;
   }
   if (status.phase === "review" || status.phase === "error") {
-    if (SELF_TEST) finishSelfTest(status);
+    if (SELF_TEST) void finishSelfTest(status);
     else showUi();
   }
 }
@@ -191,8 +206,24 @@ function showSelfTestFixture(): BrowserWindow {
 
 // Self-test: record a few seconds without user input and print the summary (CI and Spikes S11
 // and S12). It fails unless the fixture's token was found and redacted.
+async function snapshot(window: BrowserWindow | null, name: string): Promise<void> {
+  if (!SNAPSHOT_DIR || !window || window.isDestroyed()) return;
+  const image = await window.webContents.capturePage();
+  mkdirSync(SNAPSHOT_DIR, { recursive: true });
+  writeFileSync(join(SNAPSHOT_DIR, `${name}.png`), image.toPNG());
+}
+
 function runSelfTest(): void {
   console.log("IVIBE_SELFTEST start");
+  if (SNAPSHOT_DIR) {
+    nativeTheme.themeSource = "light";
+    showUi();
+    setTimeout(() => void snapshot(uiWindow, "ui-idle"), 1200);
+    setTimeout(() => {
+      void snapshot(hudWindow, "hud");
+      void snapshot(uiWindow, "ui-recording");
+    }, 3800);
+  }
   showSelfTestFixture();
   setTimeout(() => void startRecording(), 1500);
   setTimeout(() => void recording.stop(), 5000);
@@ -202,8 +233,16 @@ function runSelfTest(): void {
   }, 30_000);
 }
 
-function finishSelfTest(status: RecordingStatus): void {
+async function finishSelfTest(status: RecordingStatus): Promise<void> {
   console.log(`IVIBE_SELFTEST result ${JSON.stringify(status)}`);
+  if (SNAPSHOT_DIR) {
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 600));
+    await settle();
+    await snapshot(uiWindow, "ui-review-light");
+    nativeTheme.themeSource = "dark";
+    await settle();
+    await snapshot(uiWindow, "ui-review-dark");
+  }
   if (status.phase !== "review") app.exit(1);
   else app.exit(status.summary?.privacy.redactions["github-token"] ? 0 : 3);
 }

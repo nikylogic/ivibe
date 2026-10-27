@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import * as stylex from "@stylexjs/stylex";
-import { Button } from "@astryxdesign/core/Button";
-import { HStack } from "@astryxdesign/core/HStack";
-import { StatusDot } from "@astryxdesign/core/StatusDot";
-import { Text } from "@astryxdesign/core/Text";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Square, X } from "lucide-react";
 import type { HudApi } from "../../preload/hud.ts";
 import type { RecordingStatus } from "../../shared/ipc.ts";
+import { withClass } from "../shared/shortcut.tsx";
 import { formatClock, mount } from "../shared/theme.tsx";
+import { Waveform, useLevelHistory } from "../shared/waveform.tsx";
 
 declare global {
   interface Window {
@@ -17,65 +17,88 @@ declare global {
 }
 
 const styles = stylex.create({
-  pill: {
+  frame: {
     height: "100%",
-    paddingInline: 14,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pill: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    height: 44,
+    paddingInlineStart: 16,
+    paddingInlineEnd: 6,
     borderRadius: 999,
-    backgroundColor: "rgba(16, 13, 36, 0.94)",
+    backgroundColor: "#0f0e0d",
     borderWidth: 1,
     borderStyle: "solid",
-    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.28)",
+    animationName: "ivibe-rise",
+    animationDuration: "220ms",
+    animationTimingFunction: "ease-out",
   },
-  meter: {
-    width: 56,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.14)",
-    overflow: "hidden",
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#e5484d", // signal.recording; StyleX needs a literal
+    animationName: "ivibe-pulse",
+    animationDuration: "1.6s",
+    animationIterationCount: "infinite",
   },
-  level: {
-    height: "100%",
-    backgroundColor: "#7c5cff",
-    transition: "width 90ms linear",
+  clock: {
+    minWidth: 40,
+    color: "#f2efe8",
+    fontSize: 13,
+    fontWeight: 500,
+    fontVariantNumeric: "tabular-nums",
   },
-  warning: { color: "#ff8fb0" },
+  clockWarning: { color: "#ff9c8a" },
+  divider: { width: 1, height: 20, backgroundColor: "rgba(255, 255, 255, 0.1)" },
+  actions: { display: "flex", alignItems: "center", gap: 2 },
 });
 
 function Hud() {
   const [status, setStatus] = useState<RecordingStatus | null>(null);
-  const [level, setLevel] = useState(0);
+  const levels = useLevelHistory(window.ivibeHud.onLevel, 22);
 
-  useEffect(() => {
-    const offState = window.ivibeHud.onState(setStatus);
-    const offLevel = window.ivibeHud.onLevel(setLevel);
-    return () => {
-      offState();
-      offLevel();
-    };
-  }, []);
+  useEffect(() => window.ivibeHud.onState(setStatus), []);
 
   const elapsed = status?.elapsedMs ?? 0;
   const max = status?.maxMs ?? 60_000;
   const nearEnd = max - elapsed <= 10_000;
-  const width = `${Math.min(100, Math.round(Math.sqrt(level) * 180))}%`;
 
   return (
-    // The whole pill drags the window; the buttons opt out (global.css).
-    <HStack align="center" justify="between" gap={3} xstyle={styles.pill} className="drag-region">
-      <HStack align="center" gap={2}>
-        <StatusDot variant="error" label="Recording" isPulsing />
-        <Text weight="bold" hasTabularNumbers xstyle={nearEnd ? styles.warning : undefined}>
-          {formatClock(elapsed)} / {formatClock(max)}
-        </Text>
-        <div {...stylex.props(styles.meter)} aria-label="Microphone level">
-          <div {...stylex.props(styles.level)} style={{ width }} />
+    <div {...stylex.props(styles.frame)}>
+      {/* The pill drags the window; the buttons opt out (global.css). */}
+      <div {...withClass("drag-region", styles.pill)} role="status">
+        <span {...stylex.props(styles.dot)} aria-label="Recording" />
+        <Waveform levels={levels} color="#f2efe8" height={22} barWidth={2.5} gap={2} />
+        <span {...stylex.props(styles.clock, nearEnd && styles.clockWarning)}>
+          {formatClock(nearEnd ? max - elapsed : elapsed)}
+        </span>
+        <span {...stylex.props(styles.divider)} />
+        <div {...withClass("no-drag", styles.actions)}>
+          <IconButton
+            label="Cancel recording"
+            variant="ghost"
+            size="sm"
+            icon={<X size={16} strokeWidth={2} />}
+            onClick={() => void window.ivibeHud.cancel()}
+          />
+          <IconButton
+            label="Stop recording"
+            variant="primary"
+            size="sm"
+            icon={<Square size={12} strokeWidth={0} fill="currentColor" />}
+            onClick={() => void window.ivibeHud.stop()}
+          />
         </div>
-      </HStack>
-      <HStack gap={1} className="no-drag">
-        <Button label="Cancel" variant="ghost" onClick={() => void window.ivibeHud.cancel()} />
-        <Button label="Stop" variant="primary" onClick={() => void window.ivibeHud.stop()} />
-      </HStack>
-    </HStack>
+      </div>
+    </div>
   );
 }
 
