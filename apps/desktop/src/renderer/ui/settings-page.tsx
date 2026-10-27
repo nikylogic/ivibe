@@ -193,7 +193,7 @@ function MicTest({ microphone }: { microphone: string }) {
         const rms = Math.sqrt(samples.reduce((sum, x) => sum + x * x, 0) / samples.length);
         setLevel(rms);
         // Same threshold as the recording pill's "We can't hear you" hint.
-        if (rms > 0.02) setHeard(true);
+        if (rms > 0.01) setHeard(true);
       }, 80);
       const stop = () => {
         clearInterval(timer);

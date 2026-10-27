@@ -178,7 +178,7 @@ function useHeardVoice(isRecording: boolean): boolean {
   useEffect(() => {
     if (!isRecording) return;
     return window.ivibeHud.onLevel((rms) => {
-      if (rms > 0.02) setHeard(true);
+      if (rms > 0.01) setHeard(true);
     });
   }, [isRecording]);
   return heard;
