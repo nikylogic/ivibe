@@ -349,7 +349,11 @@ function TranscriptSection({ status }: { status: RecordingStatus }) {
 
 function Result({ result }: { result: RecordingResult }) {
   const where =
-    result.delivery === "pasted" ? `Pasted into ${result.targetName}` : "Copied to the clipboard";
+    result.delivery === "pasted"
+      ? `Pasted into ${result.targetName}`
+      : result.waiting
+        ? "Click a text field in any app to paste"
+        : "Copied. Press Ctrl+Alt+V in any app to paste";
   const proof =
     result.proofImages > 0
       ? ` with ${result.proofImages} screenshot${result.proofImages === 1 ? "" : "s"}`

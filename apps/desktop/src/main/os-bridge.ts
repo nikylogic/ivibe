@@ -34,7 +34,10 @@ Add-Type -Namespace IVibe -Name Win32 -MemberDefinition @'
 [DllImport("user32.dll")] public static extern int GetWindowThreadProcessId(System.IntPtr h, out int p);
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(System.IntPtr h, System.Text.StringBuilder s, int n);
 [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, System.UIntPtr extra);
+[DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vk);
 '@
+$uia = $false
+try { Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes; $uia = $true } catch {}
 function Describe($h) {
   $p = 0
   [void][IVibe.Win32]::GetWindowThreadProcessId($h, [ref]$p)
@@ -48,6 +51,21 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
   try {
     if ($line -eq 'focused') {
       $out = Describe ([IVibe.Win32]::GetForegroundWindow())
+    } elseif ($line -eq 'field') {
+      # The focused window, whether the left button is down or was clicked since the last
+      # call, and whether keyboard focus is in a text field (UI Automation).
+      $out = Describe ([IVibe.Win32]::GetForegroundWindow())
+      $state = [IVibe.Win32]::GetAsyncKeyState(1)
+      $out.down = ($state -band 0x8000) -ne 0
+      $out.clicked = ($state -band 1) -ne 0
+      $out.editable = $false
+      if ($uia) {
+        try {
+          $c = [System.Windows.Automation.AutomationElement]::FocusedElement.Current
+          $type = $c.ControlType.ProgrammaticName
+          $out.editable = ($type -eq 'ControlType.Edit' -or $type -eq 'ControlType.Document') -and -not $c.IsPassword -and $c.IsEnabled
+        } catch {}
+      }
     } elseif ($line -match '^paste (\d+) (ctrl|alt)$') {
       $target = [System.IntPtr][int64]$Matches[1]
       if ([IVibe.Win32]::GetForegroundWindow() -ne $target) {
@@ -191,6 +209,28 @@ export async function focusedWindow(): Promise<FocusedWindow | null> {
     // No accessibility permission, no xdotool, …: fall back to copying.
   }
   return null;
+}
+
+export interface FieldState extends FocusedWindow {
+  /** The left mouse button is down now. */
+  down: boolean;
+  /** It was pressed since the previous call. */
+  clicked: boolean;
+  /** Keyboard focus is in a text field (not a password field). */
+  editable: boolean;
+}
+
+/**
+ * Where the user is typing, for click-to-paste. Windows only: it needs UI Automation, and
+ * elsewhere the "paste last result" shortcut does the job.
+ */
+export async function fieldState(): Promise<FieldState | null> {
+  if (!windows) return null;
+  try {
+    return await windows.request<FieldState>("field");
+  } catch {
+    return null;
+  }
 }
 
 /**

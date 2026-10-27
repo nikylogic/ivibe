@@ -422,7 +422,9 @@ function Controls({
           <span {...stylex.props(styles.statusText)}>
             {pasted
               ? `Pasted into ${result.targetName}${proof}`
-              : `Copied · press ${isMac ? "⌘V" : "Ctrl+V"}${proof}`}
+              : result.waiting
+                ? `Click a text field to paste${proof}`
+                : `Copied · press ${isMac ? "⌃⌥V" : "Ctrl+Alt+V"} to paste${proof}`}
           </span>
         </div>
         <button {...stylex.props(styles.open)} onClick={onToggle}>

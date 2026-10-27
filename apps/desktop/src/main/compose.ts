@@ -137,77 +137,96 @@ async function renderProof(
     }),
   );
 }
+/** A finished result in a form that can be pasted again, into whichever app the user picks. */
+export interface Payload {
+  /** The prompt or text, without the proof section. */
+  text: string;
+  proof: { png: Uint8Array; line: string; file: string }[];
+}
 
-export async function compose(request: ComposeRequest): Promise<RecordingResult> {
+/** What goes on the clipboard when images can't be pasted: screenshots become file paths. */
+export function fallbackText({ text, proof }: Payload): string {
+  if (proof.length === 0) return text;
+  const files = proof.map((shot) => `${shot.line}\n   ${shot.file}`).join("\n");
+  return `${text}\n\nProof (annotated screenshots, open the files):\n${files}`;
+}
+
+/** The pieces to paste into a target, in order: each screenshot after the line about it. */
+export function partsFor(target: TargetApp, payload: Payload): Part[] {
+  if (payload.proof.length === 0 || imageDelivery(target) !== "paste") {
+    return [fallbackText(payload)];
+  }
+  const parts: Part[] = [`${payload.text}\n\nProof (annotated screenshots):`];
+  for (const shot of payload.proof) parts.push(`\n${shot.line} `, shot.png);
+  return parts;
+}
+
+/** Pastes a payload into a window and describes the outcome for the result panel. */
+export async function deliverPayload(
+  payload: Payload,
+  window: FocusedWindow | null,
+  target: TargetApp,
+  autoPaste: boolean,
+): Promise<Pick<RecordingResult, "text" | "targetName" | "delivery">> {
+  const parts = partsFor(target, payload);
+  const fallback = fallbackText(payload);
+  const delivery = await deliver({ window, target, parts, fallbackText: fallback, autoPaste });
+  const pasted = parts.filter((part) => typeof part === "string").join("");
+  return {
+    text: delivery === "pasted" ? pasted : fallback,
+    targetName: target.name,
+    delivery,
+  };
+}
+
+export async function compose(
+  request: ComposeRequest,
+): Promise<{ result: RecordingResult; payload: Payload }> {
   const { mode, destination, transcript, apiKey, frames } = request;
   const { target } = destination;
   const client: ClientOptions = { apiKey, fetch: net.fetch as typeof fetch };
 
+  let payload: Payload;
+  let proof: RenderedProof[] = [];
   if (mode !== "fix") {
     const text =
       mode === "dictate"
         ? await cleanUpDictation(transcript, client)
         : await writePrompt(transcript, target, client);
     if (!text) throw new Error("Muse Spark returned an empty result. Try again.");
-    const delivery = await deliver({
-      window: destination.window,
-      target,
-      parts: [text],
-      fallbackText: text,
-      autoPaste: request.autoPaste,
-    });
-    return { mode, text, targetName: target.name, delivery, proofImages: 0, proof: [] };
+    payload = { text, proof: [] };
+  } else {
+    const wantsProof = request.proofImages && frames.length > 0;
+    const fix = await writeFixPrompt(
+      {
+        transcript,
+        target,
+        proof: wantsProof,
+        frames: frames.map((frame) => ({
+          id: frame.id,
+          tMs: frame.tMs,
+          imageUrl: dataUrl(frame.jpeg),
+          width: frame.width,
+          height: frame.height,
+          lines: frame.lines,
+        })),
+      },
+      client,
+    );
+    if (!fix.prompt) throw new Error("Muse Spark returned an empty result. Try again.");
+    const shots = wantsProof ? await refineShots(fix.shots, frames, client) : [];
+    proof = await renderProof(request.id, shots, frames, request.draw);
+    payload = { text: fix.prompt, proof };
   }
 
-  const wantsProof = request.proofImages && frames.length > 0;
-  const fix = await writeFixPrompt(
-    {
-      transcript,
-      target,
-      proof: wantsProof,
-      frames: frames.map((frame) => ({
-        id: frame.id,
-        tMs: frame.tMs,
-        imageUrl: dataUrl(frame.jpeg),
-        width: frame.width,
-        height: frame.height,
-        lines: frame.lines,
-      })),
-    },
-    client,
-  );
-  if (!fix.prompt) throw new Error("Muse Spark returned an empty result. Try again.");
-
-  const shots = wantsProof ? await refineShots(fix.shots, frames, client) : [];
-  const proof = await renderProof(request.id, shots, frames, request.draw);
-
-  const asFiles = proof.map((shot) => `${shot.line}\n   ${shot.file}`).join("\n");
-  const fallbackText = proof.length
-    ? `${fix.prompt}\n\nProof (annotated screenshots, open the files):\n${asFiles}`
-    : fix.prompt;
-
-  let parts: Part[] = [fallbackText];
-  if (proof.length > 0 && imageDelivery(target) === "paste") {
-    // Each screenshot is pasted right after the line that explains it.
-    parts = [`${fix.prompt}\n\nProof (annotated screenshots):`];
-    for (const shot of proof) parts.push(`\n${shot.line} `, shot.png);
-  }
-
-  const delivery = await deliver({
-    window: destination.window,
-    target,
-    parts,
-    fallbackText,
-    autoPaste: request.autoPaste,
-  });
-  const text =
-    parts.length > 1 ? parts.filter((part) => typeof part === "string").join("") : fallbackText;
+  const outcome = await deliverPayload(payload, destination.window, target, request.autoPaste);
   return {
-    mode,
-    text: delivery === "copied" ? fallbackText : text,
-    targetName: target.name,
-    delivery,
-    proofImages: proof.length,
-    proof: proof.map(({ title, file, preview }) => ({ title, file, preview })),
+    result: {
+      mode,
+      ...outcome,
+      proofImages: proof.length,
+      proof: proof.map(({ title, file, preview }) => ({ title, file, preview })),
+    },
+    payload,
   };
 }

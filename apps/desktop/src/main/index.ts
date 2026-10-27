@@ -27,7 +27,8 @@ import type {
 } from "../shared/ipc.ts";
 import { byokStatus, clearByokKey, readByokKey, saveByokKey } from "./byok.ts";
 import { trayIcons } from "./icons.ts";
-import { disposeOsBridge, warmUpOsBridge } from "./os-bridge.ts";
+import { ClickToPaste } from "./click-to-paste.ts";
+import { disposeOsBridge, focusedWindow, isOwnWindow, warmUpOsBridge } from "./os-bridge.ts";
 import { readSettings, updateSettings } from "./settings.ts";
 import { RecordingController } from "./recording.ts";
 import {
@@ -40,6 +41,8 @@ import {
 } from "./windows.ts";
 
 const HOTKEY = "Control+Alt+R";
+/** Pastes the latest result into whatever has focus, laid out for that app. */
+const PASTE_HOTKEY = "Control+Alt+V";
 /** Dev only: --ivibe-snapshot=<dir> runs the self-test and saves PNGs of each window state. */
 const SNAPSHOT_DIR = process.argv.find((arg) => arg.startsWith("--ivibe-snapshot="))?.split("=")[1];
 const SELF_TEST = process.argv.includes("--ivibe-selftest") || SNAPSHOT_DIR !== undefined;
@@ -153,6 +156,16 @@ async function startRecording(display = displayUnderCursor()): Promise<void> {
 }
 
 let hudHideTimer: ReturnType<typeof setTimeout> | undefined;
+let clickToPaste: ClickToPaste | null = null;
+
+/** The paste shortcut: the latest result, into the app in front (not iVibe itself). */
+async function pasteLastResult(): Promise<void> {
+  if (!recording.hasResult) return;
+  const window = await focusedWindow();
+  if (!window || isOwnWindow(window)) return;
+  clickToPaste?.disarm();
+  await recording.pasteResult(window);
+}
 let hudExpanded = false;
 
 function closeHud(): void {
@@ -188,8 +201,13 @@ function onStatus(status: RecordingStatus): void {
     hudWindow?.showInactive();
   }
   if (status.phase === "idle") closeHud();
+  // A copied result waits for a click into a text field (click-to-paste) and keeps the pill up.
+  const waiting = status.phase === "review" && status.result?.waiting === true;
+  if (waiting) clickToPaste?.arm();
+  else clickToPaste?.disarm();
   if (status.phase === "review" || status.phase === "error") {
-    if (!hudExpanded) scheduleHudClose(status.phase === "review" ? 5000 : 7000);
+    if (waiting) clearTimeout(hudHideTimer);
+    else if (!hudExpanded) scheduleHudClose(status.phase === "review" ? 5000 : 7000);
     if (SELF_TEST) void finishSelfTest(status);
     // A pasted result stays out of the way; only a bare recording summary opens the app.
     else if (status.phase === "review" && !status.result) showUi();
@@ -388,6 +406,7 @@ function selfTestSettings(): Settings {
   return {
     ...readSettings(),
     autoPaste: false,
+    clickToPaste: false,
     ...(mode === "fix" || mode === "prompt" || mode === "dictate" ? { mode } : {}),
   };
 }
@@ -441,6 +460,12 @@ void app.whenReady().then(() => {
     apiKey: () => readByokKey() ?? (SELF_TEST ? (process.env.META_API_KEY ?? null) : null),
     settings: () => (SELF_TEST ? selfTestSettings() : readSettings()),
   });
+  clickToPaste = new ClickToPaste({
+    onField: async (window) => {
+      await recording.pasteResult(window);
+    },
+    onExpire: () => recording.stopWaiting(),
+  });
   warmUpOsBridge();
   registerIpc();
   recording.on("status", onStatus);
@@ -453,6 +478,7 @@ void app.whenReady().then(() => {
   updateTrayMenu();
 
   hotkeyRegistered = globalShortcut.register(HOTKEY, toggleRecording);
+  globalShortcut.register(PASTE_HOTKEY, () => void pasteLastResult());
 
   if (SELF_TEST) {
     recorderWindow.webContents.once("did-finish-load", runSelfTest);

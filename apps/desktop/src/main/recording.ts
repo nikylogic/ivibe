@@ -15,8 +15,10 @@ import type {
   Settings,
   TranscriptSegment,
 } from "../shared/ipc.ts";
-import { compose, detectDestination } from "./compose.ts";
-import type { Destination } from "./compose.ts";
+import { classifyTarget } from "@ivibe/engine";
+import { compose, deliverPayload, detectDestination } from "./compose.ts";
+import type { Destination, Payload } from "./compose.ts";
+import type { FocusedWindow } from "./os-bridge.ts";
 import { transcribe } from "./transcribe.ts";
 
 /**
@@ -62,6 +64,8 @@ export class RecordingController extends EventEmitter<{
   #ticker: ReturnType<typeof setInterval> | null = null;
   #cursor: CursorSample[] = [];
   #stopRequested = false;
+  /** The latest result, kept so it can be pasted again (click-to-paste, the paste shortcut). */
+  #payload: Payload | null = null;
 
   constructor({ recorder, apiKey, settings }: RecordingControllerOptions) {
     super();
@@ -180,6 +184,31 @@ export class RecordingController extends EventEmitter<{
     this.#set({ phase: "idle", elapsedMs: 0, transcript: [] });
   }
 
+  /** Whether there is a result that can be pasted again. */
+  get hasResult(): boolean {
+    return this.#payload !== null && this.#status.result !== undefined;
+  }
+
+  /**
+   * Pastes the latest result into a window the user chose by clicking into it or pressing the
+   * paste shortcut, laid out for that app (images where they are accepted, file paths elsewhere).
+   */
+  async pasteResult(window: FocusedWindow): Promise<boolean> {
+    const result = this.#status.result;
+    if (!this.#payload || !result) return false;
+    const target = classifyTarget(window.process, window.title);
+    const outcome = await deliverPayload(this.#payload, window, target, true);
+    if (this.#status.result !== result) return outcome.delivery === "pasted";
+    this.#set({ result: { ...result, ...outcome, waiting: false } });
+    return outcome.delivery === "pasted";
+  }
+
+  /** Stops waiting for a text field click; the result stays on the clipboard. */
+  stopWaiting(): void {
+    const result = this.#status.result;
+    if (result?.waiting) this.#set({ result: { ...result, waiting: false } });
+  }
+
   /** Back to idle after the user has seen or discarded the result. */
   reset(): void {
     if (this.#status.phase === "review" || this.#status.phase === "error") {
@@ -255,7 +284,7 @@ export class RecordingController extends EventEmitter<{
     }
     const settings = this.#settings();
     try {
-      const result = await compose({
+      const composed = await compose({
         id: this.#id,
         mode: this.#mode,
         destination: this.#destination ?? (await detectDestination()),
@@ -270,7 +299,10 @@ export class RecordingController extends EventEmitter<{
           ) as Promise<string>,
       });
       if (signal.aborted) return;
-      this.#set({ phase: "review", result });
+      this.#payload = composed.payload;
+      const waiting =
+        composed.result.delivery === "copied" && settings.autoPaste && settings.clickToPaste;
+      this.#set({ phase: "review", result: { ...composed.result, waiting } });
     } catch (error) {
       if (signal.aborted) return;
       this.#fail(error instanceof Error ? error.message : String(error));

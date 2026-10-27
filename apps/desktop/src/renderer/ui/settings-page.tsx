@@ -306,6 +306,13 @@ export function SettingsPage({
           isDisabled={!current}
           onChange={(proofImages) => settings.change({ proofImages })}
         />
+        <Switch
+          label="Paste where I click next"
+          description="If a result could only be copied, clicking into a text field pastes it there, screenshots included. Ctrl+Alt+V pastes the last result anywhere."
+          value={current?.clickToPaste ?? true}
+          isDisabled={!current || current.autoPaste === false}
+          onChange={(clickToPaste) => settings.change({ clickToPaste })}
+        />
       </Row>
 
       <Row title="Shortcut" note="Starts and stops a recording from any app.">

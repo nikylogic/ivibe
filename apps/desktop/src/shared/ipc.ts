@@ -23,6 +23,8 @@ export interface Settings {
   proofImages: boolean;
   /** Microphone label to record from; empty for the system default. */
   microphone: string;
+  /** When a result could only be copied, paste it into the next text field the user clicks. */
+  clickToPaste: boolean;
 }
 
 export interface RecordingResult {
@@ -35,6 +37,8 @@ export interface RecordingResult {
   proofImages: number;
   /** The annotated screenshots, oldest first. */
   proof: ProofImage[];
+  /** Copied, and waiting for the user to click a text field to paste it there. */
+  waiting?: boolean;
 }
 
 export interface ProofImage {
