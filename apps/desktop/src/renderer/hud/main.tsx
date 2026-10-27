@@ -201,7 +201,7 @@ function Caption({ status, heardVoice }: { status: RecordingStatus; heardVoice: 
       <div {...stylex.props(styles.caption)}>
         <span {...stylex.props(silent ? styles.warn : styles.hint)}>
           {silent
-            ? "We can’t hear you. Check that the right microphone is on."
+            ? "We can’t hear you. Pick your microphone in Settings."
             : isRecording || status.phase === "starting"
               ? LISTENING_HINT[status.mode ?? "fix"]
               : "No narration recorded."}

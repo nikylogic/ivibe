@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mode: "fix",
   autoPaste: true,
   proofImages: true,
+  microphone: "",
 };
 
 const file = () => join(app.getPath("userData"), "settings.json");
@@ -35,6 +36,7 @@ export function updateSettings(change: Partial<Settings>): Settings {
   }
   if (typeof change.autoPaste === "boolean") next.autoPaste = change.autoPaste;
   if (typeof change.proofImages === "boolean") next.proofImages = change.proofImages;
+  if (typeof change.microphone === "string") next.microphone = change.microphone;
   writeFileSync(file(), JSON.stringify(next, null, 2));
   cached = next;
   return next;

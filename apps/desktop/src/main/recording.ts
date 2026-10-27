@@ -145,6 +145,7 @@ export class RecordingController extends EventEmitter<{
       maxWidth: 1920,
       scaleFactor: display.scaleFactor,
       screen: this.#mode === "fix",
+      microphone: this.#settings().microphone,
     };
     try {
       // executeJavaScript with userGesture=true satisfies getDisplayMedia's activation

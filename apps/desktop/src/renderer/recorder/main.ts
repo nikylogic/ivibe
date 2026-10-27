@@ -44,6 +44,18 @@ interface StartOptions {
   scaleFactor: number;
   /** Capture the screen. Voice-only modes (Prompt, Dictate) never touch it. */
   screen: boolean;
+  /** Microphone label from Settings; empty for the system default. */
+  microphone: string;
+}
+
+/**
+ * Device IDs differ between windows, so Settings stores the microphone's label. A microphone that
+ * has been unplugged falls back to the system default.
+ */
+async function microphoneId(label: string): Promise<string | undefined> {
+  if (!label) return undefined;
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  return devices.find((device) => device.kind === "audioinput" && device.label === label)?.deviceId;
 }
 
 interface Keyframe {
@@ -165,7 +177,7 @@ class Session {
 
     this.#mic = new MicRecorder();
     try {
-      await this.#mic.start();
+      await this.#mic.start(await microphoneId(this.#options.microphone));
       this.#micStartedAt = performance.now();
       this.#listen(this.#mic);
     } catch (error) {

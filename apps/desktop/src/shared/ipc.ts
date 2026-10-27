@@ -21,6 +21,8 @@ export interface Settings {
   autoPaste: boolean;
   /** Fix mode: attach redacted screenshots as proof. */
   proofImages: boolean;
+  /** Microphone label to record from; empty for the system default. */
+  microphone: string;
 }
 
 export interface RecordingResult {
