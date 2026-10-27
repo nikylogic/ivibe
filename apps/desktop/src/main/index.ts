@@ -437,6 +437,9 @@ async function finishSelfTest(status: RecordingStatus): Promise<void> {
     await click("Settings");
     await settle();
     await snapshot(uiWindow, "ui-settings-dark");
+    await click("Personal");
+    await settle();
+    await snapshot(uiWindow, "ui-settings-personal-dark");
     await uiWindow?.webContents.executeJavaScript(
       `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
     );

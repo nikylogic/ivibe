@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
 import { Link } from "@astryxdesign/core/Link";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { Info, KeyRound, Mic, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import type { Personal } from "@ivibe/engine";
 import type { AppInfo } from "../../shared/ipc.ts";
 import { signal } from "../shared/theme.tsx";
@@ -18,18 +20,73 @@ import { ipcMessage } from "./state.ts";
 import type { ByokState, SettingsState } from "./state.ts";
 
 const styles = stylex.create({
-  panel: { display: "flex", flexDirection: "column", width: "100%" },
-  row: {
+  // A fixed height, so switching sections doesn't make the dialog jump.
+  panel: {
     display: "grid",
-    gridTemplateColumns: "180px 1fr",
-    gap: 24,
-    paddingBlock: 22,
+    gridTemplateColumns: "212px 1fr",
+    height: "min(620px, 82vh)",
+    width: "100%",
+  },
+  sections: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    padding: 12,
+    paddingTop: 20,
+    backgroundColor: "var(--color-background-muted)",
+    borderRightWidth: 1,
+    borderRightStyle: "solid",
+    borderRightColor: "var(--color-border)",
+  },
+  sectionsTitle: { fontSize: 13, fontWeight: 600, paddingInline: 10, paddingBottom: 10 },
+  sectionButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    height: 36,
+    paddingInline: 10,
+    borderWidth: 0,
+    borderRadius: 8,
+    backgroundColor: {
+      default: "transparent",
+      ":hover": "var(--color-background-surface)",
+    },
+    color: "var(--color-text-secondary)",
+    fontFamily: "inherit",
+    fontSize: 14,
+    textAlign: "start",
+    cursor: "pointer",
+    outline: { default: "none", ":focus-visible": "2px solid var(--color-border-emphasized)" },
+  },
+  sectionSelected: {
+    backgroundColor: {
+      default: "var(--color-background-body)",
+      ":hover": "var(--color-background-body)",
+    },
+    color: "var(--color-text-primary)",
+    fontWeight: 500,
+    boxShadow: "0 1px 2px var(--color-shadow)",
+  },
+  content: { display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 },
+  header: { paddingTop: 20, paddingInline: 24, paddingBottom: 4 },
+  scroll: { flex: 1, overflowY: "auto", paddingInline: 24, paddingBottom: 24 },
+  row: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    paddingBlock: 20,
     borderTopWidth: { default: 1, ":first-child": 0 },
     borderTopStyle: "solid",
     borderTopColor: "var(--color-border)",
   },
-  label: { display: "flex", flexDirection: "column", gap: 4 },
+  label: { display: "flex", flexDirection: "column", gap: 2 },
   labelTitle: { fontSize: 14, fontWeight: 600 },
+  shortcutRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
   body: { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 },
   inline: { display: "flex", alignItems: "flex-end", gap: 8 },
   fixed: { flexShrink: 0 },
@@ -45,17 +102,20 @@ const styles = stylex.create({
   list: { margin: 0, paddingInlineStart: 18, display: "flex", flexDirection: "column", gap: 6 },
 });
 
-function Row({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+/** One group in a section; the title is left out when the section header says it all. */
+function Row({ title, note, children }: { title?: string; note?: string; children: ReactNode }) {
   return (
     <div {...stylex.props(styles.row)}>
-      <div {...stylex.props(styles.label)}>
-        <Text xstyle={styles.labelTitle}>{title}</Text>
-        {note && (
-          <Text color="secondary" size="sm">
-            {note}
-          </Text>
-        )}
-      </div>
+      {(title || note) && (
+        <div {...stylex.props(styles.label)}>
+          {title && <Text xstyle={styles.labelTitle}>{title}</Text>}
+          {note && (
+            <Text color="secondary" size="sm">
+              {note}
+            </Text>
+          )}
+        </div>
+      )}
       <div {...stylex.props(styles.body)}>{children}</div>
     </div>
   );
@@ -306,12 +366,49 @@ function PersonalForm({ personal, onSave }: { personal: Personal; onSave: (p: Pe
   );
 }
 
-/** The settings, shown in a dialog over the app. */
+export type SettingsSection = "general" | "key" | "personal" | "microphone" | "privacy" | "about";
+
+const SECTIONS: { id: SettingsSection; label: string; note: string; icon: typeof Mic }[] = [
+  {
+    id: "general",
+    label: "General",
+    note: "Where results go and the shortcuts that work from any app.",
+    icon: SlidersHorizontal,
+  },
+  {
+    id: "key",
+    label: "Meta API key",
+    note: "Encrypted with your system keychain. Calls go from this device straight to Meta.",
+    icon: KeyRound,
+  },
+  {
+    id: "personal",
+    label: "Personal",
+    note: "Used in every result: your name, context and the words you use.",
+    icon: UserRound,
+  },
+  {
+    id: "microphone",
+    label: "Microphone",
+    note: "The one iVibe listens to while you record.",
+    icon: Mic,
+  },
+  { id: "privacy", label: "Privacy", note: "What happens to a recording.", icon: ShieldCheck },
+  { id: "about", label: "About", note: "Version, license and source.", icon: Info },
+];
+
+/** The settings, shown in a dialog over the app: sections on the left, one at a time on the right. */
 export function SettingsPanel({
+  section,
+  onSectionChange,
+  onClose,
   info,
   byok,
   settings,
 }: {
+  section: SettingsSection;
+  onSectionChange: (section: SettingsSection) => void;
+  onClose: () => void;
   info: AppInfo | null;
   byok: ByokState;
   settings: SettingsState;
@@ -319,100 +416,154 @@ export function SettingsPanel({
   const current = settings.settings;
   const microphones = useMicrophones();
   const saved = current?.microphone ?? "";
+  const isMac = info?.platform === "darwin";
+  const active = SECTIONS.find((candidate) => candidate.id === section) ?? SECTIONS[0]!;
+
   return (
     <div {...stylex.props(styles.panel)}>
-      <Row
-        title="Meta API key"
-        note="Encrypted with your system keychain. Calls go from this device straight to Meta."
-      >
-        <MetaKey byok={byok} />
-      </Row>
+      <nav {...stylex.props(styles.sections)} aria-label="Settings sections">
+        <Text xstyle={styles.sectionsTitle}>Settings</Text>
+        {SECTIONS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            aria-current={id === active.id ? "page" : undefined}
+            onClick={() => onSectionChange(id)}
+            {...stylex.props(styles.sectionButton, id === active.id && styles.sectionSelected)}
+          >
+            <Icon size={17} strokeWidth={1.75} />
+            {label}
+          </button>
+        ))}
+      </nav>
 
-      <Row title="Personal" note="Used in every result: your name, context and the words you use.">
-        {current ? (
-          <PersonalForm
-            personal={current.personal}
-            onSave={(personal) => settings.change({ personal })}
-          />
-        ) : null}
-      </Row>
+      <div {...stylex.props(styles.content)}>
+        <DialogHeader
+          title={active.label}
+          subtitle={active.note}
+          onOpenChange={onClose}
+          xstyle={styles.header}
+        />
+        <div {...stylex.props(styles.scroll)}>
+          {active.id === "general" && (
+            <>
+              <Row title="Output" note="Where the result goes when a recording ends.">
+                <Switch
+                  label="Paste into the app I was using"
+                  description="Detects Claude Code, Cursor, ChatGPT and more. When off, or if you switch apps, the result is copied instead."
+                  value={current?.autoPaste ?? true}
+                  isDisabled={!current}
+                  onChange={(autoPaste) => settings.change({ autoPaste })}
+                />
+                <Switch
+                  label="Attach screenshots as proof"
+                  description="Fix mode only. Redacted screenshots are pasted into chat apps, or referenced as files for terminal agents."
+                  value={current?.proofImages ?? true}
+                  isDisabled={!current}
+                  onChange={(proofImages) => settings.change({ proofImages })}
+                />
+                <Switch
+                  label="Paste where I click next"
+                  description="If a result could only be copied, clicking into a text field pastes it there, screenshots included."
+                  value={current?.clickToPaste ?? true}
+                  isDisabled={!current || current.autoPaste === false}
+                  onChange={(clickToPaste) => settings.change({ clickToPaste })}
+                />
+              </Row>
+              <Row title="Shortcuts" note="These work from any app.">
+                <div {...stylex.props(styles.shortcutRow)}>
+                  <Text size="sm">
+                    {info?.hotkeyRegistered === false
+                      ? "Start or stop a recording · taken by another app"
+                      : "Start or stop a recording"}
+                  </Text>
+                  <Shortcut isMac={isMac} />
+                </div>
+                <div {...stylex.props(styles.shortcutRow)}>
+                  <Text size="sm">Paste the last result</Text>
+                  <Shortcut isMac={isMac} letter="V" />
+                </div>
+              </Row>
+            </>
+          )}
 
-      <Row title="Microphone" note="The one iVibe listens to while you record.">
-        <Selector
-          label="Microphone"
-          options={[
-            { value: "", label: "System default" },
-            // A saved mic that is unplugged stays listed so the choice is visible.
-            ...(saved && !microphones.includes(saved)
-              ? [{ value: saved, label: `${saved} (not connected)` }]
-              : []),
-            ...microphones.map((label) => ({ value: label, label })),
-          ]}
-          value={saved}
-          isDisabled={!current}
-          onChange={(microphone) => settings.change({ microphone })}
-          width="100%"
-        />
-        <MicTest microphone={saved} />
-      </Row>
+          {active.id === "key" && (
+            <Row>
+              <MetaKey byok={byok} />
+            </Row>
+          )}
 
-      <Row title="Output" note="Where the result goes when a recording ends.">
-        <Switch
-          label="Paste into the app I was using"
-          description="Detects Claude Code, Cursor, ChatGPT and more. When off, or if you switch apps, the result is copied instead."
-          value={current?.autoPaste ?? true}
-          isDisabled={!current}
-          onChange={(autoPaste) => settings.change({ autoPaste })}
-        />
-        <Switch
-          label="Attach screenshots as proof"
-          description="Fix mode only. Redacted screenshots are pasted into chat apps, or referenced as files for terminal agents."
-          value={current?.proofImages ?? true}
-          isDisabled={!current}
-          onChange={(proofImages) => settings.change({ proofImages })}
-        />
-        <Switch
-          label="Paste where I click next"
-          description="If a result could only be copied, clicking into a text field pastes it there, screenshots included. Ctrl+Alt+V pastes the last result anywhere."
-          value={current?.clickToPaste ?? true}
-          isDisabled={!current || current.autoPaste === false}
-          onChange={(clickToPaste) => settings.change({ clickToPaste })}
-        />
-      </Row>
+          {active.id === "personal" && current && (
+            <Row>
+              <PersonalForm
+                personal={current.personal}
+                onSave={(personal) => settings.change({ personal })}
+              />
+            </Row>
+          )}
 
-      <Row title="Shortcut" note="Starts and stops a recording from any app.">
-        <div {...stylex.props(styles.connected)}>
-          <Shortcut isMac={info?.platform === "darwin"} />
-          <Text color="secondary" size="sm">
-            {info?.hotkeyRegistered === false ? "Taken by another app" : "Active"}
-          </Text>
+          {active.id === "microphone" && (
+            <Row>
+              <Selector
+                label="Microphone"
+                options={[
+                  { value: "", label: "System default" },
+                  // A saved mic that is unplugged stays listed so the choice is visible.
+                  ...(saved && !microphones.includes(saved)
+                    ? [{ value: saved, label: `${saved} (not connected)` }]
+                    : []),
+                  ...microphones.map((label) => ({ value: label, label })),
+                ]}
+                value={saved}
+                isDisabled={!current}
+                onChange={(microphone) => settings.change({ microphone })}
+                width="100%"
+              />
+              <MicTest microphone={saved} />
+            </Row>
+          )}
+
+          {active.id === "privacy" && (
+            <Row>
+              <ul {...stylex.props(styles.list)}>
+                <li>
+                  <Text size="sm">
+                    Frames and audio stay in memory on this device while you record.
+                  </Text>
+                </li>
+                <li>
+                  <Text size="sm">
+                    Every frame is read on-device, and keys, tokens and passwords are painted over.
+                  </Text>
+                </li>
+                <li>
+                  <Text size="sm">
+                    Only redacted frames and your narration are sent for analysis.
+                  </Text>
+                </li>
+                <li>
+                  <Text size="sm">
+                    Your Meta key never leaves this device, and requests ask Meta not to store
+                    anything.
+                  </Text>
+                </li>
+              </ul>
+            </Row>
+          )}
+
+          {active.id === "about" && (
+            <Row>
+              <Text size="sm">iVibe {info ? `v${info.version}` : ""}</Text>
+              <Text color="secondary" size="sm">
+                Open source under AGPL-3.0 ·{" "}
+                <Link href="https://github.com/nikylogic/ivibe" target="_blank">
+                  GitHub
+                </Link>
+              </Text>
+            </Row>
+          )}
         </div>
-      </Row>
-
-      <Row title="Privacy" note="What happens to a recording.">
-        <ul {...stylex.props(styles.list)}>
-          <li>
-            <Text size="sm">Frames and audio stay in memory on this device while you record.</Text>
-          </li>
-          <li>
-            <Text size="sm">
-              Every frame is read on-device, and keys, tokens and passwords are painted over.
-            </Text>
-          </li>
-          <li>
-            <Text size="sm">Only redacted frames and your narration are sent for analysis.</Text>
-          </li>
-        </ul>
-      </Row>
-
-      <Row title="About">
-        <Text color="secondary" size="sm">
-          iVibe {info ? `v${info.version}` : ""} · open source under AGPL-3.0 ·{" "}
-          <Link href="https://github.com/nikylogic/ivibe" target="_blank">
-            GitHub
-          </Link>
-        </Text>
-      </Row>
+      </div>
     </div>
   );
 }

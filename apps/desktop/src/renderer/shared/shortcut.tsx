@@ -25,13 +25,16 @@ const styles = stylex.create({
 });
 
 /**
- * The record shortcut as keycaps. Astryx's Kbd always draws macOS symbols for Ctrl and Alt, so
- * Windows and Linux get their own key names here.
+ * A Control+Alt shortcut as keycaps (Ctrl+Alt+R records by default). Astryx's Kbd always draws
+ * macOS symbols for Ctrl and Alt, so Windows and Linux get their own key names here.
  */
-export function Shortcut({ isMac }: { isMac: boolean }) {
-  const keys = isMac ? ["⌃", "⌥", "R"] : ["Ctrl", "Alt", "R"];
+export function Shortcut({ isMac, letter = "R" }: { isMac: boolean; letter?: string }) {
+  const keys = isMac ? ["⌃", "⌥", letter] : ["Ctrl", "Alt", letter];
   return (
-    <kbd {...stylex.props(styles.row)} aria-label={isMac ? "Control Option R" : "Control Alt R"}>
+    <kbd
+      {...stylex.props(styles.row)}
+      aria-label={isMac ? `Control Option ${letter}` : `Control Alt ${letter}`}
+    >
       {keys.map((key) => (
         <span key={key} {...stylex.props(styles.key)}>
           {key}

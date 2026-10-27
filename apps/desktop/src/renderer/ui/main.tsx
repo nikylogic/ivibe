@@ -3,7 +3,7 @@
 import { useState } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { Dialog } from "@astryxdesign/core/Dialog";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { SideNav, SideNavCollapseButton, SideNavItem } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
@@ -12,6 +12,7 @@ import { withClass } from "../shared/shortcut.tsx";
 import { mount, signal } from "../shared/theme.tsx";
 import { RecordPage } from "./record-page.tsx";
 import { SettingsPanel } from "./settings-page.tsx";
+import type { SettingsSection } from "./settings-page.tsx";
 import { useAppInfo, useByok, useRecordingStatus, useSettings } from "./state.ts";
 import type { ByokState, Page } from "./state.ts";
 
@@ -116,7 +117,7 @@ function KeyStatus({ byok, onOpen }: { byok: ByokState; onOpen: () => void }) {
 
 function App() {
   const [page, setPage] = useState<Page>("record");
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const status = useRecordingStatus();
   const info = useAppInfo();
@@ -155,13 +156,13 @@ function App() {
             }
             footer={
               <div {...stylex.props(styles.footer)}>
-                {!collapsed && <KeyStatus byok={byok} onOpen={() => setSettingsOpen(true)} />}
+                {!collapsed && <KeyStatus byok={byok} onOpen={() => setSettingsSection("key")} />}
                 <SideNavItem
                   label="Settings"
                   size="lg"
                   icon={icon(Settings2)}
-                  isSelected={settingsOpen}
-                  onClick={() => setSettingsOpen(true)}
+                  isSelected={settingsSection !== null}
+                  onClick={() => setSettingsSection("general")}
                 />
               </div>
             }
@@ -203,9 +204,23 @@ function App() {
         )}
       </main>
 
-      <Dialog isOpen={settingsOpen} onOpenChange={setSettingsOpen} width={760} maxHeight="86vh">
-        <DialogHeader title="Settings" onOpenChange={setSettingsOpen} />
-        <SettingsPanel info={info} byok={byok} settings={settings} />
+      <Dialog
+        isOpen={settingsSection !== null}
+        onOpenChange={(isOpen) => !isOpen && setSettingsSection(null)}
+        width={880}
+        maxHeight="90vh"
+        padding={0}
+      >
+        {settingsSection && (
+          <SettingsPanel
+            section={settingsSection}
+            onSectionChange={setSettingsSection}
+            onClose={() => setSettingsSection(null)}
+            info={info}
+            byok={byok}
+            settings={settings}
+          />
+        )}
       </Dialog>
     </div>
   );
