@@ -894,7 +894,7 @@ A debug panel (and the eval output) lists every dropped claim and why. That's us
 - **Choosing frames:** `at` is the confirmed break frame. `before` is the last frame before the trigger (a click or narration) with no error. `after` is the frame where the consequence is clearest (error visible, spinner stuck).
 - **Highlight per frame:**
   1. OCR lines → the union of their boxes, drawn exactly with no SAM call.
-  2. UI element → the agent's proposed box goes to SAM 3.1 as a **box prompt**, which refines it to the element; otherwise a short concept prompt ("loading spinner", "save button").
+  2. UI element → the agent's proposed box goes to SAM 3.1 as a **box prompt**, which refines it to the element. A short single OCR line (a button or tab label) is padded by 24 px and sent the same way, so SAM grows it to the whole button. Spike S6: concept prompts such as "save button" find nothing on screenshots, so they are not used.
   3. Fallback → the changed-region box.
 - **Rendering** happens in the client (`ProofImage` in `packages/ui`), from the frame and the highlight geometry in the report: dim everything outside the highlight by 35%, draw a 3 px accent outline, add a label chip ("① Clicked Save · 00:03.9") and a timestamp footer. It is SVG on screen; an OffscreenCanvas renders the PNG for copy and save. Workers have no canvas, and one renderer serves desktop and web (D16).
 - **Cost:** at most 3 SAM image calls per analysis ($0.0075).

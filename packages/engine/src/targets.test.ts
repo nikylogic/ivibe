@@ -22,9 +22,10 @@ describe("classifyTarget", () => {
     expect(classifyTarget(process, title)).toMatchObject({ kind, name });
   });
 
-  it("sends images as file paths to terminals and pastes them elsewhere", () => {
-    expect(imageDelivery(classifyTarget("WindowsTerminal", "claude"))).toBe("paths");
+  it("pastes images where they are accepted and sends file paths elsewhere", () => {
+    expect(imageDelivery(classifyTarget("WindowsTerminal", "claude"))).toBe("paste");
+    expect(imageDelivery(classifyTarget("WindowsTerminal", "codex"))).toBe("paths");
     expect(imageDelivery(classifyTarget("Cursor", "x"))).toBe("paste");
-    expect(imageDelivery(classifyTarget("Slack", "x"))).toBe("none");
+    expect(imageDelivery(classifyTarget("Slack", "x"))).toBe("paths");
   });
 });

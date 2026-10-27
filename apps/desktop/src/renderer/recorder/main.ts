@@ -28,13 +28,18 @@ import {
   compareThumbnails,
   toGrayscale,
 } from "@ivibe/vision";
-import type { EvidenceFrame } from "../../shared/ipc.ts";
+import { drawProof } from "./proof.ts";
+import type { EvidenceFrame, ProofDrawing } from "../../shared/ipc.ts";
 import type { RecorderBridge } from "../../preload/recorder.ts";
 
 declare global {
   interface Window {
     ivibeRecorderBridge: RecorderBridge;
-    ivibeRecorder: { start: (options: StartOptions) => Promise<void> };
+    ivibeRecorder: {
+      start: (options: StartOptions) => Promise<void>;
+      /** Draws a proof screenshot; returns the PNG as base64. */
+      annotate: (drawing: ProofDrawing) => Promise<string>;
+    };
   }
 }
 
@@ -114,7 +119,18 @@ async function toEvidence(frame: RedactedFrame): Promise<EvidenceFrame> {
     id: frame.id,
     tMs: Math.round(frame.tMs),
     jpeg: new Uint8Array(await blob.arrayBuffer()),
-    ocr: frame.lines.map((line) => line.text).join("\n"),
+    width: canvas.width,
+    height: canvas.height,
+    lines: frame.lines.map((line, index) => ({
+      id: `l${index}`,
+      text: line.text,
+      box: {
+        x: Math.round(line.bbox.x * scale),
+        y: Math.round(line.bbox.y * scale),
+        width: Math.round(line.bbox.width * scale),
+        height: Math.round(line.bbox.height * scale),
+      },
+    })),
   };
 }
 
@@ -395,6 +411,7 @@ window.ivibeRecorder = {
       bridge.emit({ type: "error", message });
     }
   },
+  annotate: drawProof,
 };
 
 bridge.onCommand((command) => {

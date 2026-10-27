@@ -14,6 +14,7 @@ import {
   ipcMain,
   net,
   protocol,
+  shell,
 } from "electron";
 import type { Display } from "electron";
 import { Channels } from "../shared/ipc.ts";
@@ -233,6 +234,11 @@ function registerIpc(): void {
     const text = recording.status.result?.text;
     if (text) await clipboard.writeText(text);
   });
+  ipcMain.handle(Channels.proofOpen, async (_event, index: unknown) => {
+    // Only files the latest result produced, never a path from the renderer.
+    const file = typeof index === "number" ? recording.status.result?.proof[index]?.file : null;
+    if (file) await shell.openPath(file);
+  });
   ipcMain.handle(Channels.appInfo, (): AppInfo => ({
     version: app.getVersion(),
     platform: process.platform,
@@ -249,16 +255,34 @@ function registerIpc(): void {
 }
 
 /**
- * A fake editor screen with a fake token, shown during the self-test so the recording proves
- * OCR and redaction end to end. The token is assembled at run time to keep secret scanners quiet.
+ * A fake app with a broken Save button, its console and a leaked token, shown during the
+ * self-test so the recording proves OCR, redaction and proof highlights end to end. The token is
+ * assembled at run time to keep secret scanners quiet.
  */
 function showSelfTestFixture(display: Display): BrowserWindow {
   const token = ["ghp", "_", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"].join("");
-  const html = `<!doctype html><body style="margin:0;background:#1e1e1e;color:#d4d4d4;
-    font:28px/1.8 Consolas,Menlo,monospace;padding:48px">
-    <div>// settings.ts</div><div>function saveDraft(form) {</div>
-    <div>&nbsp;&nbsp;const token = "${token}";</div>
-    <div>TypeError: Cannot read properties of undefined</div></body>`;
+  const field = (label: string, value: string) =>
+    `<div style="color:#555;margin:22px 0 8px">${label}</div>
+    <div style="border:2px solid #ddd;background:#fff;padding:14px 16px;width:560px">${value}</div>`;
+  const html = `<!doctype html><body style="margin:0;display:flex;height:100vh;
+    font:24px system-ui,'Segoe UI',sans-serif">
+    <main style="flex:1;background:#f4f4f6;color:#111;padding:56px 64px">
+      <div style="font-size:40px;font-weight:700;margin-bottom:12px">Edit profile</div>
+      ${field("Name", "Asha Rao")}${field("Email", "asha@example.com")}
+      ${field("Bio", "Building things on weekends")}
+      <div style="display:inline-block;margin-top:40px;background:#5146e5;color:#fff;
+        font-weight:700;padding:16px 56px">Save</div>
+    </main>
+    <aside style="width:44%;background:#1e1e1e;color:#d4d4d4;padding:40px;
+      font:21px/1.7 Consolas,Menlo,monospace">
+      <div style="color:#aaa">Console</div><br>
+      <div style="color:#f48771">Uncaught (in promise) TypeError:<br>
+      &nbsp;&nbsp;Cannot read properties of undefined (reading 'map')<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;at saveProfile (ProfileForm.tsx:41:28)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;at onClick (ProfileForm.tsx:67:9)</div><br>
+      <div style="color:#9cdcfe">POST /api/profile 200 (48 ms)</div>
+      <div>GITHUB_TOKEN = "${token}"</div>
+    </aside></body>`;
   const { workArea } = display;
   const fixture = new BrowserWindow({
     ...workArea,
@@ -304,7 +328,7 @@ function runSelfTest(): void {
   setTimeout(() => {
     console.log("IVIBE_SELFTEST timeout", JSON.stringify(recording.status));
     app.exit(2);
-  }, 30_000);
+  }, 90_000);
 }
 
 /**

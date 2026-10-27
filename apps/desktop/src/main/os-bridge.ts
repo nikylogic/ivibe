@@ -48,7 +48,7 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
   try {
     if ($line -eq 'focused') {
       $out = Describe ([IVibe.Win32]::GetForegroundWindow())
-    } elseif ($line -match '^paste (\d+)$') {
+    } elseif ($line -match '^paste (\d+) (ctrl|alt)$') {
       $target = [System.IntPtr][int64]$Matches[1]
       if ([IVibe.Win32]::GetForegroundWindow() -ne $target) {
         [void][IVibe.Win32]::SetForegroundWindow($target)
@@ -56,12 +56,13 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
       }
       $focused = [IVibe.Win32]::GetForegroundWindow() -eq $target
       if ($focused) {
-        # Release modifiers the shortcut may have left down, then Ctrl+V.
+        # Release modifiers the shortcut may have left down, then Ctrl+V (Alt+V: image into Claude Code).
         foreach ($vk in 0x10, 0x11, 0x12, 0x5B) { [IVibe.Win32]::keybd_event($vk, 0, 2, [System.UIntPtr]::Zero) }
-        [IVibe.Win32]::keybd_event(0x11, 0, 0, [System.UIntPtr]::Zero)
+        $modifier = if ($Matches[2] -eq 'alt') { 0x12 } else { 0x11 }
+        [IVibe.Win32]::keybd_event($modifier, 0, 0, [System.UIntPtr]::Zero)
         [IVibe.Win32]::keybd_event(0x56, 0, 0, [System.UIntPtr]::Zero)
         [IVibe.Win32]::keybd_event(0x56, 0, 2, [System.UIntPtr]::Zero)
-        [IVibe.Win32]::keybd_event(0x11, 0, 2, [System.UIntPtr]::Zero)
+        [IVibe.Win32]::keybd_event($modifier, 0, 2, [System.UIntPtr]::Zero)
       }
       $out = @{ pasted = $focused }
     } else {
@@ -193,13 +194,22 @@ export async function focusedWindow(): Promise<FocusedWindow | null> {
 }
 
 /**
+ * What is being pasted where: text into an app, text into a terminal, or an image into Claude
+ * Code, which reads the clipboard image on its own shortcut (Alt+V on Windows, Ctrl+V elsewhere).
+ */
+export type PasteKind = "text" | "terminal-text" | "terminal-image";
+
+/**
  * Focuses the target window if needed and sends the platform's paste shortcut.
  * Returns false when the keystroke couldn't be delivered to that window.
  */
-export async function pasteInto(target: FocusedWindow, isTerminal: boolean): Promise<boolean> {
+export async function pasteInto(target: FocusedWindow, kind: PasteKind): Promise<boolean> {
   try {
     if (windows) {
-      const result = await windows.request<{ pasted?: boolean }>(`paste ${target.handle}`);
+      const modifier = kind === "terminal-image" ? "alt" : "ctrl";
+      const result = await windows.request<{ pasted?: boolean }>(
+        `paste ${target.handle} ${modifier}`,
+      );
       return result?.pasted === true;
     }
     if (process.platform === "darwin") {
@@ -211,7 +221,7 @@ export async function pasteInto(target: FocusedWindow, isTerminal: boolean): Pro
           "-e",
           "delay 0.1",
           "-e",
-          'tell application "System Events" to keystroke "v" using command down',
+          `tell application "System Events" to keystroke "v" using ${kind === "terminal-image" ? "control" : "command"} down`,
         ],
         { timeout: 4000 },
       );
@@ -226,8 +236,9 @@ export async function pasteInto(target: FocusedWindow, isTerminal: boolean): Pro
           target.handle,
           "key",
           "--clearmodifiers",
-          // Linux terminals paste with Ctrl+Shift+V; Ctrl+V would send a literal ^V.
-          isTerminal ? "ctrl+shift+v" : "ctrl+v",
+          // Linux terminals paste text with Ctrl+Shift+V; Ctrl+V goes to the app (Claude Code's
+          // image paste).
+          kind === "terminal-text" ? "ctrl+shift+v" : "ctrl+v",
         ],
         { timeout: 4000 },
       );

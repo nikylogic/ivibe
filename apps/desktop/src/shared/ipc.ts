@@ -33,6 +33,17 @@ export interface RecordingResult {
   delivery: "pasted" | "copied";
   /** Screenshots that went with it: pasted images or files referenced by path. */
   proofImages: number;
+  /** The annotated screenshots, oldest first. */
+  proof: ProofImage[];
+}
+
+export interface ProofImage {
+  /** What the screenshot proves. */
+  title: string;
+  /** The annotated PNG in the app's data folder. */
+  file: string;
+  /** A small JPEG data URL for the app and the pill. */
+  preview: string;
 }
 
 export interface RecordingSummary {
@@ -95,8 +106,30 @@ export interface EvidenceFrame {
   id: string;
   tMs: number;
   jpeg: Uint8Array;
-  /** OCR text with secrets masked. */
-  ocr: string;
+  width: number;
+  height: number;
+  /** OCR lines with secrets masked, boxes in this frame's pixels. */
+  lines: EvidenceLine[];
+}
+
+/** A proof screenshot to draw in the recorder window (docs/architecture.md §5.7). */
+export interface ProofDrawing {
+  /** The redacted frame, as a JPEG data URL. */
+  imageUrl: string;
+  /** "0:04 · Save does nothing" */
+  header: string;
+  marks: {
+    n: number;
+    caption: string;
+    box: { x: number; y: number; width: number; height: number };
+  }[];
+}
+
+export interface EvidenceLine {
+  /** "l3": the line's index in its frame. */
+  id: string;
+  text: string;
+  box: { x: number; y: number; width: number; height: number };
 }
 
 /** Short-lived notes for the recording pill. */
@@ -150,6 +183,7 @@ export const Channels = {
   settingsGet: "settings.get",
   settingsSet: "settings.set",
   resultCopy: "result.copy",
+  proofOpen: "result.proof-open",
   // HUD → main
   hudInteractive: "hud.interactive",
   hudOpenApp: "hud.open-app",

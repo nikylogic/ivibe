@@ -6,7 +6,7 @@
  */
 
 export type TargetKind =
-  /** A coding agent in a terminal (Claude Code, Codex, Gemini CLI): images go as file paths. */
+  /** A coding agent in a terminal (Claude Code, Codex, Gemini CLI). */
   | "terminal-agent"
   | "terminal"
   /** Editors with AI chat (Cursor, VS Code, Windsurf, Zed, JetBrains). */
@@ -98,10 +98,14 @@ export function classifyTarget(rawProcess: string, title: string): TargetApp {
   return { ...base, kind: "other", name: process || "the app" };
 }
 
-/** Whether proof images should be pasted (chat apps, editors) or referenced as files. */
-export function imageDelivery(target: TargetApp): "paste" | "paths" | "none" {
-  if (target.kind === "terminal-agent" || target.kind === "terminal") return "paths";
+/**
+ * How proof images reach the target: pasted as images (chat apps, editors, and Claude Code, which
+ * takes a pasted image as an [Image #N] chip), or referenced as saved files for other terminals
+ * and when the result is only copied.
+ */
+export function imageDelivery(target: TargetApp): "paste" | "paths" {
+  if (target.kind === "terminal-agent") return target.name === "Claude Code" ? "paste" : "paths";
   if (target.kind === "chat" || target.kind === "editor" || target.kind === "browser")
     return "paste";
-  return "none";
+  return "paths";
 }

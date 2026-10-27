@@ -50,6 +50,29 @@ const styles = stylex.create({
     overflowWrap: "anywhere",
     userSelect: "text",
   },
+  proofGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+    gap: 12,
+  },
+  proofItem: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    textAlign: "start",
+    cursor: "zoom-in",
+  },
+  proofImage: {
+    width: "100%",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "var(--color-border)",
+    display: "block",
+  },
   resultHeader: {
     display: "flex",
     alignItems: "center",
@@ -346,6 +369,24 @@ function Result({ result }: { result: RecordingResult }) {
           onClick={() => void window.ivibe.recording.copyResult()}
         />
       </div>
+      {result.proof.length > 0 && (
+        <div {...stylex.props(styles.proofGrid)}>
+          {result.proof.map((shot, index) => (
+            <button
+              key={shot.file}
+              type="button"
+              title="Open full size"
+              {...stylex.props(styles.proofItem)}
+              onClick={() => void window.ivibe.recording.openProof(index)}
+            >
+              <img src={shot.preview} alt={shot.title} {...stylex.props(styles.proofImage)} />
+              <Text color="secondary" size="sm">
+                {index + 1}. {shot.title}
+              </Text>
+            </button>
+          ))}
+        </div>
+      )}
       <pre {...stylex.props(styles.result)} data-selectable>
         {result.text}
       </pre>

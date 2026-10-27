@@ -9,6 +9,7 @@
  */
 
 export * from "./models.ts";
+export * from "./proof.ts";
 export * from "./responses.ts";
 export * from "./targets.ts";
 export * from "./writers.ts";

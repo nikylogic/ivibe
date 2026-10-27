@@ -21,6 +21,8 @@ const api = {
     onLevel: (listener: (rms: number) => void) => subscribe(Channels.recordingLevel, listener),
     /** Copies the last result again, e.g. when it couldn't be pasted. */
     copyResult: (): Promise<void> => ipcRenderer.invoke(Channels.resultCopy),
+    /** Opens an annotated screenshot of the latest result in the system viewer. */
+    openProof: (index: number): Promise<void> => ipcRenderer.invoke(Channels.proofOpen, index),
   },
   settings: {
     get: (): Promise<Settings> => ipcRenderer.invoke(Channels.settingsGet),
