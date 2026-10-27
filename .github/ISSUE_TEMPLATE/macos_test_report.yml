@@ -1,0 +1,43 @@
+name: macOS test report
+description: Report how an iVibe build behaves on your Mac (we don't have one, so this helps a lot).
+labels: [macos, testing]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: iVibe version
+    validations:
+      required: true
+  - type: input
+    id: mac
+    attributes:
+      label: Mac and macOS version
+      placeholder: MacBook Air M2, macOS 15.3
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - DMG
+        - curl installer
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: What worked?
+      options:
+        - label: The app opened after approving it in Privacy & Security
+        - label: Screen Recording permission was granted and recording worked
+        - label: Microphone recording worked
+        - label: The hotkey started and stopped recording
+        - label: An analysis finished and showed a report
+        - label: The HUD did not appear in the recorded frames
+        - label: Permissions were kept after updating to a newer version
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything that didn't work?
+      description: Error messages, odd behavior, screenshots (without secrets).

@@ -1,0 +1,38 @@
+{
+  "name": "ivibe",
+  "private": true,
+  "description": "Show the bug. Get the fix. Record your screen and voice; iVibe finds the root cause, proves it with frames and writes the fix prompt.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "homepage": "https://ivibe.tech",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikylogic/ivibe.git"
+  },
+  "bugs": "https://github.com/nikylogic/ivibe/issues",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "turbo run typecheck && tsc -p tsconfig.json",
+    "test": "turbo run test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "licenses:check": "node scripts/license-check.ts",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm licenses:check",
+    "spike": "node --env-file-if-exists=.env"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.5",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "turbo": "^2.11.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,0 +1,32 @@
+# Spike results
+
+Each spike from [architecture.md §2.10](architecture.md#210-day-0-spikes) gets an entry here once it has run: the date, what was tested, the result and the decision it drives. Raw outputs stay local in `spikes/results/`.
+
+| Spike | Question                                                                                            | Status     | Result | Decision |
+| ----- | --------------------------------------------------------------------------------------------------- | ---------- | ------ | -------- |
+| S1    | How does `muse-spark-1.3` sample an MP4, and what does a 60-s clip cost?                            | ⏳ Pending |        |          |
+| S2    | Can Spark point to moments in a video accurately?                                                   | ⏳ Pending |        |          |
+| S3    | `store: false` + encrypted reasoning + tools + follow-up images; is `previous_response_id` cheaper? | ⏳ Pending |        |          |
+| S4    | JSON Schema output combined with tools                                                              | ⏳ Pending |        |          |
+| S5    | Voice Transcribe on mixed Hindi and English                                                         | ⏳ Pending |        |          |
+| S6    | SAM 3.1 on code-editor and browser screenshots                                                      | ⏳ Pending |        |          |
+| S7    | Baseten Muse Spark Open: video, tools, JSON Schema                                                  | ⏳ Pending |        |          |
+| S8    | Cost and latency of a full analysis                                                                 | ⏳ Pending |        |          |
+| S9    | electron-builder signing with the self-signed macOS identity in CI                                  | ⏳ Pending |        |          |
+| S10   | Exact model IDs from `GET /v1/models`                                                               | ⏳ Pending |        |          |
+| S11   | Screen capture from the global hotkey without a picker                                              | ⏳ Pending |        |          |
+| S12   | PaddleOCR accuracy and speed on code screens                                                        | ⏳ Pending |        |          |
+| S13   | WebCodecs H.264 in Electron and Chrome on all OSes                                                  | ⏳ Pending |        |          |
+| S14   | Better Auth with the Electron plugin on Workers + D1                                                | ⏳ Pending |        |          |
+| S15   | Squirrel.Mac updates with the self-signed identity (P10)                                            | ⏳ Pending |        |          |
+| S16   | A full analysis within the Workers Free plan's CPU limit                                            | ⏳ Pending |        |          |
+
+## Log
+
+<!-- Newest first. Template:
+
+### S10 · Oct 27, 2026
+**Tested:** …
+**Result:** …
+**Decision:** …
+-->

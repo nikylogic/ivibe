@@ -1,0 +1,18 @@
+{
+  "name": "@ivibe/capture",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Frame sources (display, browser tab, video file), microphone capture and the frame sampler.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@ivibe/config": "workspace:*"
+  }
+}

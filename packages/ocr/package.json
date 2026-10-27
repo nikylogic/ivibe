@@ -1,0 +1,18 @@
+{
+  "name": "@ivibe/ocr",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The OcrEngine interface and PaddleOCR on ONNX Runtime Web, with incremental OCR of changed tiles.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@ivibe/config": "workspace:*"
+  }
+}
