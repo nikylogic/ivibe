@@ -1,0 +1,18 @@
+{
+  "name": "@ivibe/types",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Zod schemas for the evidence bundle, OCR, timeline and report, with the TypeScript types and JSON Schema generated from them.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@ivibe/config": "workspace:*"
+  }
+}

@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in iVibe doesn't work as expected.
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please **don't attach recordings or screenshots that show secrets** (API keys, tokens, `.env` files).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Press the hotkey
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where?
+      options:
+        - Desktop app
+        - Web app (ivibe.tech)
+        - CLI
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: AI source
+      options:
+        - Bring your own key
+        - iVibe Cloud
+        - Not relevant
+  - type: input
+    id: version
+    attributes:
+      label: iVibe version
+      description: Settings → About, or the release you downloaded.
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 23H2 / macOS 15.3 (Apple silicon) / Ubuntu 24.04
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Any error messages. Remove keys and personal data first.
+      render: text

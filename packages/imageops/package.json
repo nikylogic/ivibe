@@ -1,0 +1,18 @@
+{
+  "name": "@ivibe/imageops",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Decode, crop, resize and encode images with jSquash. Node only (CLI and the BYOK engine); never in the Worker.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@ivibe/config": "workspace:*"
+  }
+}

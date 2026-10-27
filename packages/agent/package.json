@@ -1,0 +1,18 @@
+{
+  "name": "@ivibe/agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Timeline builder, evidence packer, agent tools and loop, claim verifier and output templates.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@ivibe/config": "workspace:*"
+  }
+}
