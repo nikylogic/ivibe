@@ -7,4 +7,4 @@
  * Design: docs/architecture.md §4.10.
  */
 
-export {};
+export * from "./wav.ts";

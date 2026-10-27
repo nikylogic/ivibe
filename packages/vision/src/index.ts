@@ -7,4 +7,5 @@
  * Design: docs/architecture.md §4.7.
  */
 
-export {};
+export * from "./change.ts";
+export * from "./keyframes.ts";

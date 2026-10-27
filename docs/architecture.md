@@ -104,6 +104,7 @@ Sections 0–3 hold the decisions and the big picture. Sections 4–15 are the b
 | D15 | No native Node modules in the hackathon build | arm64 and x64 apps build from one runner; no rebuild for each Electron version; fewer antivirus flags | `onnxruntime-node`, `uiohook-napi`, `keytar` |
 | D16 | Proof images are drawn by the client from highlight geometry | Workers have no canvas; one renderer for desktop and web | Server-side rendering with a WebAssembly canvas |
 | D18 | Free testing is layered so most of it costs us nothing: sample replays and BYOK are free and unlimited; Cloud trial runs are paid from a capped trial budget, with judges' runs reserved first (§7.1) | Many users can try it while our only model money is the hackathon's API credits | Unlimited free Cloud runs; a mandatory card for trials |
+| D19 | UI built with Astryx (Meta's open-source React design system, MIT) on desktop and web | Accessible, themeable components with dark mode out of the box; one design language across apps; it is Meta tooling, which judges score | Tailwind CSS + shadcn/ui (v2.0 of this document) |
 | D17 | The whole repo is AGPL-3.0, with commercial licenses sold separately; outside contributions need a signed CLA (§12.1) | Open source for judges and users (OSI-approved, so SignPath still applies). Companies that want to modify or embed the code privately, or whose policy bans AGPL, buy a commercial license or use the Cloud. A CLA keeps us able to dual-license | Apache-2.0 or MIT (anyone could resell the Cloud code); BSL or Commons Clause (not open source); DCO only (no right to relicense contributions) |
 
 ### 1.3 What changes from the product plan
@@ -392,7 +393,7 @@ If the client disconnects, the run continues. Reconnecting with `Last-Event-ID` 
 | Layer | Choice |
 |---|---|
 | Shell | Electron 45.x (Chromium 156, Node 24), pinned to an exact version; fall back to 44.x if a spike hits a regression. electron-vite builds main, preloads and renderers; electron-builder packages; electron-updater updates |
-| UI | React + TypeScript + Vite, Tailwind CSS, shadcn/ui, Zustand for state, TanStack Query over IPC. All network calls (Meta and iVibe Cloud) happen in the main or engine process, which hold the credentials |
+| UI | React 19 + TypeScript + Vite with **Astryx**, Meta's open-source design system (`@astryxdesign/core`, StyleX styling, neutral theme with dark mode; D19). Zustand for state, TanStack Query over IPC. All network calls (Meta and iVibe Cloud) happen in the main or engine process, which hold the credentials |
 | IPC | A typed contract in `packages/types` (zod). Each window's preload exposes only that window's commands through `contextBridge`. Main validates every payload and checks which frame sent it |
 | Capture | `desktopCapturer` + `session.setDisplayMediaRequestHandler` → `getDisplayMedia` in a hidden recorder window; `MediaStreamTrackProcessor` streams frames to Web Workers |
 | Audio | `getUserMedia` + an AudioWorklet → 16 kHz mono 16-bit WAV |

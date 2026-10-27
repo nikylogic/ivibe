@@ -1,3 +1,11 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Install scripts: only Electron needs one (it downloads its binary).
+allowBuilds:
+  electron: true
+  # Prints a setup hint only.
+  "@astryxdesign/core": false
+  # Squirrel.Windows tooling; we package with NSIS.
+  electron-winstaller: false

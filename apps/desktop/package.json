@@ -1,0 +1,42 @@
+{
+  "name": "@ivibe/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "iVibe desktop app: record a bug with your screen and voice, get the root cause, proof images and a fix prompt.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "out/main/index.js",
+  "author": "Nikhil P",
+  "homepage": "https://ivibe.tech",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "dist": "electron-vite build && electron-builder --publish never"
+  },
+  "devDependencies": {
+    "@astryxdesign/build": "0.7.4",
+    "@astryxdesign/core": "0.7.4",
+    "@astryxdesign/theme-neutral": "0.7.4",
+    "@babel/core": "^8.0.9",
+    "@ivibe/capture": "workspace:*",
+    "@ivibe/config": "workspace:*",
+    "@ivibe/encode": "workspace:*",
+    "@ivibe/vision": "workspace:*",
+    "@stylexjs/babel-plugin": "^0.19.1",
+    "@stylexjs/stylex": "^0.19.1",
+    "@stylexjs/unplugin": "^0.19.1",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "45.0.0",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "vite": "^8.3.5"
+  }
+}

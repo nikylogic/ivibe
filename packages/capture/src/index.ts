@@ -7,4 +7,5 @@
  * Design: docs/architecture.md §4.5 and §4.6.
  */
 
-export {};
+export * from "./frames.ts";
+export * from "./mic.ts";
