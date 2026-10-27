@@ -402,6 +402,35 @@ const SECTIONS: { id: SettingsSection; label: string; note: string; icon: typeof
   { id: "about", label: "About", note: "Version, license and source.", icon: Info },
 ];
 
+/** Keeping results on this device, and wiping them. */
+function HistorySettings({ settings }: { settings: SettingsState }) {
+  const [cleared, setCleared] = useState(false);
+  const current = settings.settings;
+  return (
+    <Row title="History" note="Results are kept on this device only, up to the last 200.">
+      <Switch
+        label="Keep history"
+        description="Save each result, with its screenshots, so you can read or paste it again."
+        value={current?.keepHistory ?? true}
+        isDisabled={!current}
+        onChange={(keepHistory) => settings.change({ keepHistory })}
+      />
+      <div {...stylex.props(styles.connected)}>
+        <Button
+          label="Clear history"
+          variant="secondary"
+          onClick={() => void window.ivibe.history.clear().then(() => setCleared(true))}
+        />
+        {cleared && (
+          <Text color="secondary" size="sm">
+            History and its screenshots were deleted.
+          </Text>
+        )}
+      </div>
+    </Row>
+  );
+}
+
 const SHORTCUT_ROWS: { mode: OutputMode; label: string }[] = [
   { mode: "dictate", label: "Dictate" },
   { mode: "fix", label: "Fix" },
@@ -549,8 +578,10 @@ export function SettingsPanel({
             </Row>
           )}
 
+          {active.id === "privacy" && <HistorySettings settings={settings} />}
+
           {active.id === "privacy" && (
-            <Row>
+            <Row title="What happens to a recording">
               <ul {...stylex.props(styles.list)}>
                 <li>
                   <Text size="sm">

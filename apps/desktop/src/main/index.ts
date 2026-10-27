@@ -38,6 +38,15 @@ import {
   warmUpOsBridge,
 } from "./os-bridge.ts";
 import { readSettings, updateSettings } from "./settings.ts";
+import { fallbackText } from "./compose.ts";
+import {
+  addHistory,
+  clearHistory,
+  deleteHistory,
+  getHistory,
+  historyPayload,
+  listHistory,
+} from "./history.ts";
 import { RecordingController } from "./recording.ts";
 import {
   createHudWindow,
@@ -379,6 +388,48 @@ function registerIpc(): void {
     const file = typeof index === "number" ? recording.status.result?.proof[index]?.file : null;
     if (file) await shell.openPath(file);
   });
+  // History: the renderer names entries by id; files only ever come from the stored entries.
+  const entryFor = (id: unknown) =>
+    typeof id === "string" ? listHistory().find((entry) => entry.id === id) : undefined;
+  ipcMain.handle(Channels.historyList, () => listHistory());
+  ipcMain.handle(Channels.historyGet, (_event, id: unknown) =>
+    typeof id === "string" ? getHistory(id) : null,
+  );
+  ipcMain.handle(Channels.historyCopy, (_event, id: unknown) => {
+    const entry = entryFor(id);
+    if (entry) clipboard.writeText(fallbackText(historyPayload(entry)));
+  });
+  ipcMain.handle(Channels.historyReuse, (_event, id: unknown) => {
+    const detail = typeof id === "string" ? getHistory(id) : null;
+    if (!detail) return false;
+    const payload = historyPayload(detail);
+    clipboard.writeText(fallbackText(payload));
+    return recording.reuse(payload, {
+      mode: detail.mode,
+      text: detail.text,
+      targetName: "the clipboard",
+      delivery: "copied",
+      proofImages: payload.proof.length,
+      proof: detail.proof.map((shot, index) => ({
+        title: shot.title,
+        file: shot.file,
+        preview: detail.previews[index] ?? "",
+      })),
+      waiting: readSettings().clickToPaste,
+    });
+  });
+  ipcMain.handle(Channels.historyOpenProof, async (_event, id: unknown, index: unknown) => {
+    const file = typeof index === "number" ? entryFor(id)?.proof[index]?.file : undefined;
+    if (file) await shell.openPath(file);
+  });
+  ipcMain.handle(Channels.historyDelete, (_event, id: unknown) => {
+    if (typeof id === "string") deleteHistory(id);
+    broadcast(Channels.historyChanged, listHistory());
+  });
+  ipcMain.handle(Channels.historyClear, () => {
+    clearHistory();
+    broadcast(Channels.historyChanged, listHistory());
+  });
   ipcMain.handle(Channels.appInfo, (): AppInfo => ({
     version: app.getVersion(),
     platform: process.platform,
@@ -523,6 +574,15 @@ async function finishSelfTest(status: RecordingStatus): Promise<void> {
     await uiWindow?.webContents.executeJavaScript(
       `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
     );
+    await click("History");
+    await settle();
+    await uiWindow?.webContents.executeJavaScript(
+      `document.querySelector('[aria-expanded="false"]')?.click()`,
+    );
+    await settle();
+    await snapshot(uiWindow, "ui-history-dark");
+    await click("Record");
+    await settle();
     await click("Collapse sidebar");
     await settle();
     await snapshot(uiWindow, "ui-collapsed-dark");
@@ -575,6 +635,11 @@ void app.whenReady().then(() => {
   registerIpc();
   recording.on("status", onStatus);
   recording.on("feedback", (feedback) => broadcast(Channels.recordingFeedback, feedback));
+  recording.on("result", (entry) => {
+    if (!readSettings().keepHistory) return;
+    addHistory(entry);
+    broadcast(Channels.historyChanged, listHistory());
+  });
   recorderWindow = createRecorderWindow();
 
   tray = new Tray(trayIcons.idle());

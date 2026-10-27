@@ -5,6 +5,8 @@ import { Channels } from "../shared/ipc.ts";
 import type {
   AppInfo,
   ByokStatus,
+  HistoryDetail,
+  HistoryEntry,
   RecordingStatus,
   Settings,
   ShortcutStatus,
@@ -44,6 +46,19 @@ const api = {
   },
   app: {
     info: (): Promise<AppInfo> => ipcRenderer.invoke(Channels.appInfo),
+  },
+  history: {
+    list: (): Promise<HistoryEntry[]> => ipcRenderer.invoke(Channels.historyList),
+    get: (id: string): Promise<HistoryDetail | null> => ipcRenderer.invoke(Channels.historyGet, id),
+    copy: (id: string): Promise<void> => ipcRenderer.invoke(Channels.historyCopy, id),
+    /** Copies the entry and makes it the result a click or the paste shortcut pastes. */
+    reuse: (id: string): Promise<boolean> => ipcRenderer.invoke(Channels.historyReuse, id),
+    openProof: (id: string, index: number): Promise<void> =>
+      ipcRenderer.invoke(Channels.historyOpenProof, id, index),
+    remove: (id: string): Promise<void> => ipcRenderer.invoke(Channels.historyDelete, id),
+    clear: (): Promise<void> => ipcRenderer.invoke(Channels.historyClear),
+    onChange: (listener: (entries: HistoryEntry[]) => void) =>
+      subscribe(Channels.historyChanged, listener),
   },
   shortcuts: {
     status: (): Promise<ShortcutStatus> => ipcRenderer.invoke(Channels.shortcutsStatus),

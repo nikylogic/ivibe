@@ -16,7 +16,7 @@ declare global {
   }
 }
 
-export type Page = "record" | "reports";
+export type Page = "record" | "history";
 
 export function useRecordingStatus(): RecordingStatus {
   const [status, setStatus] = useState<RecordingStatus>({

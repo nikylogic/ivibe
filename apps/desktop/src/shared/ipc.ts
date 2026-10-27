@@ -32,6 +32,29 @@ export interface Settings {
   personal: Personal;
   /** The global shortcut that records in each mode. */
   shortcuts: ShortcutMap;
+  /** Keep finished results on this device, in History. */
+  keepHistory: boolean;
+}
+
+/** A finished result kept in History (main/history.ts). Stored on this device only. */
+export interface HistoryEntry {
+  id: string;
+  mode: OutputMode;
+  /** Epoch milliseconds. */
+  createdAt: number;
+  /** The app it went to, or "the clipboard". */
+  targetName: string;
+  delivery: "pasted" | "copied";
+  /** The prompt or text, without the proof section. */
+  text: string;
+  /** Annotated screenshots; `line` is the proof line pasted before each one. */
+  proof: { title: string; file: string; line: string }[];
+}
+
+/** One entry with its screenshots' previews, for the open item in History. */
+export interface HistoryDetail extends HistoryEntry {
+  /** Data URLs in proof order; empty when a file has since been deleted. */
+  previews: string[];
 }
 
 export interface RecordingResult {
@@ -197,6 +220,14 @@ export const Channels = {
   resultCopy: "result.copy",
   proofOpen: "result.proof-open",
   shortcutsStatus: "shortcuts.status",
+  historyList: "history.list",
+  historyGet: "history.get",
+  historyCopy: "history.copy",
+  /** Makes an entry the latest result, so a click or the paste shortcut pastes it. */
+  historyReuse: "history.reuse",
+  historyOpenProof: "history.open-proof",
+  historyDelete: "history.delete",
+  historyClear: "history.clear",
   /** Lets the UI hear the current shortcuts while the user records a new one. */
   shortcutsPause: "shortcuts.pause",
   // HUD → main
@@ -210,6 +241,7 @@ export const Channels = {
   recordingFeedback: "recording.feedback",
   settingsChanged: "settings.changed",
   shortcutsChanged: "shortcuts.changed",
+  historyChanged: "history.changed",
   // recorder ↔ main
   recorderCommand: "recorder.command",
   recorderEvent: "recorder.event",

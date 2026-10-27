@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   clickToPaste: true,
   personal: EMPTY_PERSONAL,
   shortcuts: defaultShortcuts(process.platform),
+  keepHistory: true,
 };
 
 const MODES: OutputMode[] = ["fix", "prompt", "dictate"];
@@ -65,6 +66,7 @@ export function updateSettings(change: Partial<Settings>): Settings {
   if (typeof change.proofImages === "boolean") next.proofImages = change.proofImages;
   if (typeof change.microphone === "string") next.microphone = change.microphone;
   if (typeof change.clickToPaste === "boolean") next.clickToPaste = change.clickToPaste;
+  if (typeof change.keepHistory === "boolean") next.keepHistory = change.keepHistory;
   if (change.shortcuts !== undefined)
     next.shortcuts = mergeShortcuts(next.shortcuts, change.shortcuts);
   if (change.personal !== undefined) {

@@ -7,9 +7,10 @@ import { Dialog } from "@astryxdesign/core/Dialog";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { SideNav, SideNavCollapseButton, SideNavItem } from "@astryxdesign/core/SideNav";
 import { Text } from "@astryxdesign/core/Text";
-import { FileText, KeyRound, Mic, Settings2 } from "lucide-react";
+import { History, KeyRound, Mic, Settings2 } from "lucide-react";
 import { withClass } from "../shared/shortcut.tsx";
 import { mount, signal } from "../shared/theme.tsx";
+import { HistoryPage } from "./history-page.tsx";
 import { RecordPage } from "./record-page.tsx";
 import { SettingsPanel } from "./settings-page.tsx";
 import type { SettingsSection } from "./settings-page.tsx";
@@ -183,11 +184,11 @@ function App() {
                 onClick={() => setPage("record")}
               />
               <SideNavItem
-                label="Reports"
+                label="History"
                 size="lg"
-                icon={icon(FileText)}
-                isSelected={page === "reports"}
-                onClick={() => setPage("reports")}
+                icon={icon(History)}
+                isSelected={page === "history"}
+                onClick={() => setPage("history")}
               />
             </div>
           </SideNav>
@@ -204,17 +205,12 @@ function App() {
             shortcutStatus={shortcutStatus}
           />
         )}
-        {page === "reports" && (
-          <div {...stylex.props(styles.center)}>
-            <EmptyState
-              icon={<FileText size={28} strokeWidth={1.5} />}
-              title="No reports yet"
-              description="Record a bug and its report, with the root cause and a fix prompt, shows up here."
-              actions={
-                <Button label="Record a bug" variant="primary" onClick={() => setPage("record")} />
-              }
-            />
-          </div>
+        {page === "history" && (
+          <HistoryPage
+            initialMode={settings.settings?.mode ?? "fix"}
+            isMac={info?.platform === "darwin"}
+            onRecord={() => setPage("record")}
+          />
         )}
       </main>
 

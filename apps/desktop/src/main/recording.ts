@@ -7,10 +7,12 @@ import type { BrowserWindow, Display } from "electron";
 import { Channels } from "../shared/ipc.ts";
 import type {
   EvidenceFrame,
+  HistoryEntry,
   OutputMode,
   RecorderCommand,
   RecorderEvent,
   RecordingFeedback,
+  RecordingResult,
   RecordingStatus,
   Settings,
   TranscriptSegment,
@@ -46,6 +48,8 @@ export interface RecordingControllerOptions {
 export class RecordingController extends EventEmitter<{
   status: [RecordingStatus];
   feedback: [RecordingFeedback];
+  /** A finished result, for History. */
+  result: [HistoryEntry];
 }> {
   readonly #recorder: () => BrowserWindow;
   readonly #apiKey: () => string | null;
@@ -203,6 +207,27 @@ export class RecordingController extends EventEmitter<{
     return outcome.delivery === "pasted";
   }
 
+  /**
+   * Makes an earlier result (from History) the latest one, so clicking a text field or the paste
+   * shortcut pastes it. Refused while a recording is in progress.
+   */
+  reuse(payload: Payload, result: RecordingResult): boolean {
+    const { phase } = this.#status;
+    if (phase !== "idle" && phase !== "review" && phase !== "error") return false;
+    this.#payload = payload;
+    this.#set({
+      phase: "review",
+      mode: result.mode,
+      elapsedMs: 0,
+      error: undefined,
+      summary: undefined,
+      transcript: [],
+      targetName: undefined,
+      result,
+    });
+    return true;
+  }
+
   /** Stops waiting for a text field click; the result stays on the clipboard. */
   stopWaiting(): void {
     const result = this.#status.result;
@@ -304,6 +329,19 @@ export class RecordingController extends EventEmitter<{
       const waiting =
         composed.result.delivery === "copied" && settings.autoPaste && settings.clickToPaste;
       this.#set({ phase: "review", result: { ...composed.result, waiting } });
+      this.emit("result", {
+        id: this.#id,
+        mode: this.#mode,
+        createdAt: Date.now(),
+        targetName: composed.result.targetName,
+        delivery: composed.result.delivery,
+        text: composed.payload.text,
+        proof: composed.payload.proof.map((shot, index) => ({
+          title: composed.result.proof[index]?.title ?? "",
+          file: shot.file,
+          line: shot.line,
+        })),
+      });
     } catch (error) {
       if (signal.aborted) return;
       this.#fail(error instanceof Error ? error.message : String(error));
