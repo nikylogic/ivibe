@@ -1,6 +1,8 @@
 # Vibes and prompts
 
-Status: **approved direction, details open** (October 27, 2026). Adds decisions D21 (prompt stack and evals) and D22 (Vibes) to [architecture.md](architecture.md).
+Status: **approved direction, details open** (October 27, 2026). Adds decisions D21 (prompt stack and evals), D22 (Vibes) and D23 (community plugins) to [architecture.md](architecture.md).
+
+**Timing:** the prompt stack and evals (§4) ship before the hackathon deadline (Nov 4). **Vibes** (§1–3, §5) roll out after the hackathon, followed by **community plugins** (§8).
 
 A **vibe** is what iVibe does with a recording. Fix, Prompt and Dictate are the first three. Anyone can make their own: a Jira ticket from a screen recording, a polite Slack reply from a rant, a commit message from narration, a UX review of what's on screen, a mockup image from a description.
 
@@ -329,25 +331,34 @@ Each step runs only when its tool is ticked. Steps that don't depend on each oth
 - Paste only into the app you started in.
 - Inputs are data, never instructions.
 - A vibe gets only the inputs it ticked, enforced in the runner.
-- **No code runs inside iVibe.** A shared vibe that could run code would see your screen and type into your apps, which makes it a possible keylogger. For anything needing code, the webhook output hands the result to code you run. A later **MCP server** would let agents such as Claude Code call `ivibe.last_recording` and `ivibe.run_vibe` themselves. **Local scripts** (result passed on stdin, never inserted into a command line) are left out of v1 and may come later behind a per-vibe switch.
+- **No code runs inside a vibe.** Vibes are declarative; code comes with plugins (§8), which run sandboxed. A shared vibe that could run code would see your screen and type into your apps, which makes it a possible keylogger. For anything needing code, the webhook output hands the result to code you run. A later **MCP server** would let agents such as Claude Code call `ivibe.last_recording` and `ivibe.run_vibe` themselves. **Local scripts** (result passed on stdin, never inserted into a command line) are left out of v1 and may come later behind a per-vibe switch.
 
 ---
 
 ## 6. Order of work
 
-There are 8 days to Nov 4, and installers, judge access and the demo app are still open.
+### Before the hackathon deadline (Nov 4)
 
-| Step  | Work                                                                                               | Time        | Done when                                                              |
-| ----- | -------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
-| 1     | Prompt stack, prompt files, destination styles, Personal settings, Prompt-mode fix                 | 0.5 day     | The "Place me on the edit profile page" case reads as a proper request |
-| 2     | Eval suite with 30 voice cases                                                                     | 0.5 day     | `pnpm eval` prints scores, and step 1 scores higher than today         |
-| 3     | Vibe file, parser, tool rules, runner, built-ins as vibes, migration                               | 1 day       | Fix, Prompt and Dictate run from vibe files with identical results     |
-| 4     | Vibes page, builder with tool checklist and summary bar, per-vibe hotkeys, pill switcher           | 1 day       | A new vibe can be built by ticking tools and used from its hotkey      |
-| 5     | Outputs: show in pill, file, link, webhook. "Try it on my last recording"                          | 0.5 day     | The starters in §3.4 work, except image ones                           |
-| 6     | "Say it" vibe creation, Muse Image tools (after Spike S21), Screen video (after Spikes S1 and S13) | 1 day       | The demo moment: a vibe made by voice, then used                       |
-| Later | Gallery, install links, MCP server, local scripts                                                  | After Nov 4 | —                                                                      |
+Only the prompt work, which improves every result in the demo. The remaining days go to installers, judge access, the demo app, README and video.
 
-That is 4.5 days, which leaves 3.5 for installers, judge access, the demo app, README and video. If time runs short, step 6 moves after the deadline and the rest still makes a complete story.
+| Step | Work                                                                               | Time    | Done when                                                              |
+| ---- | ---------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------- |
+| 1    | Prompt stack, prompt files, destination styles, Personal settings, Prompt-mode fix | 0.5 day | The "Place me on the edit profile page" case reads as a proper request |
+| 2    | Eval suite with 30 voice cases                                                     | 0.5 day | `pnpm eval` prints scores, and step 1 scores higher than today         |
+
+### After the hackathon: Vibes
+
+| Step | Work                                                                                               | Time     | Done when                                                          |
+| ---- | -------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------ |
+| 3    | Vibe file, parser, tool rules, runner, built-ins as vibes, migration                               | 1 day    | Fix, Prompt and Dictate run from vibe files with identical results |
+| 4    | Vibes page, builder with tool checklist and summary bar, per-vibe hotkeys, pill switcher           | 1 day    | A new vibe can be built by ticking tools and used from its hotkey  |
+| 5    | Outputs: show in pill, file, link, webhook. "Try it on my last recording"                          | 0.5 day  | The starters in §3.4 work, except image ones                       |
+| 6    | "Say it" vibe creation, Muse Image tools (after Spike S21), Screen video (after Spikes S1 and S13) | 1 day    | A vibe made by voice, then used                                    |
+| 7    | Vibe sharing: gallery, `ivibe://vibe` install links (§3.5), MCP server                             | 1–2 days | A vibe installs from a link with its checklist shown first         |
+
+### Then: community plugins
+
+The platform in §8, in its own three phases (§8.8).
 
 ## 7. Spikes
 
@@ -359,3 +370,124 @@ That is 4.5 days, which leaves 3.5 for installers, judge access, the demo app, R
 | S19 | Can Muse Spark write a valid vibe file from a spoken description on the first try, and how fast?      | "Say it" creation                                           |
 | S20 | Does reading the selection with a simulated copy work in Chrome, VS Code, Slack and Windows Terminal? | Selected text tool                                          |
 | S21 | Muse Image 1.0 on the Meta API: request format, generate vs edit, sizes, speed                        | Image tools                                                 |
+
+---
+
+## 8. Later: community plugins (D23)
+
+Vibes let anyone combine iVibe's own tools. **Plugins** go further: a community developer ships **code** that adds new features and new UI, and anyone can install it from a marketplace. Vibes stay the simple, no-code layer. Plugins are the platform underneath, and a plugin can ship vibes of its own.
+
+### 8.1 What a plugin can add
+
+| Extension point                       | Examples                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tools** for the vibe checklist (§1) | A **Jira** or **Linear** output that files the ticket through their API with OAuth. A **Sentry** tool that pulls the full stack trace for an error ID seen on screen. A **Figma** capture tool that grabs the selected frame. A **Notion** "save to page" output                                                                   |
+| **UI components**                     | A sidebar **page** in the app (a ticket inbox, a team dashboard). A **panel** in the expanded pill (a ticket preview with an "Edit before filing" form). A **result renderer** that shows output richly instead of as plain text. A **settings section**. **Buttons** in the pill after a result ("File in Jira", "Share as link") |
+| **Vibes**                             | Ready-made vibes that use the plugin's tools, such as "Jira bug"                                                                                                                                                                                                                                                                   |
+| **Commands and hotkeys**              | "Open today's notes", "Re-run on last recording with Wonder"                                                                                                                                                                                                                                                                       |
+| **Model providers** (restricted)      | A local model through Ollama for offline dictation. Shown with a clear "runs outside Meta" label, and never for `-contributor` models                                                                                                                                                                                              |
+| **Destinations**                      | Style guides for apps iVibe doesn't know yet (§4.2, layer 3)                                                                                                                                                                                                                                                                       |
+
+### 8.2 The package
+
+```text
+jira-for-ivibe/
+├─ ivibe-plugin.json      manifest: id, version, permissions, contributions
+├─ dist/main.js           logic: tools, commands (runs in the plugin sandbox)
+├─ dist/ui/*.js           UI components (each runs in a sandboxed frame)
+├─ vibes/*.md             vibes it ships
+└─ README.md, icon.png, screenshots/
+```
+
+```json
+{
+  "id": "acme.jira",
+  "name": "Jira for iVibe",
+  "version": "1.2.0",
+  "engines": { "ivibe": ">=1.4.0" },
+  "permissions": {
+    "recording": ["transcript", "screenshots"],
+    "network": ["https://*.atlassian.net"],
+    "oauth": ["atlassian"],
+    "models": { "allow": ["muse-spark-1.3"], "monthlyCapUsd": 1 },
+    "storage": true
+  },
+  "contributes": {
+    "tools": [{ "id": "jira-create", "kind": "output", "title": "File in Jira" }],
+    "ui": [
+      { "slot": "pill.result", "component": "dist/ui/ticket-preview.js" },
+      { "slot": "app.page", "component": "dist/ui/inbox.js", "title": "Jira" }
+    ],
+    "vibes": ["vibes/jira-bug.md"]
+  }
+}
+```
+
+### 8.3 Isolation: other people's code, safely
+
+A plugin sees recordings and can act in your apps, so it runs as if it might be hostile.
+
+| Layer                  | How                                                                                                                                                                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Logic**              | Each plugin runs in its own sandboxed process with no Node.js, no file system and no direct network. It talks to iVibe only through a message channel to a **broker** that checks every call against the manifest                                                                                             |
+| **UI**                 | Each component renders in a sandboxed frame on its own origin (`ivibe-plugin://acme.jira/`), with a CSP that allows only the plugin's own files. The host decides where it sits and how big it can be, and passes theme tokens. A plugin can't draw over the app, read other plugins or see iVibe's own pages |
+| **Network**            | Only the domains in the manifest, enforced by the broker, so a plugin can't send data anywhere else                                                                                                                                                                                                           |
+| **Recordings**         | Only the parts the manifest asks for, and always **after redaction**. Raw frames, raw audio and the user's Meta key never reach a plugin                                                                                                                                                                      |
+| **Models**             | A plugin asks the broker to call a model. The broker uses the user's key or credits, applies the model allowlist and the plugin's monthly spending cap, and shows the spend on the plugin's page                                                                                                              |
+| **Typing and pasting** | Only through iVibe's paste, so the D20 rule holds: only into the app the user started in                                                                                                                                                                                                                      |
+| **Storage**            | A private key-value store per plugin. OAuth tokens are held by iVibe in the system keychain and attached by the broker, never handed to the plugin                                                                                                                                                            |
+
+### 8.4 Installing and trusting
+
+- **Before install:** a permission sheet in plain words ("Reads your transcript and redacted screenshots · Talks to *.atlassian.net · Spends up to $1/month of your Meta credits"), with screenshots, reviews and install count.
+- **Updates:** they install silently unless they add a permission, which asks again.
+- **Turning off:** any permission can be turned off per plugin, and the plugin is told so it can degrade gracefully.
+- **Kill switch:** a signed revocation list lets iVibe disable a plugin found to be malicious, on every install, within minutes.
+- **Developer mode:** load an unsigned plugin from a folder, with a permanent "Developer plugin" badge.
+
+### 8.5 Marketplace
+
+| Part             | How                                                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Where            | `ivibe.tech/plugins` and a **Plugins** tab in the app                                                                                              |
+| Publishing       | `ivibe plugin publish` from the developer's repo. The listing links the source                                                                     |
+| Automated review | Manifest lint, permission diff against the last version, a bundle scan (no `eval`, no remote code loading), size limits and a sandbox smoke test   |
+| Human review     | For a first publish, and for any update that adds network domains or recording access                                                              |
+| Signing          | The marketplace signs each approved version (Ed25519), and the app installs only signed versions outside developer mode                            |
+| Badges           | Verified developer, open source, "uses screenshots"                                                                                                |
+| Paid plugins     | Sold through Dodo Payments (our merchant of record) with a revenue share (for example 80% to the developer), as a one-time price or a subscription |
+
+### 8.6 For developers
+
+- **`@ivibe/plugin-sdk`:** TypeScript types for the broker API, React components styled like iVibe (built on the same design tokens), and helpers for tools, settings and storage.
+- **`ivibe plugin dev`:** hot reload into the running app, with recording fixtures so a plugin can be tested without recording.
+- **`ivibe plugin test`:** runs the plugin's tools against fixture recordings in CI.
+- **Docs and examples:** a template repo plus three samples (an output tool, a pill panel, an app page).
+- **License:** the SDK is **MIT**, so plugins can use any license, including proprietary paid ones. The app stays AGPL-3.0, and plugins talk to it only through the message API. This boundary needs a lawyer's confirmation before the marketplace opens.
+
+### 8.7 Plugin ideas to seed the marketplace
+
+| Plugin                        | Adds                                                                              |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| Jira / Linear / GitHub Issues | Output tool with OAuth, ticket preview panel, "File it" pill button               |
+| Sentry / Datadog              | A tool that pulls traces and logs for an error seen on screen into the fix prompt |
+| Notion / Obsidian             | Notes outputs and a daily-notes page                                              |
+| Loom-style share              | Uploads the redacted recording and proof to a share page and pastes the link      |
+| Team dictionary               | Syncs the dictionary (§4.2, layer 4) across a team                                |
+| Ollama                        | Offline dictation with a local model                                              |
+| Figma                         | Captures the selected frame as an input                                           |
+
+### 8.8 Phases
+
+| Phase | Work                                                                                              | Outcome                                      |
+| ----- | ------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| P1    | Broker, sandboxed logic and UI, manifest and permissions, developer mode, SDK, `ivibe plugin dev` | Developers can build and run plugins locally |
+| P2    | Marketplace with automated and human review, signing, updates, kill switch, ratings               | Anyone can install community plugins safely  |
+| P3    | Paid plugins through Dodo, payouts, verified developers                                           | Developers can earn from plugins             |
+
+### 8.9 Open questions
+
+1. Which Electron sandbox runs plugin logic best: a sandboxed hidden renderer per plugin or a utility process without Node? This needs a spike for memory use with ten plugins installed.
+2. Should plugins be able to add **capture** sources that run during recording (such as reading the browser's network log through an extension), given the privacy weight?
+3. What review service level is sustainable for a small team, and when to add community moderators.
+4. A revenue share and payout threshold that work with Dodo's payout rules.
