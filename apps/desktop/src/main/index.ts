@@ -16,7 +16,7 @@ import {
 } from "electron";
 import { Channels } from "../shared/ipc.ts";
 import type { AppInfo, RecorderEvent, RecordingStatus } from "../shared/ipc.ts";
-import { byokStatus, clearByokKey, saveByokKey } from "./byok.ts";
+import { byokStatus, clearByokKey, readByokKey, saveByokKey } from "./byok.ts";
 import { trayIcons } from "./icons.ts";
 import { RecordingController } from "./recording.ts";
 import {
@@ -30,6 +30,14 @@ const HOTKEY = "Control+Alt+R";
 /** Dev only: --ivibe-snapshot=<dir> runs the self-test and saves PNGs of each window state. */
 const SNAPSHOT_DIR = process.argv.find((arg) => arg.startsWith("--ivibe-snapshot="))?.split("=")[1];
 const SELF_TEST = process.argv.includes("--ivibe-selftest") || SNAPSHOT_DIR !== undefined;
+
+// Test runs can narrate from a WAV file (Chromium's fake capture), to exercise live captions.
+const FAKE_MIC = SELF_TEST ? process.env.IVIBE_FAKE_MIC : undefined;
+if (FAKE_MIC) {
+  app.commandLine.appendSwitch("use-fake-device-for-media-stream");
+  app.commandLine.appendSwitch("use-file-for-fake-audio-capture", FAKE_MIC);
+}
+const SELF_TEST_RECORD_MS = FAKE_MIC ? 12_000 : 5000;
 
 // Test runs use their own profile, so they work next to a running copy of the app.
 if (SELF_TEST) app.setPath("userData", join(app.getPath("temp"), "ivibe-selftest"));
@@ -118,6 +126,14 @@ async function startRecording(): Promise<void> {
   await recording.start(display);
 }
 
+let hudHideTimer: ReturnType<typeof setTimeout> | undefined;
+
+function closeHud(): void {
+  clearTimeout(hudHideTimer);
+  if (hudWindow && !hudWindow.isDestroyed()) hudWindow.destroy();
+  hudWindow = null;
+}
+
 function onStatus(status: RecordingStatus): void {
   broadcast(Channels.recordingState, status);
   const recordingNow = status.phase === "recording" || status.phase === "starting";
@@ -125,14 +141,17 @@ function onStatus(status: RecordingStatus): void {
   tray?.setToolTip(recordingNow ? "iVibe — recording" : "iVibe");
   updateTrayMenu();
 
-  if (status.phase === "recording") hudWindow?.showInactive();
-  if (!recordingNow && hudWindow && !hudWindow.isDestroyed()) {
-    hudWindow.destroy();
-    hudWindow = null;
+  // The pill stays up through processing and shows the outcome, then fades out by itself.
+  if (status.phase === "recording") {
+    clearTimeout(hudHideTimer);
+    hudWindow?.showInactive();
   }
+  if (status.phase === "idle") closeHud();
   if (status.phase === "review" || status.phase === "error") {
+    clearTimeout(hudHideTimer);
+    hudHideTimer = setTimeout(closeHud, status.phase === "review" ? 5000 : 7000);
     if (SELF_TEST) void finishSelfTest(status);
-    else showUi();
+    else if (status.phase === "review") showUi();
   }
 }
 
@@ -160,6 +179,15 @@ function registerIpc(): void {
   ipcMain.handle(Channels.recordingStart, () => startRecording());
   ipcMain.handle(Channels.recordingStop, () => recording.stop());
   ipcMain.handle(Channels.recordingCancel, () => recording.cancel());
+  // The pill turns click-through off while the pointer is over the card.
+  ipcMain.on(Channels.hudInteractive, (event, interactive: boolean) => {
+    if (event.sender !== hudWindow?.webContents) return;
+    hudWindow.setIgnoreMouseEvents(!interactive, { forward: true });
+  });
+  ipcMain.handle(Channels.hudOpenApp, () => {
+    closeHud();
+    showUi();
+  });
   ipcMain.handle(Channels.recordingGet, () => recording.status);
   ipcMain.handle(Channels.byokStatus, () => byokStatus());
   ipcMain.handle(Channels.byokSet, (_event, key: unknown) => {
@@ -222,11 +250,11 @@ function runSelfTest(): void {
     setTimeout(() => {
       void snapshot(hudWindow, "hud");
       void snapshot(uiWindow, "ui-recording");
-    }, 3800);
+    }, SELF_TEST_RECORD_MS - 1200);
   }
   showSelfTestFixture();
   setTimeout(() => void startRecording(), 1500);
-  setTimeout(() => void recording.stop(), 5000);
+  setTimeout(() => void recording.stop(), SELF_TEST_RECORD_MS);
   setTimeout(() => {
     console.log("IVIBE_SELFTEST timeout", JSON.stringify(recording.status));
     app.exit(2);
@@ -238,6 +266,7 @@ async function finishSelfTest(status: RecordingStatus): Promise<void> {
   if (SNAPSHOT_DIR) {
     const settle = () => new Promise((resolve) => setTimeout(resolve, 600));
     await settle();
+    await snapshot(hudWindow, "hud-review");
     await snapshot(uiWindow, "ui-review-light");
     nativeTheme.themeSource = "dark";
     await settle();
@@ -263,9 +292,14 @@ app.on("window-all-closed", () => undefined);
 
 void app.whenReady().then(() => {
   if (!process.env.ELECTRON_RENDERER_URL) serveRendererFiles();
-  recording = new RecordingController(recorder);
+  recording = new RecordingController({
+    recorder,
+    // Test runs have their own profile, so they read the key from the environment (.env).
+    apiKey: () => readByokKey() ?? (SELF_TEST ? (process.env.META_API_KEY ?? null) : null),
+  });
   registerIpc();
   recording.on("status", onStatus);
+  recording.on("feedback", (feedback) => broadcast(Channels.recordingFeedback, feedback));
   recorderWindow = createRecorderWindow();
 
   tray = new Tray(trayIcons.idle());

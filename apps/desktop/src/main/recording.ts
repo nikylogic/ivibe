@@ -5,7 +5,14 @@ import { EventEmitter } from "node:events";
 import { desktopCapturer, screen, session } from "electron";
 import type { BrowserWindow, Display } from "electron";
 import { Channels } from "../shared/ipc.ts";
-import type { RecorderCommand, RecorderEvent, RecordingStatus } from "../shared/ipc.ts";
+import type {
+  RecorderCommand,
+  RecorderEvent,
+  RecordingFeedback,
+  RecordingStatus,
+  TranscriptSegment,
+} from "../shared/ipc.ts";
+import { transcribe } from "./transcribe.ts";
 
 /**
  * The recording state machine (docs/architecture.md §4.4). Main owns the state; the hidden
@@ -22,8 +29,20 @@ interface CursorSample {
   y: number;
 }
 
-export class RecordingController extends EventEmitter<{ status: [RecordingStatus] }> {
+export interface RecordingControllerOptions {
+  recorder: () => BrowserWindow;
+  /** The user's Meta key, for live captions; null turns captions off. */
+  apiKey: () => string | null;
+}
+
+export class RecordingController extends EventEmitter<{
+  status: [RecordingStatus];
+  feedback: [RecordingFeedback];
+}> {
   readonly #recorder: () => BrowserWindow;
+  readonly #apiKey: () => string | null;
+  #transcript: TranscriptSegment[] = [];
+  #transcriptions = new AbortController();
   #status: RecordingStatus = { phase: "idle", elapsedMs: 0, maxMs: MAX_RECORDING_MS };
   #display: Display | null = null;
   #sourceId: string | null = null;
@@ -33,9 +52,10 @@ export class RecordingController extends EventEmitter<{ status: [RecordingStatus
   #cursor: CursorSample[] = [];
   #stopRequested = false;
 
-  constructor(recorder: () => BrowserWindow) {
+  constructor({ recorder, apiKey }: RecordingControllerOptions) {
     super();
     this.#recorder = recorder;
+    this.#apiKey = apiKey;
     this.#installDisplayHandler();
   }
 
@@ -89,7 +109,15 @@ export class RecordingController extends EventEmitter<{ status: [RecordingStatus
     this.#stopRequested = false;
     this.#cursor = [];
     this.#id = randomUUID();
-    this.#set({ phase: "starting", elapsedMs: 0, error: undefined, summary: undefined });
+    this.#resetTranscript();
+    this.#set({
+      phase: "starting",
+      elapsedMs: 0,
+      error: undefined,
+      summary: undefined,
+      captions: this.#apiKey() ? "on" : "no-key",
+      transcript: [],
+    });
 
     const options = {
       fps: 4,
@@ -125,7 +153,8 @@ export class RecordingController extends EventEmitter<{ status: [RecordingStatus
     this.#clearTicker();
     this.#send({ type: "cancel" });
     this.#cursor = [];
-    this.#set({ phase: "idle", elapsedMs: 0 });
+    this.#resetTranscript();
+    this.#set({ phase: "idle", elapsedMs: 0, transcript: [] });
   }
 
   /** Back to idle after the user has seen or discarded the result. */
@@ -158,11 +187,50 @@ export class RecordingController extends EventEmitter<{ status: [RecordingStatus
           },
         });
         break;
+      case "utterance":
+        void this.#caption(event.startMs, event.endMs, event.wav);
+        break;
+      case "feedback":
+        this.emit("feedback", event.feedback);
+        break;
       case "cancelled":
         break;
       case "error":
         this.#fail(event.message);
         break;
+    }
+  }
+
+  #resetTranscript(): void {
+    this.#transcriptions.abort();
+    this.#transcriptions = new AbortController();
+    this.#transcript = [];
+  }
+
+  #updateSegment(id: number, change: Partial<TranscriptSegment> | null): void {
+    this.#transcript = change
+      ? this.#transcript.map((segment) => (segment.id === id ? { ...segment, ...change } : segment))
+      : this.#transcript.filter((segment) => segment.id !== id);
+    this.#set({ transcript: this.#transcript });
+  }
+
+  /** Transcribes one sentence while recording continues; captions appear as each one returns. */
+  async #caption(startMs: number, endMs: number, wav: Uint8Array): Promise<void> {
+    const key = this.#apiKey();
+    if (!key) return;
+    const { signal } = this.#transcriptions;
+    const id = (this.#transcript.at(-1)?.id ?? -1) + 1;
+    this.#transcript = [...this.#transcript, { id, startMs, endMs, state: "pending", text: "" }];
+    this.#set({ transcript: this.#transcript });
+    try {
+      const text = await transcribe(wav, key, signal);
+      if (signal.aborted) return;
+      // Coughs and clicks come back empty; drop them rather than show a blank caption.
+      this.#updateSegment(id, text ? { state: "final", text } : null);
+    } catch (error) {
+      if (signal.aborted) return;
+      console.warn("Live caption failed:", error instanceof Error ? error.message : error);
+      this.#updateSegment(id, { state: "failed" });
     }
   }
 

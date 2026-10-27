@@ -7,8 +7,14 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { Mic, ShieldCheck, Square } from "lucide-react";
-import type { AppInfo, RecordingStatus, RecordingSummary } from "../../shared/ipc.ts";
+import type {
+  AppInfo,
+  RecordingStatus,
+  RecordingSummary,
+  TranscriptSegment,
+} from "../../shared/ipc.ts";
 import { formatClock, signal } from "../shared/theme.tsx";
+import { asSentence } from "../shared/transcript.ts";
 import { Waveform, useLevelHistory } from "../shared/waveform.tsx";
 import { Shortcut } from "../shared/shortcut.tsx";
 
@@ -80,6 +86,31 @@ const styles = stylex.create({
   },
   statValue: { fontSize: 22, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" },
   privacy: { display: "flex", alignItems: "flex-start", gap: 10 },
+
+  transcript: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    margin: 0,
+    padding: 0,
+    listStyle: "none",
+  },
+  line: {
+    display: "grid",
+    gridTemplateColumns: "44px 1fr",
+    gap: 12,
+    alignItems: "baseline",
+    animationName: "ivibe-rise",
+    animationDuration: "240ms",
+  },
+  time: {
+    fontSize: 12,
+    fontVariantNumeric: "tabular-nums",
+    color: "var(--color-text-secondary)",
+  },
+  said: { fontSize: 15, lineHeight: 1.55 },
+  saidPending: { color: "var(--color-text-secondary)", letterSpacing: "0.12em" },
+  saidFailed: { color: "var(--color-text-secondary)", fontStyle: "italic" },
 });
 
 function Recorder({ status, info }: { status: RecordingStatus; info: AppInfo | null }) {
@@ -173,6 +204,51 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** What the user said, one timestamped line per sentence; fills in live while recording. */
+function Transcript({ segments }: { segments: readonly TranscriptSegment[] }) {
+  return (
+    <ol {...stylex.props(styles.transcript)} aria-live="polite">
+      {segments.map((segment) => (
+        <li key={segment.id} {...stylex.props(styles.line)}>
+          <span {...stylex.props(styles.time)}>{formatClock(segment.startMs)}</span>
+          <span
+            {...stylex.props(
+              styles.said,
+              segment.state === "pending" && styles.saidPending,
+              segment.state === "failed" && styles.saidFailed,
+            )}
+            data-selectable
+          >
+            {segment.state === "final"
+              ? asSentence(segment.text)
+              : segment.state === "pending"
+                ? "···"
+                : "Couldn’t transcribe this part."}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function TranscriptSection({ status }: { status: RecordingStatus }) {
+  const segments = status.transcript ?? [];
+  if (status.captions === "no-key") {
+    return (
+      <Text color="secondary" size="sm">
+        Add your Meta key in Settings to see what you say as you record.
+      </Text>
+    );
+  }
+  if (segments.length === 0) return null;
+  return (
+    <section {...stylex.props(styles.section)}>
+      <Text xstyle={styles.sectionTitle}>What you said</Text>
+      <Transcript segments={segments} />
+    </section>
+  );
+}
+
 function LastRecording({ summary }: { summary: RecordingSummary }) {
   const { privacy } = summary;
   const hidden = Object.values(privacy.redactions).reduce((sum, count) => sum + count, 0);
@@ -226,6 +302,7 @@ export function RecordPage({ status, info }: { status: RecordingStatus; info: Ap
         />
       )}
 
+      {status.phase !== "idle" && <TranscriptSection status={status} />}
       {status.phase === "review" && status.summary && <LastRecording summary={status.summary} />}
     </div>
   );

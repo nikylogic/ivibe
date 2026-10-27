@@ -8,3 +8,4 @@
  */
 
 export * from "./wav.ts";
+export * from "./utterances.ts";

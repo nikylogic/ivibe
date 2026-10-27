@@ -8,7 +8,14 @@
  */
 
 import { FrameSampler, MicRecorder } from "@ivibe/capture";
-import { NARRATION_SAMPLE_RATE, encodeWav, resample, rms, toDbfs } from "@ivibe/encode";
+import {
+  NARRATION_SAMPLE_RATE,
+  UtteranceSegmenter,
+  encodeWav,
+  resample,
+  rms,
+  toDbfs,
+} from "@ivibe/encode";
 import { frameId } from "@ivibe/ocr";
 import type { OcrEngine } from "@ivibe/ocr";
 import { createWebOcr } from "@ivibe/ocr/web";
@@ -41,6 +48,25 @@ interface Keyframe {
   bitmap: ImageBitmap;
 }
 
+/** How the pill names each kind of hidden secret. */
+const SECRET_LABELS: Record<string, string> = {
+  "meta-key": "a Meta API key",
+  "openai-key": "an OpenAI key",
+  "anthropic-key": "an Anthropic key",
+  "github-token": "a GitHub token",
+  "aws-key": "an AWS key",
+  "google-key": "a Google API key",
+  "stripe-key": "a Stripe key",
+  "slack-token": "a Slack token",
+  jwt: "a session token",
+  "private-key": "a private key",
+  assignment: "a password",
+  bearer: "a bearer token",
+  "env-line": "an .env value",
+  "connection-string": "a database password",
+  "high-entropy": "a token",
+};
+
 /** Below this level (−50 dBFS) the narration counts as silence (§4.6). */
 const SILENCE_DBFS = -50;
 
@@ -68,6 +94,10 @@ class Session {
   /** Keyframes after OCR and redaction; the only frames that may leave this window. */
   readonly redacted: RedactedFrame[] = [];
   #privacyQueue: Promise<void> = Promise.resolve();
+  #segmenter: UtteranceSegmenter | null = null;
+  #micStartedAt = 0;
+  /** Secret kinds already announced, so a token on screen for 20 frames is reported once. */
+  #announced = new Set<string>();
   #ocrMs = 0;
   stats = { sampled: 0, changed: 0, motion: 0, appSwitches: 0 };
   privacy = {
@@ -97,6 +127,8 @@ class Session {
     this.#mic = new MicRecorder();
     try {
       await this.#mic.start();
+      this.#micStartedAt = performance.now();
+      this.#listen(this.#mic);
     } catch (error) {
       // Recording without narration still works; the agent is told there's no audio.
       console.warn("Microphone unavailable:", error);
@@ -114,6 +146,26 @@ class Session {
       this.#peakRms = Math.max(this.#peakRms, level);
       bridge.emit({ type: "level", rms: level });
     }, 100);
+  }
+
+  /** Cuts narration into sentences and sends each for live captions (audio only). */
+  #listen(mic: MicRecorder): void {
+    const rate = mic.sampleRate;
+    this.#segmenter = new UtteranceSegmenter({
+      sampleRate: rate,
+      onUtterance: ({ startMs, endMs, samples }) => {
+        // The mic starts a moment before the screen; report times on the recording's clock.
+        const offset = this.#startedAt ? this.#startedAt - this.#micStartedAt : 0;
+        bridge.emit({
+          type: "utterance",
+          startMs: Math.max(0, Math.round(startMs - offset)),
+          endMs: Math.max(0, Math.round(endMs - offset)),
+          wav: encodeWav(resample(samples, rate)),
+        });
+      },
+    });
+    const segmenter = this.#segmenter;
+    mic.onChunk = (samples, level) => segmenter.push(samples, level);
   }
 
   async #onSample(timeMs: number, frame: VideoFrame | null): Promise<void> {
@@ -176,10 +228,29 @@ class Session {
     privacy.framesScanned++;
     privacy.lines += lines.length;
     if (report.blackout) privacy.blackouts++;
+    this.#announce(
+      report.blackout,
+      report.boxes.map((box) => box.rule),
+    );
     for (const box of report.boxes) {
       privacy.redactions[box.rule] = (privacy.redactions[box.rule] ?? 0) + 1;
     }
     privacy.ocrMsAverage = Math.round(this.#ocrMs / privacy.framesScanned);
+  }
+
+  #announce(blackout: boolean, rules: string[]): void {
+    if (blackout && !this.#announced.has("blackout")) {
+      this.#announced.add("blackout");
+      bridge.emit({ type: "feedback", feedback: { type: "blackout" } });
+    }
+    for (const rule of rules) {
+      if (this.#announced.has(rule)) continue;
+      this.#announced.add(rule);
+      bridge.emit({
+        type: "feedback",
+        feedback: { type: "secret", label: SECRET_LABELS[rule] ?? "a secret" },
+      });
+    }
   }
 
   async stop(): Promise<void> {
@@ -197,6 +268,8 @@ class Session {
     const durationMs = performance.now() - this.#startedAt;
     let audioSeconds = 0;
     if (this.#mic) {
+      this.#segmenter?.flush();
+      this.#mic.onChunk = null;
       const raw = await this.#mic.stop();
       const samples = resample(raw, this.#mic.sampleRate || NARRATION_SAMPLE_RATE);
       this.wav = encodeWav(samples);

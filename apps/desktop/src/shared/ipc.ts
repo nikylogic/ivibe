@@ -33,6 +33,19 @@ export interface RecordingSummary {
   cursorSamples: number;
 }
 
+/** One spoken sentence, transcribed while the user keeps recording (§4.6). */
+export interface TranscriptSegment {
+  id: number;
+  /** Milliseconds from the start of the recording. */
+  startMs: number;
+  endMs: number;
+  state: "pending" | "final" | "failed";
+  text: string;
+}
+
+/** Whether live captions run: they need the user's Meta key, since audio goes to Meta. */
+export type CaptionsMode = "on" | "no-key";
+
 export interface RecordingStatus {
   phase: RecordingPhase;
   /** Milliseconds recorded so far (while recording) or in total (after). */
@@ -40,7 +53,12 @@ export interface RecordingStatus {
   maxMs: number;
   error?: string;
   summary?: RecordingSummary;
+  captions?: CaptionsMode;
+  transcript?: TranscriptSegment[];
 }
+
+/** Short-lived notes for the recording pill. */
+export type RecordingFeedback = { type: "secret"; label: string } | { type: "blackout" };
 
 export interface ByokStatus {
   hasKey: boolean;
@@ -62,6 +80,9 @@ export interface AppInfo {
 export type RecorderEvent =
   | { type: "started"; width: number; height: number }
   | { type: "level"; rms: number }
+  /** A finished sentence of narration as 16 kHz WAV, for live captions. Audio only, never frames. */
+  | { type: "utterance"; startMs: number; endMs: number; wav: Uint8Array }
+  | { type: "feedback"; feedback: RecordingFeedback }
   | { type: "finished"; summary: Omit<RecordingSummary, "id" | "startedAt" | "cursorSamples"> }
   | { type: "cancelled" }
   | { type: "error"; message: string };
@@ -79,9 +100,13 @@ export const Channels = {
   byokClear: "byok.clear",
   byokStatus: "byok.status",
   appInfo: "app.info",
+  // HUD → main
+  hudInteractive: "hud.interactive",
+  hudOpenApp: "hud.open-app",
   // main → UI / HUD (send)
   recordingState: "recording.state",
   recordingLevel: "recording.level",
+  recordingFeedback: "recording.feedback",
   // recorder ↔ main
   recorderCommand: "recorder.command",
   recorderEvent: "recorder.event",

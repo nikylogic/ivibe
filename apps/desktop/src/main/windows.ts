@@ -90,15 +90,16 @@ export function createRecorderWindow(): BrowserWindow {
   return window;
 }
 
-// Room around the 44-px pill for its shadow.
-export const HUD_SIZE = { width: 320, height: 76 };
+// Room for the caption card as it grows, plus its shadow. The transparent margin lets clicks
+// through (setIgnoreMouseEvents) until the pointer is over the card itself.
+export const HUD_SIZE = { width: 480, height: 200 };
 
 export function createHudWindow(display: Display): BrowserWindow {
   const { x, y, width, height } = display.workArea;
   const window = new BrowserWindow({
     // Bottom centre, just above the taskbar or dock.
     x: Math.round(x + (width - HUD_SIZE.width) / 2),
-    y: y + height - HUD_SIZE.height - 20,
+    y: y + height - HUD_SIZE.height - 8,
     ...HUD_SIZE,
     show: false,
     frame: false,
@@ -120,6 +121,7 @@ export function createHudWindow(display: Display): BrowserWindow {
   // Keeps the HUD out of the recording on Windows; masked by the pipeline elsewhere.
   window.setContentProtection(true);
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  window.setIgnoreMouseEvents(true, { forward: true });
   harden(window);
   void window.loadURL(pageUrl("hud"));
   return window;

@@ -15,6 +15,9 @@ export class MicRecorder {
   /** Latest level (RMS, 0–1), updated about 20 times a second. */
   level = 0;
 
+  /** Called with every ~50-ms chunk as it arrives (live captions). */
+  onChunk: ((samples: Float32Array, rms: number) => void) | null = null;
+
   get sampleRate(): number {
     return this.#context?.sampleRate ?? 0;
   }
@@ -36,6 +39,7 @@ export class MicRecorder {
     this.#node.port.onmessage = (event: MessageEvent<{ samples: Float32Array; rms: number }>) => {
       this.#chunks.push(event.data.samples);
       this.level = event.data.rms;
+      this.onChunk?.(event.data.samples, event.data.rms);
     };
     source.connect(this.#node);
   }
