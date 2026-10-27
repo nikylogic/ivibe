@@ -650,6 +650,9 @@ async function finishSelfTest(status: RecordingStatus): Promise<void> {
     await click("General");
     await settle();
     await snapshot(uiWindow, "ui-settings-general-dark");
+    await click("Shortcuts");
+    await settle();
+    await snapshot(uiWindow, "ui-settings-shortcuts-dark");
     await uiWindow?.webContents.executeJavaScript(
       `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
     );

@@ -11,10 +11,18 @@ import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import { Info, KeyRound, Mic, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
+import {
+  Info,
+  Keyboard,
+  KeyRound,
+  Mic,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserRound,
+} from "lucide-react";
 import type { Personal } from "@ivibe/engine";
 import type { AppInfo, OutputMode, ShortcutStatus } from "../../shared/ipc.ts";
-import { PASTE_SHORTCUT } from "../../shared/shortcuts.ts";
+import { PASTE_SHORTCUT, defaultShortcuts } from "../../shared/shortcuts.ts";
 import { signal } from "../shared/theme.tsx";
 import { Shortcut } from "../shared/shortcut.tsx";
 import { ShortcutButton } from "./shortcut-button.tsx";
@@ -371,14 +379,21 @@ function PersonalForm({ personal, onSave }: { personal: Personal; onSave: (p: Pe
   );
 }
 
-export type SettingsSection = "general" | "key" | "personal" | "microphone" | "privacy" | "about";
+export type SettingsSection =
+  "general" | "shortcuts" | "key" | "personal" | "microphone" | "privacy" | "about";
 
 const SECTIONS: { id: SettingsSection; label: string; note: string; icon: typeof Mic }[] = [
   {
     id: "general",
     label: "General",
-    note: "Where results go and the shortcuts that work from any app.",
+    note: "Where results go when a recording ends.",
     icon: SlidersHorizontal,
+  },
+  {
+    id: "shortcuts",
+    label: "Shortcuts",
+    note: "Keys that record and paste from any app.",
+    icon: Keyboard,
   },
   {
     id: "key",
@@ -459,6 +474,15 @@ export function SettingsPanel({
   const microphones = useMicrophones();
   const saved = current?.microphone ?? "";
   const isMac = info?.platform === "darwin";
+  const defaults = defaultShortcuts(info?.platform ?? "win32");
+  const isDefault =
+    current !== null &&
+    (Object.keys(defaults) as OutputMode[]).every(
+      (mode) => current.shortcuts[mode] === defaults[mode],
+    );
+  const usesCapsLock = Object.values(current?.shortcuts ?? {}).some((accelerator) =>
+    accelerator.split("+").includes("Capslock"),
+  );
   const active = SECTIONS.find((candidate) => candidate.id === section) ?? SECTIONS[0]!;
 
   return (
@@ -512,7 +536,15 @@ export function SettingsPanel({
                   onChange={(clickToPaste) => settings.change({ clickToPaste })}
                 />
               </Row>
-              <Row title="Shortcuts" note="These work from any app. Click one to change it.">
+            </>
+          )}
+
+          {active.id === "shortcuts" && (
+            <>
+              <Row
+                title="Recording"
+                note="Each mode has its own shortcut. Click one and press the new keys."
+              >
                 {SHORTCUT_ROWS.map(({ mode, label }) => (
                   <div key={mode} {...stylex.props(styles.shortcutRow)}>
                     <div {...stylex.props(styles.label)}>
@@ -532,17 +564,35 @@ export function SettingsPanel({
                     />
                   </div>
                 ))}
+              </Row>
+              <Row
+                title="Pasting"
+                note="Pastes the latest result into the app in front, screenshots included."
+              >
                 <div {...stylex.props(styles.shortcutRow)}>
                   <Text size="sm">Paste the last result</Text>
                   <div {...stylex.props(styles.fixedKeys)}>
                     <Shortcut accelerator={PASTE_SHORTCUT} isMac={isMac} />
                   </div>
                 </div>
-                {current?.shortcuts.dictate === "Capslock" && (
+              </Row>
+              <Row>
+                <div {...stylex.props(styles.shortcutRow)}>
                   <Text color="secondary" size="sm">
-                    While iVibe runs, Caps Lock records instead of switching to capitals.
+                    {usesCapsLock
+                      ? "While iVibe runs, Caps Lock records instead of switching to capitals."
+                      : "Shortcuts work from any app while iVibe is running."}
                   </Text>
-                )}
+                  <div {...stylex.props(styles.fixed)}>
+                    <Button
+                      label="Reset to defaults"
+                      variant="secondary"
+                      size="sm"
+                      isDisabled={!current || isDefault}
+                      onClick={() => settings.change({ shortcuts: defaults })}
+                    />
+                  </div>
+                </div>
               </Row>
             </>
           )}
