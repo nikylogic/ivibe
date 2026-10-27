@@ -84,7 +84,6 @@ const styles = stylex.create({
   },
   display: { fontSize: 52, lineHeight: 1.02, letterSpacing: "-0.01em" },
   displaySoft: { fontStyle: "italic", color: "var(--color-text-secondary)" },
-  lede: { maxWidth: 520, fontSize: 15, lineHeight: 1.6 },
 
   recorder: {
     display: "flex",
@@ -165,24 +164,21 @@ const styles = stylex.create({
   saidFailed: { color: "var(--color-text-secondary)", fontStyle: "italic" },
 });
 
-const MODES: { mode: OutputMode; label: string; note: string; lede: string }[] = [
+const MODES: { mode: OutputMode; label: string; note: string }[] = [
   {
     mode: "fix",
     label: "Fix",
     note: "Screen and voice become a fix prompt, with screenshots as proof.",
-    lede: "Show the bug and talk it through. iVibe hides secrets on this device, writes the fix prompt and pastes it into your coding agent.",
   },
   {
     mode: "prompt",
     label: "Prompt",
     note: "Voice only. What you say becomes a clean, structured prompt.",
-    lede: "Say what you want built. iVibe turns it into a clear prompt and pastes it where you were typing.",
   },
   {
     mode: "dictate",
     label: "Dictate",
     note: "Voice only. Your words, cleaned up and pasted as they are.",
-    lede: "Just talk. iVibe removes the ums and false starts and pastes your words where you were typing.",
   },
 ];
 
@@ -474,9 +470,6 @@ export function RecordPage({
             {mode === "dictate" ? "We’ll tidy it up." : "We’ll write the prompt."}
           </span>
         </Heading>
-        <Text color="secondary" xstyle={styles.lede}>
-          {modeInfo(mode).lede}
-        </Text>
       </div>
 
       <ModeSwitch
