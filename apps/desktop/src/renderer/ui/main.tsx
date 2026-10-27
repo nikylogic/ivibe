@@ -202,6 +202,7 @@ function App() {
             info={info}
             settings={settings}
             shortcutStatus={shortcutStatus}
+            onOpenHistory={() => setPage("history")}
           />
         )}
         {page === "history" && (
