@@ -29,11 +29,14 @@ function harden(window: BrowserWindow): void {
   });
 }
 
-/** Matches --color-background-body in the renderer theme, so the title bar blends in. */
+/**
+ * Matches --color-background-surface, the page colour behind the floating sidebar, so the
+ * Windows/Linux title-bar controls sit on the page rather than in a band of another colour.
+ */
 const canvas = () =>
   nativeTheme.shouldUseDarkColors
-    ? { color: "#121110", symbolColor: "#a39e94" }
-    : { color: "#f4f1ea", symbolColor: "#6f6a60" };
+    ? { color: "#1a1917", symbolColor: "#a39e94" }
+    : { color: "#fdfcf9", symbolColor: "#6f6a60" };
 
 export function createUiWindow(): BrowserWindow {
   const window = new BrowserWindow({

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
-import { Heading } from "@astryxdesign/core/Heading";
 import { Link } from "@astryxdesign/core/Link";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Switch } from "@astryxdesign/core/Switch";
@@ -19,23 +18,13 @@ import { ipcMessage } from "./state.ts";
 import type { ByokState, SettingsState } from "./state.ts";
 
 const styles = stylex.create({
-  page: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-    width: "100%",
-    maxWidth: 640,
-    marginInline: "auto",
-    paddingBlock: 24,
-    paddingInline: 40,
-  },
-  title: { fontSize: 40, lineHeight: 1.1, marginBottom: 16 },
+  panel: { display: "flex", flexDirection: "column", width: "100%" },
   row: {
     display: "grid",
-    gridTemplateColumns: "200px 1fr",
+    gridTemplateColumns: "180px 1fr",
     gap: 24,
-    paddingBlock: 24,
-    borderTopWidth: 1,
+    paddingBlock: 22,
+    borderTopWidth: { default: 1, ":first-child": 0 },
     borderTopStyle: "solid",
     borderTopColor: "var(--color-border)",
   },
@@ -43,6 +32,7 @@ const styles = stylex.create({
   labelTitle: { fontSize: 14, fontWeight: 600 },
   body: { display: "flex", flexDirection: "column", gap: 12, minWidth: 0 },
   inline: { display: "flex", alignItems: "flex-end", gap: 8 },
+  fixed: { flexShrink: 0 },
   connected: { display: "flex", alignItems: "center", gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 999 },
   meter: {
@@ -117,13 +107,15 @@ function MetaKey({ byok }: { byok: ByokState }) {
           status={error ? { type: "error", message: error } : undefined}
           width="100%"
         />
-        <Button
-          label="Save"
-          variant="primary"
-          isDisabled={!key}
-          isLoading={isSaving}
-          onClick={() => void save()}
-        />
+        <div {...stylex.props(styles.fixed)}>
+          <Button
+            label="Save"
+            variant="primary"
+            isDisabled={!key}
+            isLoading={isSaving}
+            onClick={() => void save()}
+          />
+        </div>
       </div>
       {status?.hasKey && (
         <div>
@@ -314,7 +306,8 @@ function PersonalForm({ personal, onSave }: { personal: Personal; onSave: (p: Pe
   );
 }
 
-export function SettingsPage({
+/** The settings, shown in a dialog over the app. */
+export function SettingsPanel({
   info,
   byok,
   settings,
@@ -327,11 +320,7 @@ export function SettingsPage({
   const microphones = useMicrophones();
   const saved = current?.microphone ?? "";
   return (
-    <div {...stylex.props(styles.page)}>
-      <Heading level={1} xstyle={styles.title}>
-        Settings
-      </Heading>
-
+    <div {...stylex.props(styles.panel)}>
       <Row
         title="Meta API key"
         note="Encrypted with your system keychain. Calls go from this device straight to Meta."

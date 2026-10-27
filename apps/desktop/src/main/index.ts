@@ -429,6 +429,20 @@ async function finishSelfTest(status: RecordingStatus): Promise<void> {
     nativeTheme.themeSource = "dark";
     await settle();
     await snapshot(uiWindow, "ui-review-dark");
+    // The settings dialog and the collapsed sidebar, opened as a user would.
+    const click = (label: string) =>
+      uiWindow?.webContents.executeJavaScript(
+        `[...document.querySelectorAll("button, a, [role=button]")].find((el) => el.getAttribute("aria-label") === ${JSON.stringify(label)} || el.textContent?.trim() === ${JSON.stringify(label)})?.click()`,
+      );
+    await click("Settings");
+    await settle();
+    await snapshot(uiWindow, "ui-settings-dark");
+    await uiWindow?.webContents.executeJavaScript(
+      `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+    );
+    await click("Collapse sidebar");
+    await settle();
+    await snapshot(uiWindow, "ui-collapsed-dark");
   }
   if (status.phase !== "review") app.exit(1);
   else if (status.mode !== "fix") app.exit(status.result ? 0 : 4);
