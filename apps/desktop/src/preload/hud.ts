@@ -4,11 +4,16 @@ import { contextBridge, ipcRenderer } from "electron";
 import { Channels } from "../shared/ipc.ts";
 import type { RecordingFeedback, RecordingStatus } from "../shared/ipc.ts";
 
-// The HUD can stop or cancel the current recording and open the app; nothing else.
+// The HUD can stop or cancel the current recording, show its result and open the app.
 const api = {
   stop: (): Promise<void> => ipcRenderer.invoke(Channels.recordingStop),
   cancel: (): Promise<void> => ipcRenderer.invoke(Channels.recordingCancel),
   openApp: (): Promise<void> => ipcRenderer.invoke(Channels.hudOpenApp),
+  /** Grows the pill into a panel showing the result, or shrinks it back. */
+  expand: (expanded: boolean): Promise<void> => ipcRenderer.invoke(Channels.hudExpand, expanded),
+  dismiss: (): Promise<void> => ipcRenderer.invoke(Channels.hudDismiss),
+  copyResult: (): Promise<void> => ipcRenderer.invoke(Channels.resultCopy),
+  openProof: (index: number): Promise<void> => ipcRenderer.invoke(Channels.proofOpen, index),
   setInteractive: (interactive: boolean): void =>
     ipcRenderer.send(Channels.hudInteractive, interactive),
   onFeedback: (listener: (feedback: RecordingFeedback) => void): (() => void) => {

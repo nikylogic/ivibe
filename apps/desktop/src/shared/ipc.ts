@@ -187,6 +187,8 @@ export const Channels = {
   // HUD → main
   hudInteractive: "hud.interactive",
   hudOpenApp: "hud.open-app",
+  hudExpand: "hud.expand",
+  hudDismiss: "hud.dismiss",
   // main → UI / HUD (send)
   recordingState: "recording.state",
   recordingLevel: "recording.level",

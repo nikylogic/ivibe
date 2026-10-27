@@ -4,11 +4,21 @@ import { useEffect, useState } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Spinner } from "@astryxdesign/core/Spinner";
-import { AlertCircle, CheckCircle2, ClipboardCheck, ShieldCheck, Square, X } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  ClipboardCheck,
+  Copy,
+  ShieldCheck,
+  Square,
+  X,
+} from "lucide-react";
 import type { HudApi } from "../../preload/hud.ts";
 import type {
   OutputMode,
   RecordingFeedback,
+  RecordingResult,
   RecordingStatus,
   TranscriptSegment,
 } from "../../shared/ipc.ts";
@@ -57,6 +67,8 @@ const styles = stylex.create({
   },
   card: {
     width: 420,
+    transitionProperty: "width",
+    transitionDuration: "180ms",
     display: "flex",
     flexDirection: "column",
     borderRadius: 22,
@@ -131,6 +143,63 @@ const styles = stylex.create({
     backgroundColor: "#f2efe8",
     color: "#121110",
     fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+
+  cardExpanded: { width: 520 },
+  panel: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    paddingTop: 16,
+    paddingInline: 16,
+    minHeight: 0,
+  },
+  panelHeader: { display: "flex", alignItems: "center", gap: 8 },
+  panelTitle: { flex: 1, fontSize: 13, fontWeight: 600, color: "#f2efe8" },
+  shots: { display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 },
+  shot: {
+    flexShrink: 0,
+    width: 156,
+    padding: 0,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "transparent",
+    cursor: "zoom-in",
+  },
+  shotImage: { display: "block", width: "100%" },
+  text: {
+    margin: 0,
+    maxHeight: 300,
+    overflowY: "auto",
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    color: "#e6e2da",
+    fontFamily: "inherit",
+    fontSize: 12.5,
+    lineHeight: 1.55,
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
+  },
+  panelActions: { display: "flex", gap: 8 },
+  secondary: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    height: 30,
+    paddingInline: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "rgba(255, 255, 255, 0.16)",
+    backgroundColor: "transparent",
+    color: "#f2efe8",
+    fontSize: 12.5,
     fontWeight: 600,
     cursor: "pointer",
   },
@@ -237,7 +306,81 @@ function Toast({ feedback }: { feedback: RecordingFeedback }) {
   );
 }
 
-function Controls({ status }: { status: RecordingStatus }) {
+const COPIED_MS = 1600;
+
+/** The pill grown into a panel: screenshots, the full text, and what to do next. */
+function ResultPanel({ result, onCollapse }: { result: RecordingResult; onCollapse: () => void }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), COPIED_MS);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  return (
+    <div {...withClass("no-drag", styles.panel)}>
+      <div {...stylex.props(styles.panelHeader)}>
+        <span {...stylex.props(styles.panelTitle)}>
+          {result.mode === "dictate" ? "Your words" : "Your prompt"}
+        </span>
+        <IconButton
+          label="Collapse"
+          variant="ghost"
+          size="sm"
+          icon={<ChevronDown size={16} strokeWidth={2} />}
+          onClick={onCollapse}
+        />
+      </div>
+      {result.proof.length > 0 && (
+        <div {...stylex.props(styles.shots)}>
+          {result.proof.map((shot, index) => (
+            <button
+              key={shot.file}
+              type="button"
+              title={`${shot.title} (open full size)`}
+              {...stylex.props(styles.shot)}
+              onClick={() => void window.ivibeHud.openProof(index)}
+            >
+              <img src={shot.preview} alt={shot.title} {...stylex.props(styles.shotImage)} />
+            </button>
+          ))}
+        </div>
+      )}
+      <pre {...stylex.props(styles.text)}>{result.text}</pre>
+      <div {...stylex.props(styles.panelActions)}>
+        <button
+          type="button"
+          {...stylex.props(styles.secondary)}
+          onClick={() => void window.ivibeHud.copyResult().then(() => setCopied(true))}
+        >
+          {copied ? (
+            <ClipboardCheck size={14} strokeWidth={2} />
+          ) : (
+            <Copy size={14} strokeWidth={2} />
+          )}
+          {copied ? "Copied" : "Copy"}
+        </button>
+        <button
+          type="button"
+          {...stylex.props(styles.secondary)}
+          onClick={() => void window.ivibeHud.openApp()}
+        >
+          Open in iVibe
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Controls({
+  status,
+  expanded,
+  onToggle,
+}: {
+  status: RecordingStatus;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const isRecording = status.phase === "recording" || status.phase === "starting";
   const levels = useLevelHistory(window.ivibeHud.onLevel, 26, isRecording);
   const remaining = status.maxMs - status.elapsedMs;
@@ -279,12 +422,19 @@ function Controls({ status }: { status: RecordingStatus }) {
           <span {...stylex.props(styles.statusText)}>
             {pasted
               ? `Pasted into ${result.targetName}${proof}`
-              : `Copied. Press ${isMac ? "⌘V" : "Ctrl+V"} to paste${proof}`}
+              : `Copied · press ${isMac ? "⌘V" : "Ctrl+V"}${proof}`}
           </span>
         </div>
-        <button {...stylex.props(styles.open)} onClick={() => void window.ivibeHud.openApp()}>
-          View
+        <button {...stylex.props(styles.open)} onClick={onToggle}>
+          {expanded ? "Hide" : "View"}
         </button>
+        <IconButton
+          label="Dismiss"
+          variant="ghost"
+          size="sm"
+          icon={<X size={16} strokeWidth={2} />}
+          onClick={() => void window.ivibeHud.dismiss()}
+        />
       </div>
     );
   }
@@ -363,7 +513,21 @@ function Hud() {
   const toast = useFeedbackToast();
   const heardVoice = useHeardVoice(status?.phase === "recording");
 
+  const [expanded, setExpanded] = useState(false);
+
   useEffect(() => window.ivibeHud.onState(setStatus), []);
+
+  const result = status?.phase === "review" ? status.result : undefined;
+  // A new recording (or no result) folds the panel away.
+  useEffect(() => {
+    if (!result) setExpanded(false);
+  }, [result]);
+
+  const toggle = () => {
+    const next = !expanded;
+    // Grow the window first so the panel never renders clipped.
+    void window.ivibeHud.expand(next).then(() => setExpanded(next));
+  };
 
   if (!status || status.phase === "idle") return null;
 
@@ -372,13 +536,17 @@ function Hud() {
       {toast && <Toast feedback={toast} />}
       {/* The card drags the window; over it, the window stops passing clicks through. */}
       <div
-        {...withClass("drag-region", styles.card)}
+        {...withClass("drag-region", styles.card, expanded && styles.cardExpanded)}
         onMouseEnter={() => window.ivibeHud.setInteractive(true)}
         onMouseLeave={() => window.ivibeHud.setInteractive(false)}
       >
-        <Caption status={status} heardVoice={heardVoice} />
+        {expanded && result ? (
+          <ResultPanel result={result} onCollapse={toggle} />
+        ) : (
+          <Caption status={status} heardVoice={heardVoice} />
+        )}
         <div className="no-drag">
-          <Controls status={status} />
+          <Controls status={status} expanded={expanded} onToggle={toggle} />
         </div>
       </div>
     </div>

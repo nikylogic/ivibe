@@ -93,6 +93,8 @@ export function createRecorderWindow(): BrowserWindow {
 // Room for the caption card as it grows, plus its shadow. The transparent margin lets clicks
 // through (setIgnoreMouseEvents) until the pointer is over the card itself.
 export const HUD_SIZE = { width: 480, height: 200 };
+/** The pill grown into a result panel. */
+export const HUD_EXPANDED_SIZE = { width: 560, height: 640 };
 
 export function createHudWindow(display: Display): BrowserWindow {
   const { x, y, width, height } = display.workArea;

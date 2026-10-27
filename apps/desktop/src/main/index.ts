@@ -35,6 +35,8 @@ import {
   createRecorderWindow,
   createUiWindow,
   displayUnderCursor,
+  HUD_EXPANDED_SIZE,
+  HUD_SIZE,
 } from "./windows.ts";
 
 const HOTKEY = "Control+Alt+R";
@@ -102,7 +104,11 @@ function serveRendererFiles(): void {
   });
 }
 
-function showUi(): void {
+/**
+ * Shows the app window. `toFront` is for clicks in the pill: the pill never takes focus, so
+ * Windows would otherwise open the window behind the app the user is in.
+ */
+function showUi({ toFront = false } = {}): void {
   if (!uiWindow || uiWindow.isDestroyed()) {
     uiWindow = createUiWindow();
     uiWindow.on("close", (event) => {
@@ -115,6 +121,14 @@ function showUi(): void {
   } else {
     uiWindow.show();
     uiWindow.focus();
+  }
+  if (toFront) {
+    const window = uiWindow;
+    window.setAlwaysOnTop(true);
+    window.once("ready-to-show", () => window.focus());
+    setTimeout(() => {
+      if (!window.isDestroyed()) window.setAlwaysOnTop(false);
+    }, 400);
   }
 }
 
@@ -132,16 +146,33 @@ function toggleRecording(): void {
 
 async function startRecording(display = displayUnderCursor()): Promise<void> {
   recording.reset();
+  // A pill left expanded on the last result starts over at its normal size.
+  if (hudExpanded) closeHud();
   if (!hudWindow || hudWindow.isDestroyed()) hudWindow = createHudWindow(display);
   await recording.start(display);
 }
 
 let hudHideTimer: ReturnType<typeof setTimeout> | undefined;
+let hudExpanded = false;
 
 function closeHud(): void {
   clearTimeout(hudHideTimer);
   if (hudWindow && !hudWindow.isDestroyed()) hudWindow.destroy();
   hudWindow = null;
+  hudExpanded = false;
+}
+
+/** After a result, the pill fades out by itself unless it is held (hovered or expanded). */
+function scheduleHudClose(ms: number): void {
+  clearTimeout(hudHideTimer);
+  hudHideTimer = setTimeout(closeHud, ms);
+}
+
+function holdHud(held: boolean): void {
+  const phase = recording.status.phase;
+  if (phase !== "review" && phase !== "error") return;
+  if (held) clearTimeout(hudHideTimer);
+  else scheduleHudClose(3000);
 }
 
 function onStatus(status: RecordingStatus): void {
@@ -158,8 +189,7 @@ function onStatus(status: RecordingStatus): void {
   }
   if (status.phase === "idle") closeHud();
   if (status.phase === "review" || status.phase === "error") {
-    clearTimeout(hudHideTimer);
-    hudHideTimer = setTimeout(closeHud, status.phase === "review" ? 5000 : 7000);
+    if (!hudExpanded) scheduleHudClose(status.phase === "review" ? 5000 : 7000);
     if (SELF_TEST) void finishSelfTest(status);
     // A pasted result stays out of the way; only a bare recording summary opens the app.
     else if (status.phase === "review" && !status.result) showUi();
@@ -199,7 +229,7 @@ function updateTrayMenu(): void {
         click: () => changeSettings({ mode }),
       })),
       { type: "separator" },
-      { label: "Open iVibe", click: showUi },
+      { label: "Open iVibe", click: () => showUi() },
       { type: "separator" },
       { label: "Quit iVibe", role: "quit" },
     ]),
@@ -214,10 +244,28 @@ function registerIpc(): void {
   ipcMain.on(Channels.hudInteractive, (event, interactive: boolean) => {
     if (event.sender !== hudWindow?.webContents) return;
     hudWindow.setIgnoreMouseEvents(!interactive, { forward: true });
+    // The pill doesn't fade out while the pointer is on it.
+    holdHud(interactive || hudExpanded);
   });
   ipcMain.handle(Channels.hudOpenApp, () => {
     closeHud();
-    showUi();
+    showUi({ toFront: true });
+  });
+  ipcMain.handle(Channels.hudExpand, (event, expanded: unknown) => {
+    if (event.sender !== hudWindow?.webContents) return;
+    hudExpanded = expanded === true;
+    // Grows upward from the pill's bottom edge, centred where it is now.
+    const bounds = hudWindow.getBounds();
+    const size = hudExpanded ? HUD_EXPANDED_SIZE : HUD_SIZE;
+    hudWindow.setBounds({
+      x: Math.round(bounds.x + (bounds.width - size.width) / 2),
+      y: bounds.y + bounds.height - size.height,
+      ...size,
+    });
+    holdHud(hudExpanded);
+  });
+  ipcMain.handle(Channels.hudDismiss, (event) => {
+    if (event.sender === hudWindow?.webContents) closeHud();
   });
   ipcMain.handle(Channels.recordingGet, () => recording.status);
   ipcMain.handle(Channels.byokStatus, () => byokStatus());
@@ -350,6 +398,14 @@ async function finishSelfTest(status: RecordingStatus): Promise<void> {
     const settle = () => new Promise((resolve) => setTimeout(resolve, 600));
     await settle();
     await snapshot(hudWindow, "hud-review");
+    if (status.result) {
+      // Click View, as a user would, to capture the expanded pill.
+      await hudWindow?.webContents.executeJavaScript(
+        `[...document.querySelectorAll("button")].find((b) => b.textContent === "View")?.click()`,
+      );
+      await settle();
+      await snapshot(hudWindow, "hud-expanded");
+    }
     await snapshot(uiWindow, "ui-review-light");
     nativeTheme.themeSource = "dark";
     await settle();
@@ -393,7 +449,7 @@ void app.whenReady().then(() => {
 
   tray = new Tray(trayIcons.idle());
   tray.setToolTip("iVibe");
-  tray.on("click", showUi);
+  tray.on("click", () => showUi());
   updateTrayMenu();
 
   hotkeyRegistered = globalShortcut.register(HOTKEY, toggleRecording);
