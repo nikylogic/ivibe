@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@napi-rs/canvas": "^1.0.13",
     "@types/node": "^26.6.5",
     "eslint": "^10.13.0",
     "globals": "^17.13.0",

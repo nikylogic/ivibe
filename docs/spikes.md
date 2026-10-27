@@ -1,4 +1,4 @@
-# Spike results
+✅ Passed | `muse-spark-1.3`, `muse-wonder-1.0`, `muse-voice-transcribe-1.0`, `sam-3.1` listed (plus 1.1/1.2, `-contributor` variants, `muse-image-1.0`) | Model IDs in `ALLOWED_MODELS` are correct |
 
 Each spike from [architecture.md §2.10](architecture.md#210-day-0-spikes) gets an entry here once it has run: the date, what was tested, the result and the decision it drives. Raw outputs stay local in `spikes/results/`.
 
@@ -22,6 +22,12 @@ Each spike from [architecture.md §2.10](architecture.md#210-day-0-spikes) gets 
 | S16   | A full analysis within the Workers Free plan's CPU limit                                            | ⏳ Pending           |                                                                                                                       |                                                                                                         |
 
 ## Log
+
+### S3, S4, S5, S10 · Oct 27, 2026
+
+**Tested:** the Meta Model API with the project key: `GET /v1/models`; a two-turn tool loop on a synthetic "Save does nothing" screenshot (`spikes/fixtures/make-screenshot.ts`); `text.format` with tools; `/asr/transcribe` on a 27-s English narration from Windows text-to-speech.
+**Result:** all four models are available. Stateless turns took 1.6 s and 3.0 s (2,360 tokens for the second); the model asked for the frame through `view_frames`, then described the `.map` TypeError and the 200 response. Schema output and tools work together. Transcription returned 9 timestamped turns.
+**Decision:** stateless loop, schema-formatted final report. S5 needs a real Hindi + English recording before it is closed.
 
 ### S12 · Oct 27, 2026
 
