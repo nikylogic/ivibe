@@ -33,8 +33,9 @@
     "API_URL": "https://api.ivibe.tech",
     "AUTH_URL": "https://auth.ivibe.tech",
     "APP_SCHEME": "tech.ivibe.app",
-    // Switch to https://live.dodopayments.com with the live key at launch.
-    "DODO_API_URL": "https://test.dodopayments.com",
+    // Live mode (Oct 29). For test mode: https://test.dodopayments.com with the test key,
+    // product and webhook secret.
+    "DODO_API_URL": "https://live.dodopayments.com",
   },
   "observability": { "enabled": true },
 }

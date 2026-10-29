@@ -1311,13 +1311,13 @@ async function verifyDodo(req: Request, secret: string): Promise<string> {
 | `subscription.renewed` | Update the period dates |
 | `subscription.on_hold` / `.failed` / `.past_due` | Plan status "payment problem"; prompt to update the payment method; no new grants |
 | `subscription.plan_changed` | Update the plan |
-| `subscription.cancelled` / `.expired` | No future grants; existing credits stay until they expire |
+| `subscription.cancelled` / `.expired` | No future grants; the balance goes to zero, keeping only what a run in progress holds (D26) |
 | `refund.succeeded` | Claw back the unused part of that payment's grant |
 | `dispute.*` | Freeze Cloud usage, alert by email |
 
 - **Customer portal:** `POST /api/v1/billing/portal` returns a Dodo portal link (plan, payment method, invoices, cancellation).
 - **Reconciliation:** the daily job lists the last 48 hours of Dodo payments in each environment and checks that each one has a grant. A mismatch triggers an alert.
-- **Rollover:** a subscription's monthly credits expire at the end of the next period, so unused credits roll over once.
+- **No rollover (D26):** each subscription payment resets the balance to the plan's credits; what was left is removed with an `adjust` ledger row. Unused credits never carry over.
 - **Environment per account:** `profiles.billing_env` is `live` or `test`. It selects the Dodo API key, the products, the webhook secret and the wallet. Judge codes set `test`, which gives judges a real checkout without real money (§9).
 
 ### 6.7 Rate limits, quotas and guards
