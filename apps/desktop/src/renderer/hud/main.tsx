@@ -264,15 +264,6 @@ function Caption({ status, heardVoice }: { status: RecordingStatus; heardVoice: 
   const segments: TranscriptSegment[] = status.transcript ?? [];
   const isRecording = status.phase === "recording";
 
-  if (status.captions === "no-key") {
-    return (
-      <div {...stylex.props(styles.caption)}>
-        <span {...stylex.props(styles.hint)}>
-          Live captions need iVibe Cloud or your Meta key (Settings)
-        </span>
-      </div>
-    );
-  }
   if (segments.length === 0) {
     const silent = isRecording && !heardVoice && status.elapsedMs > SILENCE_HINT_MS;
     return (

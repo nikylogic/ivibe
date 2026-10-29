@@ -152,9 +152,6 @@ export interface TranscriptSegment {
   text: string;
 }
 
-/** Whether live captions run: they need a Cloud account or the user's Meta key. */
-export type CaptionsMode = "on" | "no-key";
-
 export interface RecordingStatus {
   phase: RecordingPhase;
   /** Milliseconds recorded so far (while recording) or in total (after). */
@@ -162,7 +159,6 @@ export interface RecordingStatus {
   maxMs: number;
   error?: string;
   summary?: RecordingSummary;
-  captions?: CaptionsMode;
   transcript?: TranscriptSegment[];
   /** The mode this recording runs in, fixed when it starts. */
   mode?: OutputMode;

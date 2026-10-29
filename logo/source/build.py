@@ -155,6 +155,8 @@ def cards():
             (("social", f"thumbnail-{theme}.png"), 1500, 1000, True),
             (("social", f"x-banner-{theme}.png"), 1500, 500, True),
             (("social", f"linkedin-banner-{theme}.png"), 1584, 396, True),
+            # The README's header, at 2x for sharp text on high-DPI screens.
+            (("social", f"readme-banner-{theme}.png"), 2400, 720, True),
         ]:
             jobs.append(dict(card=True, out=out(*path), w=w, h=h, tagline=tagline, **look))
         # The product image for checkout and invoices (Dodo Payments): square, mascot over

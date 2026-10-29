@@ -1,17 +1,19 @@
 <div align="center">
 
-<img src=".github/assets/banner.svg" alt="iVibe: show the bug, get the fix" width="100%">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="logo/social/readme-banner-dark.png">
+  <img src="logo/social/readme-banner-light.png" alt="iVibe. Show the bug. We'll write the prompt." width="100%">
+</picture>
 
 <p>
+  <a href="https://github.com/nikylogic/ivibe/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/nikylogic/ivibe?label=release&color=6f6a60"></a>
   <a href="https://github.com/nikylogic/ivibe/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nikylogic/ivibe/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-7c5cff"></a>
-  <img alt="Status: pre-release" src="https://img.shields.io/badge/status-pre--release-ff5c8a">
-  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-informational">
-  <img alt="Built with Meta Muse" src="https://img.shields.io/badge/built%20with-Meta%20Muse%20models-0866ff">
+  <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-6f6a60"></a>
 </p>
 
 <p>
-  <a href="#status"><b>Status</b></a> ·
+  <a href="https://github.com/nikylogic/ivibe/releases/latest"><b>Download</b></a> ·
+  <a href="#how-it-works"><b>How it works</b></a> ·
   <a href="docs/architecture.md"><b>Architecture</b></a> ·
   <a href="CONTRIBUTING.md"><b>Contributing</b></a>
 </p>
@@ -20,20 +22,47 @@
 
 **Show the bug and talk it through. iVibe writes the fix prompt, with annotated screenshots as proof, and pastes it straight into Claude Code, Cursor or ChatGPT.**
 
-Press a shortcut, show what's wrong while you explain it, press it again. iVibe hides secrets on your device, works out what you meant, and pastes the result into the app you were typing in. No report window, no copy-paste.
+Press a shortcut, show what's wrong while you explain it, and press it again. iVibe hides secrets on your device, works out what you meant, and pastes the result into the app you were typing in. No report window, no copy-paste.
 
-> [!NOTE]
-> iVibe is being built in public for the [Meta Global AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon) (Oct 27 – Nov 4, 2026). It runs from source on Windows today; the first installers are planned for **Nov 4, 2026**. See [Status](#status) for exactly what works.
+## Download
+
+iVibe 0.1 is out for Windows, macOS and Linux. Get it from the [latest release](https://github.com/nikylogic/ivibe/releases/latest):
+
+| Your computer                         | File                                    |
+| ------------------------------------- | --------------------------------------- |
+| Windows 10 or 11                      | `iVibe-Setup-<version>.exe`             |
+| Mac with Apple silicon (M1 and later) | `iVibe-<version>-mac-arm64.dmg`         |
+| Mac with Intel                        | `iVibe-<version>-mac-x64.dmg`           |
+| Linux (Ubuntu, Debian)                | `iVibe-<version>-linux-amd64.deb`       |
+| Linux (any)                           | `iVibe-<version>-linux-x86_64.AppImage` |
+
+The installers aren't code-signed yet, so your computer asks once before opening iVibe:
+
+- **Windows:** if SmartScreen says "Windows protected your PC", click **More info**, then **Run anyway**.
+- **macOS:** drag iVibe to Applications. If macOS says it can't verify iVibe, open **System Settings → Privacy & Security** and click **Open Anyway**.
+- **Linux:** `sudo apt install ./iVibe-<version>-linux-amd64.deb`, or `chmod +x` the AppImage and run it.
+
+iVibe keeps itself up to date. On Windows and Linux it downloads updates in the background and installs them when you restart; on macOS it tells you when a new version is out.
 
 ## Three modes
 
-| Mode        | You give it              | It pastes                                                                         | Shortcut on Windows                                      |
-| ----------- | ------------------------ | --------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| **Fix**     | Your screen + your voice | A fix prompt for your coding agent, with annotated screenshots that prove the bug | `Ctrl` + `Caps Lock`                                     |
-| **Prompt**  | Your voice               | A clear, structured prompt from what you rambled                                  | `Alt` + `Caps Lock`                                      |
-| **Dictate** | Your voice               | Your own words, cleaned up: no "um", no false starts                              | Hold `Caps Lock` to talk, or double-press for hands-free |
+| Mode        | You give it              | It pastes                                                                         | Windows              | macOS and Linux      |
+| ----------- | ------------------------ | --------------------------------------------------------------------------------- | -------------------- | -------------------- |
+| **Fix**     | Your screen + your voice | A fix prompt for your coding agent, with annotated screenshots that prove the bug | `Ctrl` + `Caps Lock` | `Ctrl` + `Alt` + `F` |
+| **Prompt**  | Your voice               | A clear, structured prompt from what you rambled                                  | `Alt` + `Caps Lock`  | `Ctrl` + `Alt` + `P` |
+| **Dictate** | Your voice               | Your own words, cleaned up: no "um", no false starts                              | Hold `Caps Lock`     | `Ctrl` + `Alt` + `D` |
 
-Every shortcut can be changed in Settings. Results land where you were typing: screenshots are pasted as images into chat apps and Claude Code, and as file paths into other terminal agents. If you switched apps meanwhile, the result waits on the clipboard and pastes into the next text field you click, or with `Ctrl` + `Alt` + `V`.
+Every shortcut can be changed in Settings. On Windows, hold `Caps Lock` to talk, or double-press it for hands-free. Results land where you were typing: screenshots are pasted as images into chat apps and Claude Code, and as file paths into other terminal agents. If you switched apps meanwhile, the result waits on the clipboard and pastes into the next text field you click, or with `Ctrl` + `Alt` + `V`.
+
+## Plans
+
+| Plan                  | What you get                                                                                                          | Price      |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------- |
+| **Your own Meta key** | Everything. Recordings go from your device straight to Meta, billed to your Meta account.                             | Free       |
+| **iVibe Cloud trial** | Sign in with GitHub and get 50 free credits, no key needed.                                                           | Free       |
+| **iVibe Pro**         | 400 credits a month, no key needed, plus end-to-end encrypted backups of your history. Credits reset at each renewal. | $8 / month |
+
+A credit is one cent of Meta usage. A dictation costs a fraction of a credit and a Fix report a few credits.
 
 ## How it works
 
@@ -55,51 +84,42 @@ flowchart LR
 
 ## Built on Meta's models
 
-| Job                                                             | Model                 | Status  |
-| --------------------------------------------------------------- | --------------------- | ------- |
-| Write the fix prompt, structured prompt or cleaned-up dictation | Muse Spark 1.3        | In use  |
-| Live captions and the narration transcript                      | Muse Voice Transcribe | In use  |
-| Snap proof highlights to the UI element                         | SAM 3.1               | In use  |
-| Open-weight engine for iVibe Cloud                              | Muse Spark Open       | Planned |
-| Optional deep analysis                                          | Muse Wonder           | Planned |
+| Job                                                             | Model                 |
+| --------------------------------------------------------------- | --------------------- |
+| Write the fix prompt, structured prompt or cleaned-up dictation | Muse Spark 1.3        |
+| Live captions and the narration transcript                      | Muse Voice Transcribe |
+| Snap proof highlights to the UI element                         | SAM 3.1               |
 
-All calls use the Meta Model API with `store: false`.
+All calls use the Meta Model API with `store: false`. Muse Spark Open (an open-weight engine for iVibe Cloud) and Muse Wonder (optional deep analysis) are planned.
 
 ## Privacy
 
 - **Secrets are hidden on your device.** Only redacted frames and your narration are sent for analysis. The app's self-test plants a GitHub token on screen and fails if it isn't painted over.
-- **Bring your own key, free forever.** Your Meta Model API key is encrypted with your system keychain and used only by the app's main process. Recordings go from your device straight to Meta.
+- **Your key stays yours.** A Meta API key is encrypted with your system keychain and used only by the app's main process.
 - **History stays on your device.** The last 200 results and their screenshots are kept locally, can be turned off, and can be cleared in Settings.
+- **Backups are end-to-end encrypted.** Pro backups are encrypted on your device with a recovery key that only you hold; iVibe can't read them.
 
 ## Status
 
-Updated **Oct 28, 2026**. The full breakdown is in [docs/architecture.md §16.0](docs/architecture.md#160-build-status--oct-28-2026).
+Updated **Oct 29, 2026**, when 0.1 was released. iVibe is being built in public for the [Meta Global AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon) (Oct 27 – Nov 4, 2026). The full breakdown is in [docs/architecture.md](docs/architecture.md).
 
-**Works today (Windows, from source)**
+**Shipped**
 
-- [x] Screen and microphone capture, microphone picker and level test
-- [x] On-device OCR and secret redaction
-- [x] Live captions while you record
-- [x] Fix, Prompt and Dictate, with a layered prompt stack and personal settings (your name, context, dictionary, standing instructions)
-- [x] Annotated proof screenshots with SAM 3.1
-- [x] Paste into the app you were in, copy fallback, click-to-paste, `Ctrl` + `Alt` + `V`
-- [x] Per-mode shortcuts with click-to-change; Dictate hold-to-talk and double-press hands-free
-- [x] History by mode, with search and Paste again
-- [x] CI on Windows, macOS and Linux: lint, typecheck, 104 unit tests, dependency license check
+- [x] Fix, Prompt and Dictate, with live captions, personal settings and per-mode shortcuts
+- [x] On-device OCR and secret redaction, annotated proof screenshots with SAM 3.1
+- [x] Paste into the app you were in, click-to-paste and History
+- [x] Installers for Windows, macOS and Linux, with automatic updates
+- [x] iVibe Cloud: GitHub sign-in, free trial credits, iVibe Pro and encrypted backups
 
-**Built, still being verified by hand**
+**Being verified by hand**
 
+- [ ] macOS and Linux on real machines (they build and pass tests in CI)
 - [ ] Image paste into Claude Code and ChatGPT (text paste is confirmed)
-- [ ] Click-to-paste with a real click
-- [ ] Caps Lock gestures on a physical keyboard
-- [ ] macOS and Linux: they build and pass tests in CI, but the app hasn't been run on a real Mac or Linux desktop yet
 
-**Not started yet**
+**Next**
 
-- [ ] Installers and releases (unsigned Windows, macOS and Linux builds)
 - [ ] Evaluation suite: voice cases and a set of 20 recorded bugs
-- [ ] iVibe Cloud: sign-in, credits and payments
-- [ ] Web app and judge access
+- [ ] Code signing for Windows and macOS
 - [ ] After the hackathon: Vibes (your own modes) and community plugins ([plan](docs/vibes-and-prompts.md))
 
 ## Development
@@ -121,14 +141,18 @@ Add your Meta Model API key in the app under **Settings → Meta API key**. The 
 pnpm spike spikes/meta/s10-models.ts
 ```
 
+**Releasing:** set the version in `apps/desktop/package.json`, commit, and push a matching tag (`git tag -a v0.1.1 -m "iVibe 0.1.1" && git push origin v0.1.1`). GitHub Actions builds every installer into a draft release; publishing the draft is what the app's updater sees.
+
 ### Repository layout
 
 ```text
-apps/desktop   Electron app: recorder, pill, app window, OS helpers (paste, shortcuts)
+apps/desktop   Electron app: recorder, pill, app window, tray, updater, OS helpers
+apps/api       iVibe Cloud on Cloudflare Workers: sign-in, credits, Pro billing, backups
+apps/demo-bug  A small React app with a planted bug, for demos
 packages/      capture · vision · ocr · redact · encode · engine (Meta API, prompts, proof)
-               agent · bundle · imageops · types · ui are placeholders for later phases
+logo/          every logo file, generated from one mascot drawing (logo/README.md)
 spikes/        experiments that verify API and platform facts before building on them
-docs/          architecture, spike results, the Vibes and prompts plan, Muse Code log
+docs/          architecture, spike results, the Vibes and prompts plan
 scripts/       repository tooling (OCR model download, dependency license check)
 ```
 

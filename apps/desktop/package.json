@@ -1,6 +1,6 @@
 {
   "name": "@ivibe/desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "iVibe desktop app: record a bug with your screen and voice, get the root cause, proof images and a fix prompt.",
   "license": "AGPL-3.0-only",

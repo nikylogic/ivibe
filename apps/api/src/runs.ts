@@ -33,6 +33,16 @@ const SAM_TIMEOUT_MS = 6000;
 
 type Ctx = Context<AppEnv>;
 
+/** What the user is told when Meta refuses a Cloud call. */
+export function upstreamMessage(status: number): string {
+  if (status === 401 || status === 402 || status === 403) {
+    return "iVibe Cloud can't reach Meta right now. Try again later, or add your own Meta key in Settings.";
+  }
+  if (status === 429) return "iVibe Cloud is busy. Try again in a minute.";
+  if (status >= 500) return "Meta's API is having trouble. Try again shortly.";
+  return `Meta couldn't process this recording (HTTP ${status}).`;
+}
+
 export const apiError = (
   c: Ctx,
   status: 400 | 401 | 402 | 502 | 503,
@@ -116,7 +126,15 @@ async function metered<T extends object>(
     c.executionCtx.waitUntil(settle(db, runId, meter.cost, meter.calls));
     if (cause instanceof MetaApiError) {
       console.error(`meta ${kind} failed: HTTP ${cause.status}`);
-      return apiError(c, 502, "upstream", "Meta's API is having trouble. Try again shortly.");
+      // A refused or unfunded key is on our side (META_API_KEY): retrying won't help, but the
+      // user's own key can, so it gets its own code that the desktop falls back on.
+      const refused = [401, 402, 403, 429].includes(cause.status);
+      return apiError(
+        c,
+        502,
+        refused ? "upstream_refused" : "upstream",
+        upstreamMessage(cause.status),
+      );
     }
     throw cause;
   }

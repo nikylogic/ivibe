@@ -80,6 +80,7 @@ Copy these into the website's root (`public/`) folder, and paste `head.html` int
 | `linkedin-banner-*.png`                               | The LinkedIn banner (1584 x 396).                                               |
 | `mascot-on-light-1024.png`, `mascot-on-dark-1024.png` | The mascot artwork on its square background.                                    |
 | `product-pro-light.png`, `product-pro-dark.png`       | The iVibe Pro product image (1024 x 1024) for the Dodo Payments checkout.       |
+| `readme-banner-light.png`, `readme-banner-dark.png`   | The repository README's header (2400 x 720), for GitHub's light and dark modes. |
 
 ## Source
 

@@ -32,6 +32,9 @@ import { transcribe } from "./transcribe.ts";
  */
 
 export const MAX_RECORDING_MS = 60_000;
+/** Nothing to run a recording on: no iVibe Cloud session and no Meta key. */
+const NO_ACCESS = "Sign in to iVibe Cloud or add your Meta API key in Settings first.";
+
 /** Dictation runs longer than a bug report; captions go out a sentence at a time either way. */
 export const MAX_DICTATE_MS = 5 * 60_000;
 export const MIN_RECORDING_MS = 2_000;
@@ -163,7 +166,6 @@ export class RecordingController extends EventEmitter<{
       error: undefined,
       summary: undefined,
       result: undefined,
-      captions: this.#route.length > 0 ? "on" : "no-key",
       pill: this.#settings().pill,
       sounds: this.#settings().sounds,
       maxMs: this.#maxMs,
@@ -174,6 +176,8 @@ export class RecordingController extends EventEmitter<{
       mode: this.#mode,
       targetName: undefined,
     });
+    // Recording without a way to run it would only fail at the end, so it doesn't start.
+    if (this.#route.length === 0) return this.#fail(NO_ACCESS);
     // Before any iVibe window shows: the app in front now is where the result goes.
     this.#destination = await detectDestination();
     console.log(`[iVibe timing] start: destination ${Date.now() - this.#calledAt} ms`);
@@ -349,11 +353,8 @@ export class RecordingController extends EventEmitter<{
 
   /** Writes the result for the recording's mode and pastes it where the user was (D20). */
   async #write(frames: EvidenceFrame[]): Promise<void> {
-    if (this.#route.length === 0) {
-      // Without a key there are no captions to write from; the recording summary still shows.
-      this.#set({ phase: "review" });
-      return;
-    }
+    // A retry after signing out and removing the key.
+    if (this.#route.length === 0) return this.#fail(NO_ACCESS);
     const { signal } = this.#transcriptions;
     this.#set({ phase: "writing" });
     const waitStarted = Date.now();
@@ -494,7 +495,7 @@ export class RecordingController extends EventEmitter<{
   async #withAccess<T>(work: (access: MetaAccess) => Promise<T>): Promise<T> {
     for (;;) {
       const access = this.#route[0];
-      if (!access) throw new Error("Sign in to iVibe Cloud or add your Meta key in Settings.");
+      if (!access) throw new Error(NO_ACCESS);
       try {
         return await work(access);
       } catch (error) {

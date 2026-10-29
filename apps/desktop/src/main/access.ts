@@ -34,6 +34,9 @@ const CLOUD_REFUSALS = new Set([
   "device_limit",
   "network_limit",
   "account_too_new",
+  // Meta refused iVibe Cloud's own key or limits; the user's key may still work. Plain
+  // "upstream" (Meta itself failing) would fail the same way on the user's key.
+  "upstream_refused",
 ]);
 
 /** Meta refusing the key itself (invalid, no billing, rate limited), which Cloud can get past. */

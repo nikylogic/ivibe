@@ -191,13 +191,6 @@ function ModeSwitch({
 
 /** The last thing heard, as a live caption under the record button. */
 function LiveCaption({ status }: { status: RecordingStatus }) {
-  if (status.captions === "no-key") {
-    return (
-      <Text color="secondary" size="sm">
-        Sign in to iVibe Cloud or add your Meta key in Settings to see what you say as you record.
-      </Text>
-    );
-  }
   const last = [...(status.transcript ?? [])]
     .reverse()
     .find((segment) => segment.state === "final");

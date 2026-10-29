@@ -45,6 +45,7 @@ describe("shouldFallBack", () => {
     expect(shouldFallBack(cloud, { code: "insufficient_credits" })).toBe(true);
     expect(shouldFallBack(cloud, { code: "offline" })).toBe(false);
     expect(shouldFallBack(cloud, { code: "upstream" })).toBe(false);
+    expect(shouldFallBack(cloud, { code: "upstream_refused" })).toBe(true);
   });
 
   it("falls back from a key Meta refuses, not from a bad request", () => {
