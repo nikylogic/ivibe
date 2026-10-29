@@ -303,6 +303,19 @@ export interface AppInfo {
   arch: string;
 }
 
+/**
+ * The app's own updates (main/updater.ts). On macOS (`canInstall` false) an update is downloaded
+ * from the release page rather than installed by the app.
+ */
+export type UpdateStatus = UpdatePhase & { canInstall: boolean };
+
+export type UpdatePhase =
+  | { phase: "idle" | "checking" | "latest" }
+  | { phase: "available"; version: string }
+  | { phase: "downloading"; version: string; percent: number }
+  | { phase: "ready"; version: string }
+  | { phase: "error"; message: string };
+
 /** Which mode shortcuts are registered; false means another app holds the keys. */
 export type ShortcutStatus = Record<OutputMode, boolean>;
 
@@ -352,6 +365,10 @@ export const Channels = {
   cloudBilling: "cloud.billing",
   cloudUsage: "cloud.usage",
   appInfo: "app.info",
+  updateStatus: "update.status",
+  updateCheck: "update.check",
+  /** Restarts into a downloaded update, or opens the download page on macOS. */
+  updateInstall: "update.install",
   settingsGet: "settings.get",
   settingsSet: "settings.set",
   resultCopy: "result.copy",
@@ -397,6 +414,7 @@ export const Channels = {
   historyChanged: "history.changed",
   cloudChanged: "cloud.changed",
   backupChanged: "backup.changed",
+  updateChanged: "update.changed",
   // recorder ↔ main
   recorderCommand: "recorder.command",
   recorderEvent: "recorder.event",

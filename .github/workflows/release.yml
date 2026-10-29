@@ -1,7 +1,8 @@
 name: Release
 
 # Push a tag like v0.1.0 (matching apps/desktop/package.json) to build unsigned installers on all
-# three OSes and attach them to a draft GitHub release. Publish the draft by hand.
+# three OSes and attach them to a draft GitHub release. Publish the draft by hand: the app's
+# updater (apps/desktop/src/main/updater.ts) only sees published releases.
 on:
   push:
     tags: ["v*"]
@@ -25,6 +26,15 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - name: Check the tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          version="v$(node -p "require('./apps/desktop/package.json').version")"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match apps/desktop/package.json ($version)"
+            exit 1
+          fi
       - run: pnpm install --frozen-lockfile
       - run: pnpm ocr:fetch
       - run: pnpm --filter @ivibe/desktop build

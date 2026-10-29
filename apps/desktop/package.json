@@ -51,6 +51,7 @@
   },
   "dependencies": {
     "@blobatar/react": "2.7.0",
-    "blobatar": "2.7.0"
+    "blobatar": "2.7.0",
+    "electron-updater": "^6.8.11"
   }
 }

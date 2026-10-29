@@ -45,6 +45,13 @@ import {
 } from "./cloud.ts";
 import type { MetaAccess } from "./cloud.ts";
 import { onTrayThemeChange, trayIcons } from "./icons.ts";
+import {
+  checkForUpdates,
+  installUpdate,
+  onUpdateStatus,
+  startUpdater,
+  updateStatus,
+} from "./updater.ts";
 import { ClickToPaste } from "./click-to-paste.ts";
 import {
   capsLockOff,
@@ -547,10 +554,22 @@ function updateTrayMenu(): void {
       })),
       { type: "separator" },
       { label: "Open iVibe", click: () => showUi() },
+      ...updateMenu(),
       { type: "separator" },
       { label: "Quit iVibe", role: "quit" },
     ]),
   );
+}
+
+function updateMenu(): Electron.MenuItemConstructorOptions[] {
+  const update = updateStatus();
+  if (update.phase === "ready") {
+    return [{ label: `Restart to update to ${update.version}`, click: installUpdate }];
+  }
+  if (update.phase === "available") {
+    return [{ label: `Download iVibe ${update.version}`, click: installUpdate }];
+  }
+  return [];
 }
 
 function registerIpc(): void {
@@ -676,6 +695,9 @@ function registerIpc(): void {
     platform: process.platform,
     arch: process.arch,
   }));
+  ipcMain.handle(Channels.updateStatus, () => updateStatus());
+  ipcMain.handle(Channels.updateCheck, () => checkForUpdates());
+  ipcMain.handle(Channels.updateInstall, () => installUpdate());
   ipcMain.handle(Channels.shortcutsStatus, (): ShortcutStatus => shortcutStatus);
   ipcMain.handle(Channels.shortcutsPause, (event, paused: unknown) => {
     if (event.sender !== uiWindow?.webContents) return;
@@ -1095,6 +1117,12 @@ void app.whenReady().then(() => {
   });
   tray.on("click", () => showUi());
   updateTrayMenu();
+
+  onUpdateStatus((status) => {
+    broadcast(Channels.updateChanged, status);
+    updateTrayMenu();
+  });
+  if (!SELF_TEST) startUpdater();
 
   registerShortcuts();
   globalShortcut.register(PASTE_SHORTCUT, () => void pasteLastResult());

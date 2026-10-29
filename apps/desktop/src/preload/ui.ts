@@ -14,6 +14,7 @@ import type {
   Settings,
   ShortcutKey,
   ShortcutStatus,
+  UpdateStatus,
 } from "../shared/ipc.ts";
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
@@ -86,6 +87,13 @@ const api = {
   },
   app: {
     info: (): Promise<AppInfo> => ipcRenderer.invoke(Channels.appInfo),
+    update: {
+      status: (): Promise<UpdateStatus> => ipcRenderer.invoke(Channels.updateStatus),
+      check: (): Promise<UpdateStatus> => ipcRenderer.invoke(Channels.updateCheck),
+      install: (): Promise<void> => ipcRenderer.invoke(Channels.updateInstall),
+      onChange: (listener: (status: UpdateStatus) => void) =>
+        subscribe(Channels.updateChanged, listener),
+    },
   },
   history: {
     list: (): Promise<HistoryEntry[]> => ipcRenderer.invoke(Channels.historyList),

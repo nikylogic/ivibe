@@ -38,6 +38,7 @@ import type {
   CloudUsage,
   OutputMode,
   ShortcutStatus,
+  UpdateStatus,
 } from "../../shared/ipc.ts";
 import { LANGUAGES, isAppLanguage } from "../../shared/languages.ts";
 import { PASTE_SHORTCUT, defaultShortcuts } from "../../shared/shortcuts.ts";
@@ -47,7 +48,15 @@ import { Row } from "./settings-row.tsx";
 import { BackupSettings } from "./backup-section.tsx";
 import { ShortcutButton } from "./shortcut-button.tsx";
 import { PillChoice } from "./pill-choice.tsx";
-import { ipcMessage, isPro, neverStarted, planNote, trialNote, useBackup } from "./state.ts";
+import {
+  ipcMessage,
+  isPro,
+  neverStarted,
+  planNote,
+  trialNote,
+  useBackup,
+  useUpdate,
+} from "./state.ts";
 import type { ByokState, CloudState, SettingsState } from "./state.ts";
 
 const styles = stylex.create({
@@ -117,6 +126,55 @@ const styles = stylex.create({
 
 /** One group in a section; the title is left out when the section header says it all. */
 /** iVibe Pro (D26): what it gives, where the subscription stands, and the way to buy or manage it. */
+function updateNote(update: UpdateStatus): string {
+  switch (update.phase) {
+    case "checking":
+      return "Checking for updates…";
+    case "latest":
+      return "You're up to date.";
+    case "available":
+      return `iVibe ${update.version} is available. Download it and install it over this one.`;
+    case "downloading":
+      return `Downloading iVibe ${update.version}… ${update.percent}%`;
+    case "ready":
+      return `iVibe ${update.version} is ready. Restart to update.`;
+    case "error":
+      return update.message;
+    case "idle":
+      return "iVibe checks for updates when it opens and every few hours.";
+  }
+}
+
+function Updates() {
+  const update = useUpdate();
+  if (!update) return null;
+  const busy = update.phase === "checking" || update.phase === "downloading";
+  return (
+    <>
+      <Text color="secondary" size="sm">
+        {updateNote(update)}
+      </Text>
+      <div {...stylex.props(styles.buttons)}>
+        {update.phase === "ready" || update.phase === "available" ? (
+          <Button
+            label={update.phase === "ready" ? "Restart to update" : "Download"}
+            variant="primary"
+            onClick={() => void window.ivibe.app.update.install()}
+          />
+        ) : (
+          <Button
+            label="Check for updates"
+            variant="secondary"
+            isLoading={busy}
+            isDisabled={busy}
+            onClick={() => void window.ivibe.app.update.check()}
+          />
+        )}
+      </div>
+    </>
+  );
+}
+
 function ProPlan({ cloud }: { cloud: CloudState }) {
   const status = cloud.status;
   if (!status) return null;
@@ -1109,6 +1167,7 @@ export function SettingsPage({
                   GitHub
                 </Link>
               </Text>
+              <Updates />
             </Row>
           )}
         </div>

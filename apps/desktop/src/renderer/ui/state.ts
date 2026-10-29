@@ -10,6 +10,7 @@ import type {
   RecordingStatus,
   Settings,
   ShortcutStatus,
+  UpdateStatus,
 } from "../../shared/ipc.ts";
 
 declare global {
@@ -39,6 +40,15 @@ export function useAppInfo(): AppInfo | null {
     void window.ivibe.app.info().then(setInfo);
   }, []);
   return info;
+}
+
+export function useUpdate(): UpdateStatus | null {
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  useEffect(() => {
+    void window.ivibe.app.update.status().then(setStatus);
+    return window.ivibe.app.update.onChange(setStatus);
+  }, []);
+  return status;
 }
 
 export function useShortcutStatus(): ShortcutStatus | null {
