@@ -1,0 +1,10 @@
+{
+  "extends": "@ivibe/config/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src"],
+  // Tests run in Node (node:sqlite stands in for D1); vitest type-checks them as it runs.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test-helper.ts"]
+}

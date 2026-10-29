@@ -1,96 +1,71 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
-import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { Heading } from "@astryxdesign/core/Heading";
 import { Link } from "@astryxdesign/core/Link";
+import { MultiSelector } from "@astryxdesign/core/MultiSelector";
+import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import {
+  Cloud,
+  CreditCard,
   Info,
   Keyboard,
   KeyRound,
+  Languages,
   Mic,
   ShieldCheck,
   SlidersHorizontal,
   UserRound,
 } from "lucide-react";
+import {
+  SUGGESTED_SPOKEN_LANGUAGES,
+  LANGUAGES as SPEECH_LANGUAGES,
+  MAX_SPOKEN_LANGUAGES,
+  isLanguage,
+  isOutputLanguage,
+} from "@ivibe/engine";
 import type { Personal } from "@ivibe/engine";
-import type { AppInfo, OutputMode, ShortcutStatus } from "../../shared/ipc.ts";
+import type {
+  AppInfo,
+  Appearance,
+  CloudUsage,
+  OutputMode,
+  ShortcutStatus,
+} from "../../shared/ipc.ts";
+import { LANGUAGES, isAppLanguage } from "../../shared/languages.ts";
 import { PASTE_SHORTCUT, defaultShortcuts } from "../../shared/shortcuts.ts";
 import { signal } from "../shared/theme.tsx";
 import { Shortcut } from "../shared/shortcut.tsx";
+import { Row } from "./settings-row.tsx";
+import { BackupSettings } from "./backup-section.tsx";
 import { ShortcutButton } from "./shortcut-button.tsx";
-import { ipcMessage } from "./state.ts";
-import type { ByokState, SettingsState } from "./state.ts";
+import { PillChoice } from "./pill-choice.tsx";
+import { ipcMessage, isPro, neverStarted, planNote, trialNote, useBackup } from "./state.ts";
+import type { ByokState, CloudState, SettingsState } from "./state.ts";
 
 const styles = stylex.create({
-  // A fixed height, so switching sections doesn't make the dialog jump.
-  panel: {
-    display: "grid",
-    gridTemplateColumns: "212px 1fr",
-    height: "min(620px, 82vh)",
+  // Laid out like the other pages: a centred column with a display title.
+  page: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 20,
     width: "100%",
+    maxWidth: 720,
+    marginInline: "auto",
+    paddingBlock: 24,
+    paddingInline: 40,
   },
-  sections: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 2,
-    padding: 12,
-    paddingTop: 20,
-    backgroundColor: "var(--color-background-muted)",
-    borderRightWidth: 1,
-    borderRightStyle: "solid",
-    borderRightColor: "var(--color-border)",
-  },
-  sectionsTitle: { fontSize: 13, fontWeight: 600, paddingInline: 10, paddingBottom: 10 },
-  sectionButton: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    height: 36,
-    paddingInline: 10,
-    borderWidth: 0,
-    borderRadius: 8,
-    backgroundColor: {
-      default: "transparent",
-      ":hover": "var(--color-background-surface)",
-    },
-    color: "var(--color-text-secondary)",
-    fontFamily: "inherit",
-    fontSize: 14,
-    textAlign: "start",
-    cursor: "pointer",
-    outline: { default: "none", ":focus-visible": "2px solid var(--color-border-emphasized)" },
-  },
-  sectionSelected: {
-    backgroundColor: {
-      default: "var(--color-background-body)",
-      ":hover": "var(--color-background-body)",
-    },
-    color: "var(--color-text-primary)",
-    fontWeight: 500,
-    boxShadow: "0 1px 2px var(--color-shadow)",
-  },
-  content: { display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 },
-  header: { paddingTop: 20, paddingInline: 24, paddingBottom: 4 },
-  scroll: { flex: 1, overflowY: "auto", paddingInline: 24, paddingBottom: 24 },
-  row: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-    paddingBlock: 20,
-    borderTopWidth: { default: 1, ":first-child": 0 },
-    borderTopStyle: "solid",
-    borderTopColor: "var(--color-border)",
-  },
+  hero: { display: "flex", flexDirection: "column", gap: 10 },
+  display: { fontSize: 44, lineHeight: 1.05, letterSpacing: "-0.01em" },
+  section: { display: "flex", flexDirection: "column" },
   label: { display: "flex", flexDirection: "column", gap: 2 },
-  labelTitle: { fontSize: 14, fontWeight: 600 },
   shortcutRow: {
     display: "flex",
     alignItems: "center",
@@ -104,6 +79,27 @@ const styles = stylex.create({
   inline: { display: "flex", alignItems: "flex-end", gap: 8 },
   fixed: { flexShrink: 0 },
   connected: { display: "flex", alignItems: "center", gap: 8 },
+  plan: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "var(--color-border)",
+  },
+  buttons: { display: "flex", gap: 8 },
+  usage: { display: "flex", flexDirection: "column", gap: 12 },
+  balance: { fontSize: 28, fontWeight: 600, lineHeight: 1.1 },
+  table: {
+    display: "grid",
+    gridTemplateColumns: "1fr auto auto",
+    columnGap: 16,
+    rowGap: 6,
+    alignItems: "baseline",
+  },
+  number: { textAlign: "end", fontVariantNumeric: "tabular-nums" },
   dot: { width: 8, height: 8, borderRadius: 999 },
   meter: {
     height: 6,
@@ -111,30 +107,306 @@ const styles = stylex.create({
     overflow: "hidden",
     backgroundColor: "var(--color-border)",
   },
-  meterFill: { height: "100%", borderRadius: 999, transition: "width 80ms linear" },
+  meterFill: {
+    height: "100%",
+    borderRadius: 999,
+    transition: "width var(--motion-micro) linear",
+  },
   list: { margin: 0, paddingInlineStart: 18, display: "flex", flexDirection: "column", gap: 6 },
 });
 
 /** One group in a section; the title is left out when the section header says it all. */
-function Row({ title, note, children }: { title?: string; note?: string; children: ReactNode }) {
-  return (
-    <div {...stylex.props(styles.row)}>
-      {(title || note) && (
-        <div {...stylex.props(styles.label)}>
-          {title && <Text xstyle={styles.labelTitle}>{title}</Text>}
-          {note && (
-            <Text color="secondary" size="sm">
-              {note}
-            </Text>
-          )}
+/** iVibe Pro (D26): what it gives, where the subscription stands, and the way to buy or manage it. */
+function ProPlan({ cloud }: { cloud: CloudState }) {
+  const status = cloud.status;
+  if (!status) return null;
+  if (!status.signedIn) {
+    return (
+      <>
+        <Text color="secondary">
+          iVibe Pro is part of iVibe Cloud. Sign in with GitHub first; you'll get free credits to
+          try it before you pay anything.
+        </Text>
+        <div>
+          <Button
+            label={status.pending ? "Waiting for the browser…" : "Sign in with GitHub"}
+            variant="primary"
+            isLoading={status.pending}
+            onClick={cloud.signIn}
+          />
         </div>
-      )}
-      <div {...stylex.props(styles.body)}>{children}</div>
+      </>
+    );
+  }
+  const offer = status.planOffer;
+  const pro = isPro(status);
+  const note = planNote(status);
+  // A plan that once ran can be managed (invoices, card); a declined first checkout can't.
+  const hadPlan = !!status.plan && !neverStarted(status);
+  return (
+    <div {...stylex.props(styles.plan)}>
+      <Text weight="semibold">iVibe Pro{offer ? ` · ${offer.price}` : ""}</Text>
+      <Text color="secondary" size="sm">
+        {offer?.credits ?? 400} credits every month, no API key needed. Credits reset at each
+        renewal, so unused ones don't carry over. Pro runs use Meta's standard models, which Meta
+        doesn't train on.
+      </Text>
+      {note && <Text size="sm">{note}</Text>}
+      {status.message && <Text size="sm">{status.message}</Text>}
+      <div {...stylex.props(styles.buttons)}>
+        {!pro &&
+          (offer?.available ? (
+            <Button
+              label={hadPlan ? "Get Pro again" : "Get Pro"}
+              variant="primary"
+              onClick={() => cloud.billing("checkout")}
+            />
+          ) : (
+            <Text color="secondary" size="sm">
+              Coming soon.
+            </Text>
+          ))}
+        {hadPlan && (
+          <Button
+            label="Manage subscription"
+            variant="secondary"
+            onClick={() => cloud.billing("portal")}
+          />
+        )}
+      </div>
     </div>
   );
 }
 
-function MetaKey({ byok }: { byok: ByokState }) {
+const KIND_LABELS: Record<string, string> = {
+  transcribe: "Live captions",
+  dictate: "Dictation",
+  prompt: "Prompts",
+  fix: "Fix reports",
+};
+
+const formatCredits = (value: number) =>
+  value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Billing → Usage: the exact balance and where credits went this period, read fresh from the
+ * server (the sidebar deliberately shows no numbers). Refreshes whenever a run changes the
+ * balance.
+ */
+function Usage({ cloud }: { cloud: CloudState }) {
+  const [usage, setUsage] = useState<CloudUsage | null | undefined>(undefined);
+  const credits = cloud.status?.credits;
+  useEffect(() => {
+    let live = true;
+    void window.ivibe.cloud.usage().then((next) => live && setUsage(next));
+    return () => {
+      live = false;
+    };
+  }, [credits]);
+
+  if (usage === undefined) return <Text color="secondary">Loading usage…</Text>;
+  if (usage === null) {
+    return <Text color="secondary">Usage couldn't be loaded. Check your connection.</Text>;
+  }
+  const since = new Date(usage.period.from).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return (
+    <div {...stylex.props(styles.usage)}>
+      <div>
+        <Text color="secondary" size="sm">
+          Credits available
+        </Text>
+        <div {...stylex.props(styles.balance)}>{formatCredits(usage.available)}</div>
+        <Text color="secondary" size="sm">
+          About ${(usage.available / 100).toFixed(2)} of AI usage. 1 credit = 1 cent.
+          {usage.held > 0 && ` ${formatCredits(usage.held)} reserved for a run in progress.`}
+        </Text>
+      </div>
+
+      <Text weight="semibold">
+        {usage.period.kind === "billing" ? `This billing period (since ${since})` : "Last 30 days"}
+      </Text>
+      <div {...stylex.props(styles.table)}>
+        {usage.byKind.length === 0 && (
+          <Text color="secondary" size="sm">
+            Nothing used yet.
+          </Text>
+        )}
+        {usage.byKind.map((row) => (
+          <Fragment key={row.kind}>
+            <Text size="sm">{KIND_LABELS[row.kind] ?? row.kind}</Text>
+            <Text size="sm" color="secondary" xstyle={styles.number}>
+              {row.runs} {row.kind === "transcribe" ? "clips" : row.runs === 1 ? "run" : "runs"}
+            </Text>
+            <Text size="sm" xstyle={styles.number}>
+              {formatCredits(row.credits)}
+            </Text>
+          </Fragment>
+        ))}
+        <Text size="sm" weight="semibold">
+          Used
+        </Text>
+        <span />
+        <Text size="sm" weight="semibold" xstyle={styles.number}>
+          {formatCredits(usage.spent)}
+        </Text>
+        {usage.added > 0 && (
+          <>
+            <Text size="sm" color="secondary">
+              Added
+            </Text>
+            <span />
+            <Text size="sm" color="secondary" xstyle={styles.number}>
+              +{formatCredits(usage.added)}
+            </Text>
+          </>
+        )}
+      </div>
+
+      {usage.recent.length > 0 && (
+        <>
+          <Text weight="semibold">Recent recordings</Text>
+          <div {...stylex.props(styles.table)}>
+            {usage.recent.map((run) => (
+              <Fragment key={run.at + run.kind}>
+                <Text size="sm">{KIND_LABELS[run.kind] ?? run.kind}</Text>
+                <Text size="sm" color="secondary" xstyle={styles.number}>
+                  {new Date(run.at).toLocaleString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </Text>
+                <Text size="sm" xstyle={styles.number}>
+                  {formatCredits(run.credits)}
+                </Text>
+              </Fragment>
+            ))}
+          </div>
+        </>
+      )}
+
+      <Text color="secondary" size="sm">
+        You pay for what Meta's models actually use: a dictation is usually well under 1 credit, a
+        Fix report a few credits. Live captions are charged per second of audio. Pro credits reset
+        at each renewal and don't carry over.
+      </Text>
+    </div>
+  );
+}
+
+/** D25: free-credit runs go to Meta's contributor model; say so wherever the trial is offered. */
+const TRIAL_MODEL_NOTE =
+  "Free-credit runs use Meta's contributor model, so Meta may use them to improve its models. Runs with your own Meta key never do.";
+
+function CloudAccount({ cloud, byok }: { cloud: CloudState; byok: ByokState }) {
+  const { status } = cloud;
+  if (!status) return null;
+  const pro = status.tier === "pro";
+  const message = status.message && <Text color="secondary">{status.message}</Text>;
+  if (!status.signedIn) {
+    return (
+      <>
+        <Text color="secondary">
+          Sign in with GitHub to get {status.trialCredits ?? 50} free credits. No API key needed. 1
+          credit is 1 cent of AI usage: about 10 Fix runs or 100 dictations. They start with your
+          first recording.
+        </Text>
+        <Text color="secondary" size="sm">
+          {TRIAL_MODEL_NOTE}
+        </Text>
+        {message}
+        <div>
+          <Button
+            label={status.pending ? "Waiting for the browser…" : "Sign in with GitHub"}
+            variant="primary"
+            isLoading={status.pending}
+            onClick={cloud.signIn}
+          />
+        </div>
+      </>
+    );
+  }
+  return (
+    <>
+      <div {...stylex.props(styles.connected)}>
+        <span {...stylex.props(styles.dot)} style={{ backgroundColor: signal.ok }} />
+        <Text>
+          Signed in as {status.login} ·{" "}
+          {pro
+            ? `Pro · ${status.credits ?? "…"} credits left`
+            : status.trial === "available"
+              ? `${status.trialCredits ?? 50} free credits`
+              : `${status.credits ?? "…"} credits left`}
+        </Text>
+      </div>
+      {pro && planNote(status) && <Text color="secondary">{planNote(status)}</Text>}
+      {!pro && trialNote(status) && <Text color="secondary">{trialNote(status)}</Text>}
+      {status.tier === "trial" && !byok.status?.hasKey && (
+        <Text color="secondary" size="sm">
+          {TRIAL_MODEL_NOTE}
+        </Text>
+      )}
+      {message}
+      {byok.status?.hasKey && (
+        <Text color="secondary" size="sm">
+          You also have your own Meta key. Choose which one recordings use in Meta API key.
+        </Text>
+      )}
+      <div>
+        <Button label="Sign out" variant="ghost" onClick={cloud.signOut} />
+      </div>
+    </>
+  );
+}
+
+/**
+ * Signed in and holding a key (D29): which one recordings run on, and whether the other takes
+ * over when it can't (credits used up, key refused).
+ */
+function RunOnSettings({ cloud, settings }: { cloud: CloudState; settings: SettingsState }) {
+  const current = settings.settings;
+  const pro = cloud.status?.tier === "pro";
+  const credits = pro ? "iVibe Pro credits" : "iVibe Cloud credits";
+  const runOn = current?.runOn ?? "auto";
+  const first = runOn === "auto" ? (pro ? "cloud" : "key") : runOn;
+  return (
+    <Row
+      title="Which one recordings use"
+      note={`You have your own Meta key and ${credits}. Pick the one to use first.`}
+    >
+      <div>
+        <SegmentedControl
+          label="Use first"
+          value={first}
+          isDisabled={!current}
+          onChange={(value) => settings.change({ runOn: value as "cloud" | "key" })}
+        >
+          <SegmentedControlItem value="cloud" label={credits} />
+          <SegmentedControlItem value="key" label="My Meta key" />
+        </SegmentedControl>
+      </div>
+      <Switch
+        label={
+          first === "cloud" ? "Use my key when credits run out" : `Use ${credits} if my key fails`
+        }
+        description={
+          first === "cloud"
+            ? "Recordings carry on with your own key instead of stopping."
+            : "If Meta refuses your key (expired, out of quota, rate limited), the recording carries on with your credits."
+        }
+        value={current?.runFallback ?? true}
+        isDisabled={!current}
+        onChange={(runFallback) => settings.change({ runFallback })}
+      />
+    </Row>
+  );
+}
+
+function MetaKey({ byok, pro }: { byok: ByokState; pro: boolean }) {
   const [key, setKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -160,6 +432,15 @@ function MetaKey({ byok }: { byok: ByokState }) {
           <span {...stylex.props(styles.dot)} style={{ backgroundColor: signal.ok }} />
           <Text>Connected · key ending in {status.hint}</Text>
         </div>
+      ) : pro ? (
+        <Text color="secondary">
+          Optional on Pro: add your own key to keep recording if your Pro credits run out. Get one
+          at{" "}
+          <Link href="https://dev.meta.ai" target="_blank">
+            dev.meta.ai
+          </Link>
+          .
+        </Text>
       ) : (
         <Text color="secondary">
           Free forever with your own key. Get one at{" "}
@@ -362,38 +643,121 @@ function PersonalForm({ personal, onSave }: { personal: Personal; onSave: (p: Pe
         maxLength={500}
         onChange={(instructions) => setDraft({ ...draft, instructions })}
       />
-      <Switch
-        label="Dictate in English"
-        description="Translate Hindi or Hinglish when dictating. Prompts for AI agents are always in English."
-        value={draft.dictationLanguage === "english"}
-        onChange={(english) => {
-          const next = {
-            ...draft,
-            dictationLanguage: english ? ("english" as const) : ("keep" as const),
-          };
-          setDraft(next);
-          onSave({ ...next, dictionary: splitWords(next.words) });
-        }}
-      />
     </div>
   );
 }
 
-export type SettingsSection =
-  "general" | "shortcuts" | "key" | "personal" | "microphone" | "privacy" | "about";
+/** "Hindi · हिन्दी"; English needs no second name. */
+const LANGUAGE_OPTIONS = SPEECH_LANGUAGES.map(({ name, native }) => ({
+  value: name,
+  label: native === name ? name : `${name} · ${native}`,
+}));
 
-const SECTIONS: { id: SettingsSection; label: string; note: string; icon: typeof Mic }[] = [
+/** What recognition listens for and what results are written in (engine/languages.ts). */
+function LanguageSettings({ settings }: { settings: SettingsState }) {
+  const personal = settings.settings?.personal;
+  if (!personal) return null;
+  const save = (change: Partial<Personal>) =>
+    settings.change({ personal: { ...personal, ...change } });
+  const detect = personal.spokenLanguages.length === 0;
+
+  return (
+    <>
+      <Row
+        title="Languages you speak"
+        note={`Recognition listens for these, including when you mix them in one sentence. Up to ${MAX_SPOKEN_LANGUAGES}.`}
+      >
+        <Switch
+          label="Detect automatically"
+          description="Works for any of the 25 supported languages. Choosing yours decides how words that fit either language are written, such as डेंगू or Dengue."
+          value={detect}
+          onChange={(on) => save({ spokenLanguages: on ? [] : [...SUGGESTED_SPOKEN_LANGUAGES] })}
+        />
+        {!detect && (
+          <MultiSelector
+            label="Languages you speak"
+            isLabelHidden
+            options={LANGUAGE_OPTIONS}
+            value={personal.spokenLanguages}
+            hasSearch
+            searchPlaceholder="Search languages"
+            triggerDisplay="badges"
+            width="100%"
+            // At least one stays chosen (none is what the switch above is for), at most three.
+            onChange={(value) => {
+              const spokenLanguages = value.filter(isLanguage).slice(0, MAX_SPOKEN_LANGUAGES);
+              if (spokenLanguages.length > 0) save({ spokenLanguages });
+            }}
+          />
+        )}
+      </Row>
+      <Row
+        title="Write results in"
+        note="Every mode writes in this language. Code, file names and error text are never translated."
+      >
+        <Selector
+          label="Write results in"
+          isLabelHidden
+          options={[{ value: "auto", label: "Same as I speak" }, ...LANGUAGE_OPTIONS]}
+          value={personal.outputLanguage}
+          hasSearch
+          onChange={(outputLanguage) => {
+            if (isOutputLanguage(outputLanguage)) save({ outputLanguage });
+          }}
+          width={320}
+        />
+        {personal.outputLanguage !== "English" && (
+          <Text color="secondary" size="sm">
+            Fix and Prompt results go to AI coding agents, which usually work best in English.
+          </Text>
+        )}
+      </Row>
+    </>
+  );
+}
+
+export type SettingsSection =
+  | "general"
+  | "system"
+  | "shortcuts"
+  | "cloud"
+  | "billing"
+  | "key"
+  | "personal"
+  | "microphone"
+  | "privacy"
+  | "about";
+
+export const SECTIONS: { id: SettingsSection; label: string; note: string; icon: typeof Mic }[] = [
   {
     id: "general",
     label: "General",
-    note: "Where results go when a recording ends.",
+    note: "How iVibe looks, its language, and where results go.",
     icon: SlidersHorizontal,
+  },
+  {
+    id: "system",
+    label: "System",
+    note: "The languages you speak, and the one results are written in.",
+    icon: Languages,
   },
   {
     id: "shortcuts",
     label: "Shortcuts",
     note: "Keys that record and paste from any app.",
     icon: Keyboard,
+  },
+  {
+    id: "cloud",
+    label: "iVibe Cloud",
+    note: "Your account, your credits, and encrypted backups.",
+    icon: Cloud,
+  },
+  {
+    id: "billing",
+    label: "Billing",
+    note: "iVibe Pro: monthly credits for iVibe Cloud, no API key needed.",
+    icon: CreditCard,
   },
   {
     id: "key",
@@ -453,24 +817,23 @@ const SHORTCUT_ROWS: { mode: OutputMode; label: string }[] = [
 ];
 
 /** The settings, shown in a dialog over the app: sections on the left, one at a time on the right. */
-export function SettingsPanel({
+export function SettingsPage({
   section,
-  onSectionChange,
-  onClose,
   info,
   byok,
+  cloud,
   settings,
   shortcutStatus,
 }: {
   section: SettingsSection;
-  onSectionChange: (section: SettingsSection) => void;
-  onClose: () => void;
   info: AppInfo | null;
   byok: ByokState;
+  cloud: CloudState;
   settings: SettingsState;
   shortcutStatus: ShortcutStatus | null;
 }) {
   const current = settings.settings;
+  const backup = useBackup();
   const microphones = useMicrophones();
   const saved = current?.microphone ?? "";
   const isMac = info?.platform === "darwin";
@@ -486,33 +849,78 @@ export function SettingsPanel({
   const active = SECTIONS.find((candidate) => candidate.id === section) ?? SECTIONS[0]!;
 
   return (
-    <div {...stylex.props(styles.panel)}>
-      <nav {...stylex.props(styles.sections)} aria-label="Settings sections">
-        <Text xstyle={styles.sectionsTitle}>Settings</Text>
-        {SECTIONS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            aria-current={id === active.id ? "page" : undefined}
-            onClick={() => onSectionChange(id)}
-            {...stylex.props(styles.sectionButton, id === active.id && styles.sectionSelected)}
-          >
-            <Icon size={17} strokeWidth={1.75} />
-            {label}
-          </button>
-        ))}
-      </nav>
-
-      <div {...stylex.props(styles.content)}>
-        <DialogHeader
-          title={active.label}
-          subtitle={active.note}
-          onOpenChange={onClose}
-          xstyle={styles.header}
-        />
-        <div {...stylex.props(styles.scroll)}>
+    <div {...stylex.props(styles.page)}>
+      <div {...stylex.props(styles.hero)}>
+        <Heading level={1} xstyle={styles.display}>
+          {active.label}
+        </Heading>
+        <Text color="secondary">{active.note}</Text>
+      </div>
+      <div>
+        <div key={active.id} {...stylex.props(styles.section)}>
           {active.id === "general" && (
             <>
+              <Row title="Appearance" note="Light or dark, or match your system.">
+                <div>
+                  <SegmentedControl
+                    label="Appearance"
+                    value={current?.appearance ?? "system"}
+                    isDisabled={!current}
+                    onChange={(appearance) =>
+                      settings.change({ appearance: appearance as Appearance })
+                    }
+                  >
+                    <SegmentedControlItem value="system" label="System" />
+                    <SegmentedControlItem value="light" label="Light" />
+                    <SegmentedControlItem value="dark" label="Dark" />
+                  </SegmentedControl>
+                </div>
+              </Row>
+              <Row title="Dictate" note="What happens to your words before they're pasted.">
+                <Switch
+                  label="Clean up with AI"
+                  description="Removes filler words and self-corrections, fixes punctuation, and writes in your output language. Turn it off to paste your words as heard: faster, and it uses fewer credits."
+                  value={current?.dictateCleanup ?? true}
+                  isDisabled={!current}
+                  onChange={(dictateCleanup) => settings.change({ dictateCleanup })}
+                />
+                <Switch
+                  label="Edit selected text by voice"
+                  description="Select text in any app, then dictate: say what to change (“make this more formal”, “translate to Hindi”) or dictate new words, and the result replaces the selection. Needs AI cleanup."
+                  value={current?.editSelection ?? true}
+                  isDisabled={!current || current.dictateCleanup === false}
+                  onChange={(editSelection) => settings.change({ editSelection })}
+                />
+              </Row>
+              <Row
+                title="Recording pill"
+                note="What shows at the bottom of the screen while you record."
+              >
+                <PillChoice settings={settings} />
+                <Switch
+                  label="Sounds"
+                  description="A soft sound when recording starts and stops."
+                  value={current?.sounds ?? true}
+                  isDisabled={!current}
+                  onChange={(sounds) => settings.change({ sounds })}
+                />
+              </Row>
+              <Row title="Language" note="The language iVibe's screens are shown in.">
+                <Selector
+                  label="Language"
+                  isLabelHidden
+                  options={LANGUAGES.map(({ code, label }) => ({ value: code, label }))}
+                  value={current?.language ?? "en"}
+                  isDisabled={!current}
+                  onChange={(language) => {
+                    if (isAppLanguage(language)) settings.change({ language });
+                  }}
+                  width={240}
+                />
+                <Text color="secondary" size="sm">
+                  More languages are coming soon.
+                </Text>
+              </Row>
               <Row title="Output" note="Where the result goes when a recording ends.">
                 <Switch
                   label="Paste into the app I was using"
@@ -538,6 +946,8 @@ export function SettingsPanel({
               </Row>
             </>
           )}
+
+          {active.id === "system" && <LanguageSettings settings={settings} />}
 
           {active.id === "shortcuts" && (
             <>
@@ -597,10 +1007,37 @@ export function SettingsPanel({
             </>
           )}
 
+          {active.id === "cloud" && (
+            <>
+              <Row>
+                <CloudAccount cloud={cloud} byok={byok} />
+              </Row>
+              <BackupSettings status={backup} settings={settings} cloud={cloud} />
+            </>
+          )}
+
+          {active.id === "billing" && (
+            <>
+              <Row>
+                <ProPlan cloud={cloud} />
+              </Row>
+              {cloud.status?.signedIn && (
+                <Row>
+                  <Usage cloud={cloud} />
+                </Row>
+              )}
+            </>
+          )}
+
           {active.id === "key" && (
-            <Row>
-              <MetaKey byok={byok} />
-            </Row>
+            <>
+              <Row>
+                <MetaKey byok={byok} pro={cloud.status?.tier === "pro"} />
+              </Row>
+              {byok.status?.hasKey && cloud.status?.signedIn && (
+                <RunOnSettings cloud={cloud} settings={settings} />
+              )}
+            </>
           )}
 
           {active.id === "personal" && current && (

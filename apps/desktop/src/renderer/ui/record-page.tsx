@@ -2,6 +2,7 @@
 
 import * as stylex from "@stylexjs/stylex";
 import { Banner } from "@astryxdesign/core/Banner";
+import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Spinner } from "@astryxdesign/core/Spinner";
@@ -9,10 +10,13 @@ import { Text } from "@astryxdesign/core/Text";
 import { Mic, Square } from "lucide-react";
 import type { AppInfo, OutputMode, RecordingStatus, ShortcutStatus } from "../../shared/ipc.ts";
 import type { SettingsState } from "./state.ts";
+import { useBackup } from "./state.ts";
+import { BackupNotice } from "./backup-section.tsx";
 import { formatClock } from "../shared/theme.tsx";
-import { asSentence } from "../shared/transcript.ts";
+import { asSentence } from "../../shared/transcript.ts";
 import { Waveform, useLevelHistory } from "../shared/waveform.tsx";
 import { Shortcut } from "../shared/shortcut.tsx";
+import { transition } from "./motion.ts";
 import { ShortcutButton } from "./shortcut-button.tsx";
 
 const ORB = 104;
@@ -67,7 +71,7 @@ const styles = stylex.create({
     inset: 0,
     borderRadius: 999,
     backgroundColor: "rgba(229, 72, 77, 0.22)",
-    transition: "transform 110ms ease-out",
+    transition: "transform var(--motion-micro) var(--motion-ease)",
   },
   orb: {
     position: "relative",
@@ -86,7 +90,8 @@ const styles = stylex.create({
     },
     transform: { default: "scale(1)", ":active": "scale(0.96)" },
     transitionProperty: "box-shadow, transform, background-color",
-    transitionDuration: "160ms",
+    transitionDuration: "var(--motion-micro)",
+    transitionTimingFunction: "var(--motion-ease)",
     cursor: "pointer",
     outline: { default: "none", ":focus-visible": "3px solid var(--color-border-emphasized)" },
   },
@@ -111,7 +116,8 @@ const styles = stylex.create({
     lineHeight: 1.55,
     color: "var(--color-text-secondary)",
     animationName: "ivibe-rise",
-    animationDuration: "240ms",
+    animationDuration: "var(--motion-small)",
+    animationTimingFunction: "var(--motion-ease)",
   },
 
   link: {
@@ -165,7 +171,10 @@ function ModeSwitch({
           label="What a recording turns into"
           value={mode}
           isDisabled={isLocked || !settings.settings}
-          onChange={(value) => settings.change({ mode: value as OutputMode })}
+          className="ivibe-segments"
+          onChange={(value) =>
+            transition("mode", () => settings.change({ mode: value as OutputMode }))
+          }
         >
           {MODES.map((entry) => (
             <SegmentedControlItem key={entry.mode} value={entry.mode} label={entry.label} />
@@ -185,7 +194,7 @@ function LiveCaption({ status }: { status: RecordingStatus }) {
   if (status.captions === "no-key") {
     return (
       <Text color="secondary" size="sm">
-        Add your Meta key in Settings to see what you say as you record.
+        Sign in to iVibe Cloud or add your Meta key in Settings to see what you say as you record.
       </Text>
     );
   }
@@ -311,12 +320,15 @@ export function RecordPage({
   info,
   settings,
   shortcutStatus,
+  onOpenBackup,
 }: {
   status: RecordingStatus;
   info: AppInfo | null;
   settings: SettingsState;
   shortcutStatus: ShortcutStatus | null;
+  onOpenBackup: () => void;
 }) {
+  const backup = useBackup();
   const busy = status.phase !== "idle" && status.phase !== "review" && status.phase !== "error";
   const mode = (busy ? status.mode : settings.settings?.mode) ?? "fix";
   const isMac = info?.platform === "darwin";
@@ -347,9 +359,29 @@ export function RecordPage({
         />
       </div>
 
+      {!busy && backup?.deleteAfter != null && (
+        <div {...stylex.props(styles.banner)}>
+          <BackupNotice status={backup} onOpen={onOpenBackup} />
+        </div>
+      )}
+
       {status.phase === "error" && status.error && (
         <div {...stylex.props(styles.banner)}>
-          <Banner status="error" title="The recording stopped" description={status.error} />
+          <Banner
+            status="error"
+            title="The recording stopped"
+            description={status.error}
+            endContent={
+              status.canRetry ? (
+                <Button
+                  label="Retry"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void window.ivibe.recording.retry()}
+                />
+              ) : undefined
+            }
+          />
         </div>
       )}
     </div>

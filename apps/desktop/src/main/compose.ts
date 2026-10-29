@@ -26,10 +26,14 @@ import type {
   ProofImage,
   RecordingResult,
 } from "../shared/ipc.ts";
+import { cloudCompose } from "./cloud.ts";
+import type { MetaAccess } from "./cloud.ts";
 import { deliver } from "./deliver.ts";
 import type { Part } from "./deliver.ts";
 import { focusedWindow, isOwnWindow } from "./os-bridge.ts";
 import type { FocusedWindow } from "./os-bridge.ts";
+import { maskSecrets, restoreSecrets } from "@ivibe/redact";
+import { asSentence } from "../shared/transcript.ts";
 
 /**
  * Recording → pasted text (docs/architecture.md D20): remembers which app had focus when the
@@ -62,10 +66,15 @@ export interface ComposeRequest {
   destination: Destination;
   transcript: TranscriptLine[];
   frames: EvidenceFrame[];
-  apiKey: string;
+  /** The user's own key, or an iVibe Cloud session. */
+  access: MetaAccess;
   autoPaste: boolean;
   proofImages: boolean;
   personal: Personal;
+  /** Dictate only: false pastes the transcript as heard, with no AI call. */
+  cleanup: boolean;
+  /** Dictate only: text selected in the app in front, which the speech edits or replaces. */
+  selection?: string | null;
   /** Renders a proof screenshot in the recorder window; returns the PNG as base64. */
   draw: (drawing: ProofDrawing) => Promise<string>;
 }
@@ -187,48 +196,96 @@ export async function deliverPayload(
   };
 }
 
-export async function compose(
+/** Muse Spark's text for the mode, plus Fix's proof shots, from Meta directly or via Cloud. */
+async function write(
   request: ComposeRequest,
-): Promise<{ result: RecordingResult; payload: Payload }> {
-  const { mode, destination, transcript, apiKey, frames } = request;
-  const { target } = destination;
-  const client: ClientOptions = { apiKey, fetch: net.fetch as typeof fetch };
-  const context: WriterContext = { target, personal: request.personal };
+  context: WriterContext,
+  wantsProof: boolean,
+): Promise<{ text: string; shots: ProofShot[] }> {
+  const { mode, transcript, frames, access } = request;
+  // Dictation without cleanup is just the captions, joined: no call, no credits, no wait.
+  if (mode === "dictate" && !request.cleanup) {
+    const text = transcript
+      .map((line) => asSentence(line.text))
+      .filter(Boolean)
+      .join(" ");
+    return { text, shots: [] };
+  }
+  if (mode === "dictate" && request.selection) {
+    // Secrets in the selection stay here: the model sees placeholders, and they go back after.
+    const masked = maskSecrets(request.selection);
+    const text =
+      access.kind === "cloud"
+        ? (
+            await cloudCompose(
+              { mode, transcript, context, frames: [], proof: false, selection: masked.text },
+              access.token,
+            )
+          ).text
+        : await cleanUpDictation(
+            transcript,
+            context,
+            { apiKey: access.key, fetch: net.fetch as typeof fetch },
+            masked.text,
+          );
+    return { text: restoreSecrets(text, masked.secrets), shots: [] };
+  }
+  const fixFrames = frames.map((frame) => ({
+    id: frame.id,
+    tMs: frame.tMs,
+    imageUrl: dataUrl(frame.jpeg),
+    width: frame.width,
+    height: frame.height,
+    lines: frame.lines,
+  }));
 
-  let payload: Payload;
-  let proof: RenderedProof[] = [];
+  if (access.kind === "cloud") {
+    return cloudCompose(
+      { mode, transcript, context, frames: mode === "fix" ? fixFrames : [], proof: wantsProof },
+      access.token,
+    );
+  }
+
+  const client: ClientOptions = { apiKey: access.key, fetch: net.fetch as typeof fetch };
   if (mode !== "fix") {
     const text =
       mode === "dictate"
         ? await cleanUpDictation(transcript, context, client)
         : await writePrompt(transcript, context, client);
-    if (!text) throw new Error("Muse Spark returned an empty result. Try again.");
-    payload = { text, proof: [] };
-  } else {
-    const wantsProof = request.proofImages && frames.length > 0;
-    const fix = await writeFixPrompt(
-      {
-        transcript,
-        context,
-        proof: wantsProof,
-        frames: frames.map((frame) => ({
-          id: frame.id,
-          tMs: frame.tMs,
-          imageUrl: dataUrl(frame.jpeg),
-          width: frame.width,
-          height: frame.height,
-          lines: frame.lines,
-        })),
-      },
-      client,
-    );
-    if (!fix.prompt) throw new Error("Muse Spark returned an empty result. Try again.");
-    const shots = wantsProof ? await refineShots(fix.shots, frames, client) : [];
-    proof = await renderProof(request.id, shots, frames, request.draw);
-    payload = { text: fix.prompt, proof };
+    return { text, shots: [] };
   }
+  const started = Date.now();
+  const fix = await writeFixPrompt(
+    { transcript, context, proof: wantsProof, frames: fixFrames },
+    client,
+  );
+  const thought = Date.now();
+  const shots = wantsProof ? await refineShots(fix.shots, frames, client) : [];
+  console.log(`[iVibe timing] fix: spark ${thought - started} ms, sam ${Date.now() - thought} ms`);
+  return { text: fix.prompt, shots };
+}
 
+export async function compose(
+  request: ComposeRequest,
+): Promise<{ result: RecordingResult; payload: Payload }> {
+  const { mode, destination, frames } = request;
+  const { target } = destination;
+  const context: WriterContext = { target, personal: request.personal };
+  const wantsProof = mode === "fix" && request.proofImages && frames.length > 0;
+
+  const started = Date.now();
+  const { text, shots } = await write(request, context, wantsProof);
+  if (!text) throw new Error("Muse Spark returned an empty result. Try again.");
+  const written = Date.now();
+  const proof = shots.length > 0 ? await renderProof(request.id, shots, frames, request.draw) : [];
+  const payload: Payload = { text, proof };
+
+  const drawn = Date.now();
   const outcome = await deliverPayload(payload, destination.window, target, request.autoPaste);
+  console.log(
+    `[iVibe timing] ${mode} (${request.access.kind}): write ${written - started} ms, ` +
+      `proof ${drawn - written} ms, paste ${Date.now() - drawn} ms`,
+  );
   return {
     result: {
       mode,

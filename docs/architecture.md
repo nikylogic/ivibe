@@ -49,7 +49,7 @@ Sections 0–3 hold the decisions and the big picture. Sections 4–15 are the b
 - **The agent runs where the key lives.** Meta's Model API terms forbid giving third parties access to the API, or reselling it through gateways or proxies, except to End Users of your own product. So Cloud is an application endpoint ("analyze this bundle"), never a model proxy.
 - **Privacy is enforced by types, on every client.** The desktop app and the browser recorder both OCR and redact every frame before anything is encoded or uploaded. Only a `RedactedFrame` can be encoded, bundled or uploaded, and only the redaction module can create one. Redaction uses opaque boxes, not blur.
 - **Frame IDs are the citation currency.** The agent cites frame, OCR-line and narration-turn IDs. The verifier drops claims that don't resolve, and error text is copied from OCR by line ID, never typed by the model.
-- **Meta models:** Muse Voice Transcribe (narration), Muse Spark 1.3 (agent, BYOK and Cloud), Muse Spark Open on Baseten (Cloud open-weight engine), SAM 3.1 (proof highlights), Muse Wonder (opt-in Deep mode). `-contributor` models are blocked in code.
+- **Meta models:** Muse Voice Transcribe (narration), Muse Spark 1.3 (agent, BYOK and Cloud), Muse Spark Open on Baseten (Cloud open-weight engine), SAM 3.1 (proof highlights), Muse Wonder (opt-in Deep mode). `-contributor` models are blocked in code, except `muse-spark-1.3-contributor` for Cloud free-trial runs (D25).
 - **Cloud on Cloudflare.**
   - One Worker serves both the web app and the API.
   - Better Auth handles GitHub, Google and email-code sign-in, for the web and for the desktop (system browser plus a deep link back to the app).
@@ -109,6 +109,13 @@ Sections 0–3 hold the decisions and the big picture. Sections 4–15 are the b
 | D21 | **Layered prompts, measured.** Every model call is built from core rules (fixed) → vibe instructions → destination style → the user's personal settings and dictionary → the inputs as marked-up data. Prompts live as Markdown files, and `pnpm eval` scores every change on fixed cases before it ships. Details: [vibes-and-prompts.md](vibes-and-prompts.md) §4 | One prompt per mode stops scaling once users write their own; prompt changes need evidence, not taste | Hard-coded prompt strings per mode |
 | D22 | **Vibes: user-made modes with a tool checklist.** A vibe is one Markdown file that ticks the tools it needs (voice, screenshots, screen text, video, selection, clipboard, app context, AI writer, highlights, image generation or editing) and its outputs (paste, show in the pill, copy, file, link, webhook). The runner builds the pipeline from the ticks and enforces them. Fix, Prompt and Dictate become built-in vibes. No code runs inside iVibe. Details: [vibes-and-prompts.md](vibes-and-prompts.md) | Full freedom of use case without giving shared code access to the screen and keyboard; the checklist makes cost and data use visible before a vibe runs | JavaScript plugins (a shared plugin could be a keylogger); fixed modes only |
 | D23 | **Community plugins (after the hackathon).** Developers ship code that adds tools, UI (app pages, pill panels, result renderers, settings) and vibes, installed from a signed marketplace at ivibe.tech/plugins. Each plugin runs sandboxed: logic in an isolated process and UI in sandboxed frames, reaching recordings (redacted only), the network (declared domains), models (through a broker with a spending cap) and paste only through a permission-checked broker. The SDK is MIT; paid plugins sell through Dodo. Details: [vibes-and-prompts.md](vibes-and-prompts.md) §8 | Lets the community extend iVibe beyond what vibes can express, without trusting plugin code with the screen, keys or keyboard | Unsandboxed Node plugins (as in many Electron apps); vibes only |
+| D24 | **Free trial for everyone, metered in dollars (Oct 28).** No judge codes or `/judges`: every GitHub account gets 50 credits (1 credit = 1 cent of Meta usage, so $0.50), granted on its first Cloud call rather than at sign-in; the device is the one bound to the session at sign-in and the network is the caller's IP as Cloudflare sees it. A first-launch welcome screen offers Cloud or the user's own key as equal choices, and either can be skipped. The Worker reserves the most a call can cost, then charges what Meta's `usage` says it cost; D1 CHECK constraints keep every balance ≥ 0 and the day's total under a global cap ($7). At most 2 trials per computer (hashed hardware ID), 2 per network per day, none for GitHub accounts under 14 days old. One Worker serves `api.ivibe.tech` (`/v1/transcribe`, `/v1/compose`, `/v1/me`) and `auth.ivibe.tech` (GitHub sign-in); billing webhooks will live under `api.ivibe.tech/v1/billing`. The API stays iVibe-shaped, never a model proxy (§2.4). A saved BYOK key is used before Cloud credits | Judges and the public get the same path, and the $150 of Meta credits can't be overspent by any one user or day | Judge codes (§9): a separate flow to build and explain |
+| D25 | **Free-trial runs use `muse-spark-1.3-contributor` (Oct 28).** Accounts that have only ever had the free trial (no paid or manual grant in the ledger) write Dictate, Prompt and Fix text with the contributor variant of Spark, which third-party listings price at about $0.10/$0.20 per million tokens against $1.25/$4.25. Meta may use contributor requests, including a Fix run's redacted keyframes, to improve its models, so the welcome screen and Settings say so wherever the trial is offered. BYOK and paid runs keep `muse-spark-1.3`. The engine allows the model only when the Worker passes `trial: true`; the desktop never does. Trial runs are metered at the standard rate (D1 `price_trial_*`) until Meta's console confirms the contributor price. Spike S20: same output quality; Dictate about 3 s vs 2 s and Fix about 23–32 s vs 13–14 s | Stretches the $150 of Meta credits roughly 10–20x across trial users, while people who bring a key or pay keep the no-training promise | Standard model for everyone (cost); contributor for everyone (breaks the BYOK and paid privacy promise) |
+| D26 | **iVibe Pro: one monthly subscription (Oct 28).** $8/month through Dodo Payments; each successful payment **resets** the wallet the trial uses to 400 credits ($4 of Meta usage, a 2x markup that covers Dodo's fee, Workers Paid and price changes): nothing rolls over (Oct 28 change; unlimited roll-over would let balances pile up), trial leftovers go at the first payment, and when the plan ends (cancelled or expired, not a card retry) the balance goes to zero. Credits a run in progress holds are kept through a reset, and each reset is an `adjust` ledger row, so the ledger still adds up to the balance. Pro runs use the standard models (no contributor, D25) and skip the free daily pool, so a busy trial day never blocks a paying user. `POST /v1/billing/checkout` (the portal instead if already subscribed), `POST /v1/billing/portal`, `GET /v1/billing/return`, and `POST /v1/billing/webhook` (Standard Webhooks signature, deduplicated by `webhook-id`, credits idempotent by `payment_id`, subscription state ordered by event time). Checkout stays off until `DODO_API_KEY` is set and `plan_product_id` is filled in D1; price, credits and label are D1 settings. Refunds and disputes are logged for manual handling. Replaces the plan table in §7 and SKUs in §6.6 | Recurring revenue with the least billing surface before Nov 4; the ledger stays the only balance (D9) | Top-up packs (simpler, no recurring revenue); packs and subscription together (more to test) |
+| D27 | **Languages in Settings → System (Oct 28).** "Languages you speak": automatic detection by default (verified on real Hindi and Spanish speech, S23), or up to 3 of Voice Transcribe's 25 documented languages, sent as `languageBias` by their documented names from one list (`packages/engine/src/languages.ts`); the API accepts any string without an error (S21), so nothing else is ever sent. "Write results in": English (default), the language spoken, or any of the 25, as one rule at the end of every mode's task, naming the variant and script (S22). Both live in `Personal`, so Cloud runs get them in `context.personal`; captions pass `?languages=` to `POST /v1/transcribe` (empty or absent for detection). Replaces "Dictate in English" | Users speak and write in more than English and Hinglish; a wrong bias name would fail silently | Free-text language field (unvalidated, fails silently); per-mode output languages (more settings for little gain) |
+| D28 | **End-to-end encrypted backups for Pro (built Oct 28).** History and settings live in a local SQLite database (`node:sqlite`, built into Electron 45's Node 24). Pro users can turn on scheduled backups (daily, weekly or monthly) to R2, end-to-end encrypted with a 256-bit key that only their devices hold, shown once as a 64-character recovery key (WhatsApp's key option). Screenshots are re-encoded to WebP quality 90 for the backup copy only (430 KB → 64 KB measured) and text is Brotli-compressed, before encryption; uploads are incremental. A hidden 500 MB safety cap per user; the 200-result history keeps a full backup under ~40 MB, so no limit is shown. When Pro ends, backups stop, restore and export stay open for 90 days with in-app notices, then everything is deleted. Details in §6.10 | Users can move to a new computer without losing history, and iVibe can say it can't read backups; open source lets anyone verify the encryption happens on the device | Server-held key restorable by signing in (iVibe could read backups; open source can't prove the deployed server doesn't); backups for every signed-in user (cost and abuse without revenue) |
+| D29 | **Recording pill and who pays for a run (Oct 28).** Two pill styles in Settings → General: **Compact** (default; a waveform-only capsule that shows Cancel, the time, Stop and where the result goes on hover, grows only for something to act on, and closes the moment the result lands) and **Full** (live captions). The pill window is made at launch and kept hidden between recordings, so it shows ~5 ms after the shortcut. Esc cancels while recording (taken only then). Optional start/stop sounds (Web Audio, on by default). The pill remembers where it was dragged, per display. With both an iVibe Cloud account and a Meta key, Settings → Meta API key picks which runs first (default: Pro first, otherwise the key) and whether the other takes over when the first is refused (credits used up, key rejected); `main/access.ts` | A quiet, instant pill is what people see most; paying users should spend what they paid for, with a choice | One pill style; key always first |
+| D30 | **Dictate: cleanup switch, longer limit, edit selected text, Retry (Oct 28).** "Clean up with AI" (on by default) can be turned off to paste the transcript as heard: no Muse Spark call, about 1.2 s after stopping instead of about 4 s. Dictate records up to 5 minutes (Fix and Prompt stay at 60 s). With text selected in the app in front (read through UI Automation / AXSelectedText / the X11 PRIMARY selection, never by sending Ctrl+C, which would interrupt terminals), what you say edits it ("make this more formal") or replaces it; secrets in the selection are swapped for `[[secret-N]]` placeholders before anything is sent and put back on the device. Not in terminals, where a paste doesn't replace. A failed write keeps the transcript, each sentence's audio and the frames, so **Retry** writes again (re-sending failed captions) without recording again | Speed, cost and the moments that lose work matter more than new modes | Sending Ctrl+C to copy the selection; a Clean-as-you-speak pipeline (worse results) |
 | D17 | The whole repo is AGPL-3.0, with commercial licenses sold separately; outside contributions need a signed CLA (§12.1) | Open source for judges and users (OSI-approved, so SignPath still applies). Companies that want to modify or embed the code privately, or whose policy bans AGPL, buy a commercial license or use the Cloud. A CLA keeps us able to dual-license | Apache-2.0 or MIT (anyone could resell the Cloud code); BSL or Commons Clause (not open source); DCO only (no right to relicense contributions) |
 
 ### 1.3 What changes from the product plan
@@ -159,7 +166,7 @@ Read on Oct 27, 2026 from the sources in [Appendix E](#appendix-e-sources).
 |---|---|---|
 | Endpoint and auth | `https://api.meta.ai/v1`, `Authorization: Bearer <key>`. Keys start with `LLM_`. Works with OpenAI-compatible clients; offers Responses, Chat Completions and Messages protocols | One `fetch`-based client in `packages/engine`; `LLM_` keys added to the secret scanner |
 | Agent model | `muse-spark-1.3`: text, image, video, audio and PDF in; 1M-token context; supports `max` effort; audio support is "not full" | Narration goes to Voice Transcribe, not into the agent |
-| Contributor variants | `-contributor` IDs may be used to train Meta models | Blocked by an allowlist (§5.3) |
+| Contributor variants | `-contributor` IDs may be used to train Meta models | Blocked by an allowlist (§5.3); the one exception is Cloud free-trial text, disclosed in the app (D25) |
 | Prices per 1M tokens | Spark: $1.25 input, $0.15 cached, $4.25 output. Wonder: $4.00 / $0.20 / $20.00 | Cost model in §5.10 |
 | Other prices | Voice Transcribe $0.18 per hour (billed in whole seconds). SAM 3.1 $2.50 per 1,000 images and $0.20 per 1,000 video frames (at least 50 frames per video request) | |
 | Rate limits (per team) | Spark 3,000 RPM and 4M TPM; SAM 3,000 RPM; Voice 256 concurrent streams. Honor `Retry-After` on 429 | Plenty for judging. BYOK users spend their own team's limits |
@@ -170,7 +177,7 @@ Read on Oct 27, 2026 from the sources in [Appendix E](#appendix-e-sources).
 | Structured output | Responses `text.format` or Chat `response_format` with a JSON Schema. Strict subset: object root, `additionalProperties: false`, every key required, no recursion, depth ≤ 10 | The report schema is written to the strict subset |
 | Reasoning | `reasoning.effort` from `minimal` to `max`; reasoning tokens are billed as output. Responses keeps reasoning through `previous_response_id`, or statelessly with `include: ["reasoning.encrypted_content"]`. Chat Completions starts reasoning fresh every turn for external keys | Decision D8 |
 | Prompt caching | Automatic prefix caching; optional `prompt_cache_key`; `prompt_cache_retention: "24h"` is a hint; reported in `usage.input_tokens_details.cached_tokens` | Static content goes first in every request |
-| Voice Transcribe | `POST /v1/asr/transcribe`, multipart `request` (JSON) plus `audio` (WAV, mono, 16-bit PCM, 16 or 24 kHz), up to 32 MB and 10 min. 25 languages including Hindi, with code-switching; `languageBias` and `keywords` hints. Turn timestamps (`startMs`, `endMs`) only in `ENDPOINTING` or `DIARIZATION` mode; no word timestamps. Realtime WebSocket at `wss://api.meta.ai/v1/asr/realtime` | Use `ENDPOINTING`, `languageBias: ["English", "Hindi"]` and keywords taken from OCR |
+| Voice Transcribe | `POST /v1/asr/transcribe`, multipart `request` (JSON) plus `audio` (WAV, mono, 16-bit PCM, 16 or 24 kHz), up to 32 MB and 10 min. 25 languages including Hindi, with code-switching; `languageBias` and `keywords` hints. Turn timestamps (`startMs`, `endMs`) only in `ENDPOINTING` or `DIARIZATION` mode; no word timestamps. Realtime WebSocket at `wss://api.meta.ai/v1/asr/realtime` | Use `ENDPOINTING`, `languageBias` from Settings → System (omitted by default for automatic detection, D27) and keywords taken from OCR |
 | SAM 3.1 | `POST /v1/responses` with model `sam-3.1`. Concept prompt = a short noun phrase (no spatial words, lists or negation), or box/point prompts for up to 16 objects using the media's `w` and `h`. Output is text records like `<0f>0<\|box;x1=…\|><\|mask;…\|>`. Video must be MP4 or MOV (WebM is rejected) | The agent proposes a box and SAM refines it (§5.7). The model page says `sam-3-1` and the API docs say `sam-3.1`: **Spike S10** |
 | Key handling advice | Keep keys out of client code and proxy through your own server | Our keys stay in Worker secrets; a BYOK key stays in the desktop's main and engine processes, never in a renderer |
 
@@ -797,7 +804,7 @@ export interface EngineDeps {
 | `MetaSam` | `sam-3.1` via `/v1/responses`, with a TypeScript parser for the `<0f>…<\|box;…\|>` record format |
 | `FakeEngine` | Scripted responses for deterministic tests |
 
-**Model allowlist.** Any model ID not on the list, including every `-contributor` ID, is refused with an error in every build, and a unit test fails CI if the allowlist ever changes.
+**Model allowlist.** Any model ID not on the list, including every `-contributor` ID, is refused with an error in every build, and a unit test fails CI if the allowlist ever changes. The one exception is `TRIAL_TEXT_MODEL` (`muse-spark-1.3-contributor`), which the engine accepts only when the caller sets `trial: true`. Only the Cloud Worker does, for trial-only accounts (D25), and a test checks that the model is refused without it.
 
 ```ts
 export const ALLOWED_MODELS = [
@@ -1511,9 +1518,68 @@ Redeeming a promo code is one batch with six statements:
 
 The primary key on `promo_redemptions` and the `redeemed` CHECK stop double use and over-redemption. Expiry is checked before the batch runs.
 
+### 6.10 End-to-end encrypted backups (Pro)
+
+Status: built Oct 28 (D28): `apps/desktop/src/main/{db,backup,backup-crypto,image-codec}.ts`, `apps/api/src/backup.ts`, migration `0006_backups.sql`. Open items are marked.
+
+**Local database.** History, screenshots and settings move from `history.json`, `proof/` and `settings.json` into `userData/ivibe.db` (`node:sqlite`). Existing files are migrated once at first launch and renamed to `*.migrated`, so nothing is lost if the migration has to be redone. Screenshots stay as PNG files in `proof/`. The Meta key stays in `safeStorage`; sign-in sessions stay where they are.
+
+**What is backed up.** History (results, metadata, screenshots) and settings (personal context, words, shortcuts, languages, appearance). Not the Meta API key, sessions or caches.
+
+**Keys (end-to-end only).**
+- On setup the desktop creates a random 256-bit backup key and shows it once as a 64-character recovery key in groups of four. The user copies it or saves it to a file, then retypes the last four characters before backups start.
+- The key is also kept in the OS keychain (`safeStorage`), so scheduled backups and restores on the same computer never ask for it.
+- The server never receives the key. It stores a key-check value (HMAC of a fixed label), so a wrong recovery key fails fast without revealing anything.
+- Lost key: "Start over" deletes the old backup and creates a new key. Nobody, including iVibe, can open the old one.
+- Later: approving a new computer from a signed-in one, so the recovery key is only needed when every device is gone.
+
+**Compression, then encryption.**
+- Screenshots: the backup copy is re-encoded with Chromium to WebP quality 90. Measured on real proof screenshots: 430 KB PNG → 64 KB, with small editor text still crisp (lossless WebP was 220 KB; quality 80 softened small text). Local screenshots stay PNG.
+- Snapshot: the History rows and the restorable settings as one JSON document (screenshots referenced by object name), then Brotli. JSON rather than a database file keeps restores independent of the local schema version.
+- Each object is then encrypted with AES-256-GCM (Node `crypto`), with a fresh random nonce and the object's name as associated data, so objects can't be swapped.
+
+**Incremental upload.**
+- Each screenshot is uploaded once, as its own object under a random name. Each backup uploads one encrypted database snapshot plus screenshots added since the last one.
+- R2 keeps the latest two snapshots. Screenshots referenced by neither are deleted.
+- Two computers: a computer that has never restored or backed up refuses to overwrite an existing backup ("Restore your backup first"), so its upload and clean-up can't delete the other computer's screenshots. "Back up this computer instead" overrides it.
+- Expected size: about 13 MB for a typical user, about 39 MB at most with a full 200-result history of Fix results; later backups are usually a few hundred KB.
+
+**Limits.**
+- 500 MB per user, enforced by the Worker and never shown in the app; normal use can't reach it while History keeps 200 results.
+- At most 25 MB per object and six snapshots a day (scheduled and manual together).
+- Uploads need an active Pro plan (or one whose renewal is being retried).
+
+**Schedule.** Off, daily, weekly (pre-selected when turned on) or monthly. The desktop checks at launch and hourly; a backup missed while iVibe was closed runs at the next launch. Settings → iVibe Cloud → Backup shows "Last backed up: <time> · <size>" and "Back up now".
+
+**When Pro ends: 90 days, then deletion.**
+
+| Plan state | Backups | Restore and export | Delete |
+|---|---|---|---|
+| Active, or a renewal being retried | Run on schedule | Yes | Yes |
+| Ended (cancelled or expired) | Stop | Yes, for 90 days | Yes |
+| 90 days after the plan ended | Everything is deleted permanently | No | — |
+| Pro again within the 90 days | Resume; nothing lost | Yes | Yes |
+
+- When the plan is no longer active, the Worker sets `delete_after` = the subscription's last change (when it ended) + 90 days, on the next `GET /v1/backup` or cron run; resubscribing clears it. The existing daily cron deletes the R2 objects and D1 rows once `delete_after` has passed.
+- **In-app notices** (desktop, from `GET /v1/backup`): a banner on Settings → iVibe Cloud → Backup for the whole period ("Your backup will be deleted on <date>. Renew Pro, or download it to this computer."), plus a notice on the Record page at 30, 7 and 1 day(s) left, dismissable once each.
+- **Export within the 90 days:** "Download my data" fetches and decrypts the backup on the device with the recovery key, and saves it to a folder the user picks: `history.md` (every result, newest first), `history.json`, `settings.json` and `screenshots/` (WebP). It needs no new dependencies. "Restore to this computer" imports the same data into the local database instead.
+- **Email reminders (future):** at 30, 7 and 1 day(s) before deletion. This needs the user's email (GitHub `user:email` scope, or an address entered in Settings) and an email provider; neither exists yet. Notices stay in-app until then.
+- "Delete backup" and account deletion remove everything immediately, at any time.
+
+**Server.**
+- R2 bucket `ivibe-backups`, objects under `users/<user id>/`; names are random, so the server sees only counts, sizes and times.
+- D1 `backups` (user, bytes used, last backup, key-check value, `delete_after`) and `backup_objects` (user, name, size, created).
+- `GET /v1/backup` (status and deletion date), `POST /v1/backup` (set up, with the key check; Pro only), `PUT` / `GET` / `DELETE /v1/backup/objects/<name>`, `DELETE /v1/backup`.
+
+**Tested.** `--ivibe-backup-test` (`apps/desktop/src/main/backup-selftest.ts`) runs the whole cycle against `wrangler dev` with local D1 and R2: setup and the key check, incremental uploads, a new-computer restore with the recovery key (text, screenshots and settings), wrong keys, the replace guard, export and delete. Oct 28: 28/28 checks passed. The UI snapshot test signs in with `IVIBE_TEST_TOKEN` to capture the setup and manage screens.
+
+**Open items.** The privacy page text for the 90-day rule; approving a new computer from a signed-in one; email reminders.
+
 ---
 
 ## 7. Pricing and plans
+
+> **Superseded by D24–D26.** Credits are now cents of Meta usage, the trial is 50 credits, and the one paid plan is iVibe Pro ($8/month, 400 credits). The tables below are the original proposal.
 
 Starting proposal, to be recalibrated with the costs measured in P0 and P6. All prices live in server config.
 
@@ -1702,9 +1768,10 @@ Judges must be able to test everything without a Meta key, without installing an
 | Responses at Meta | — | Not stored (`store: false`) |
 | Presigned URLs for Baseten | R2 | Valid 10 min |
 | Usage and billing records | D1 | Life of the account plus what tax and accounting law requires; invoices are kept by Dodo |
+| Encrypted backups (Pro, §6.10) | R2 `ivibe-backups` | While Pro is active, then 90 days after it ends; deleted at once on request |
 | Server logs | Workers Logs | A few days; no OCR text, transcripts or images |
 
-All model calls use standard (non-contributor) models, whose content Meta says is not used for training.
+BYOK and paid Cloud calls use standard (non-contributor) models, whose content Meta says is not used for training. Free-trial Cloud runs write text with `muse-spark-1.3-contributor`, which Meta may use to improve its models; the app says so where the trial is offered, and adding your own key opts out (D25).
 
 ### 10.3 Compliance basics
 

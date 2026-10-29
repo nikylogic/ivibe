@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { AppLanguage } from "./languages.ts";
 import type { Personal } from "@ivibe/engine";
 import type { ShortcutMap } from "./shortcuts.ts";
 
@@ -18,8 +19,25 @@ export type RecordingPhase =
  */
 export type OutputMode = "fix" | "prompt" | "dictate";
 
+export type Appearance = "system" | "light" | "dark";
+
+export type BackupFrequency = "off" | "daily" | "weekly" | "monthly";
+
+/** The recording pill: a small waveform-only capsule, or the card with live captions. */
+export type PillStyle = "compact" | "full";
+
+/**
+ * For someone with both an iVibe Cloud account and their own Meta key: which runs a recording.
+ * "auto" is Cloud first on Pro (it is paid for) and the key first otherwise (it saves credits).
+ */
+export type RunOn = "auto" | "cloud" | "key";
+
 export interface Settings {
   mode: OutputMode;
+  /** Light or dark, or follow the system. */
+  appearance: Appearance;
+  /** The interface language (shared/languages.ts). */
+  language: AppLanguage;
   /** Paste into the app that had focus; when off, results are only copied. */
   autoPaste: boolean;
   /** Fix mode: attach redacted screenshots as proof. */
@@ -34,6 +52,24 @@ export interface Settings {
   shortcuts: ShortcutMap;
   /** Keep finished results on this device, in History. */
   keepHistory: boolean;
+  /** How often History and settings are backed up to iVibe Cloud, end-to-end encrypted (Pro). */
+  backupFrequency: BackupFrequency;
+  /** The welcome screen was finished or skipped; it shows once. */
+  welcomed: boolean;
+  /** Dictate: Muse Spark tidies the words (fillers, self-corrections); off pastes them as heard. */
+  dictateCleanup: boolean;
+  /** Dictate with text selected: what you say edits it ("make this formal") or replaces it. */
+  editSelection: boolean;
+  /** How the recording pill looks. */
+  pill: PillStyle;
+  /** A soft sound when recording starts and stops. */
+  sounds: boolean;
+  /** Where the pill was dragged to, per display: an offset from its usual spot. */
+  pillOffsets: Record<string, { dx: number; dy: number }>;
+  /** With both a Cloud account and a key: which one a recording runs on first. */
+  runOn: RunOn;
+  /** When the first one can't run (no credits left, key refused), use the other. */
+  runFallback: boolean;
 }
 
 /** A finished result kept in History (main/history.ts). Stored on this device only. */
@@ -116,7 +152,7 @@ export interface TranscriptSegment {
   text: string;
 }
 
-/** Whether live captions run: they need the user's Meta key, since audio goes to Meta. */
+/** Whether live captions run: they need a Cloud account or the user's Meta key. */
 export type CaptionsMode = "on" | "no-key";
 
 export interface RecordingStatus {
@@ -130,6 +166,16 @@ export interface RecordingStatus {
   transcript?: TranscriptSegment[];
   /** The mode this recording runs in, fixed when it starts. */
   mode?: OutputMode;
+  /** How the pill looks for this recording, fixed when it starts. */
+  pill?: PillStyle;
+  /** Dictate found selected text: the result will replace it. */
+  editing?: boolean;
+  /** The microphone being recorded, as the system names it. */
+  microphone?: string;
+  /** The error came after recording; Retry writes the result again from what was recorded. */
+  canRetry?: boolean;
+  /** Start and stop sounds, from Settings. */
+  sounds?: boolean;
   /** The app the result will go to, detected when recording starts. */
   targetName?: string;
   result?: RecordingResult;
@@ -167,7 +213,11 @@ export interface EvidenceLine {
 }
 
 /** Short-lived notes for the recording pill. */
-export type RecordingFeedback = { type: "secret"; label: string } | { type: "blackout" };
+export type RecordingFeedback =
+  | { type: "secret"; label: string }
+  | { type: "blackout" }
+  /** The first way to reach Meta was refused, so this recording carries on with the other. */
+  | { type: "fallback"; to: "cloud" | "key" };
 
 export interface ByokStatus {
   hasKey: boolean;
@@ -175,6 +225,76 @@ export interface ByokStatus {
   hint?: string;
   /** False on Linux without a keyring: the key would be stored in plain text. */
   encryptionAvailable: boolean;
+}
+
+/** iVibe Cloud account, as the UI sees it (never the token). */
+export interface CloudStatus {
+  signedIn: boolean;
+  /** GitHub login. */
+  login?: string;
+  /** GitHub display name, when the profile has one. */
+  name?: string;
+  /** The sidebar badge, decided by the server: pro | trial | free. */
+  tier?: "pro" | "trial" | "free";
+  /** 1 credit = 1 cent of Meta usage. */
+  credits?: number;
+  /**
+   * The free trial: "available" (starts with the first Cloud recording), "granted", or why it
+   * was refused ("device_limit", "network_limit", "account_too_new").
+   */
+  trial?: string;
+  /** Credits the free trial gives. */
+  trialCredits?: number;
+  /** Waiting for the browser to come back from GitHub. */
+  pending?: boolean;
+  /** About the last sign-in: the free trial, or why it failed. */
+  message?: string;
+  /** iVibe Pro: the latest subscription, or null if there never was one. */
+  plan?: CloudPlan | null;
+  /** What Pro costs and gives; `available` is false until checkout is switched on. */
+  planOffer?: { available: boolean; price: string; credits: number };
+}
+
+/** Settings → iVibe Cloud → Backup (main/backup.ts): end-to-end encrypted backups for iVibe Pro. */
+export interface BackupStatus {
+  signedIn: boolean;
+  pro: boolean;
+  /** A backup exists in iVibe Cloud. */
+  setUp: boolean;
+  /** This computer holds the key for it (in the OS keychain). */
+  keyOnDevice: boolean;
+  /** Epoch ms of the latest backup, or null. */
+  lastBackupAt: number | null;
+  /** Size of the backup in iVibe Cloud. */
+  bytes: number;
+  /** Set once Pro has ended: when the backup will be deleted (epoch ms). */
+  deleteAfter: number | null;
+  /** A backup, restore or download is running. */
+  busy: "backup" | "restore" | "export" | null;
+  /** The last thing that went wrong, in words for the user. */
+  error: string | null;
+  /** Couldn't reach iVibe Cloud for the status. */
+  offline: boolean;
+}
+
+/** Billing → Usage: credits left and where the current period's credits went. */
+export interface CloudUsage {
+  available: number;
+  /** Reserved by a run in progress. */
+  held: number;
+  /** Since the last Pro renewal ("billing") or the last 30 days ("30d"). */
+  period: { from: string; kind: "billing" | "30d" };
+  spent: number;
+  added: number;
+  byKind: { kind: string; runs: number; credits: number }[];
+  recent: { kind: string; credits: number; at: string }[];
+}
+
+export interface CloudPlan {
+  /** Dodo's state: active | on_hold | past_due | cancelled | expired | failed | … */
+  status: string;
+  renewsAt: string | null;
+  cancelAtPeriodEnd: boolean;
 }
 
 export interface AppInfo {
@@ -199,7 +319,7 @@ export interface ShortcutKey {
 
 /** Commands from the recorder window to main. */
 export type RecorderEvent =
-  | { type: "started"; width: number; height: number }
+  | { type: "started"; width: number; height: number; microphone?: string }
   | { type: "level"; rms: number }
   /** A finished sentence of narration as 16 kHz WAV, for live captions. Audio only, never frames. */
   | { type: "utterance"; startMs: number; endMs: number; wav: Uint8Array }
@@ -221,10 +341,16 @@ export const Channels = {
   recordingStart: "recording.start",
   recordingStop: "recording.stop",
   recordingCancel: "recording.cancel",
+  recordingRetry: "recording.retry",
   recordingGet: "recording.get",
   byokSet: "byok.set",
   byokClear: "byok.clear",
   byokStatus: "byok.status",
+  cloudStatus: "cloud.status",
+  cloudSignIn: "cloud.sign-in",
+  cloudSignOut: "cloud.sign-out",
+  cloudBilling: "cloud.billing",
+  cloudUsage: "cloud.usage",
   appInfo: "app.info",
   settingsGet: "settings.get",
   settingsSet: "settings.set",
@@ -241,6 +367,21 @@ export const Channels = {
   historyClear: "history.clear",
   /** Lets the UI hear the current shortcuts while the user records a new one. */
   shortcutsPause: "shortcuts.pause",
+  backupStatus: "backup.status",
+  /** Makes a new key and returns the recovery key to show; nothing is uploaded yet. */
+  backupBegin: "backup.begin",
+  /** The user retyped part of the recovery key: turns backup on and runs the first one. */
+  backupConfirm: "backup.confirm",
+  backupNow: "backup.now",
+  /** Connects this computer to an existing backup with its recovery key. */
+  backupConnect: "backup.connect",
+  backupRestore: "backup.restore",
+  /** Saves the backup, decrypted, to a folder the user picks. */
+  backupExport: "backup.export",
+  backupReveal: "backup.reveal",
+  /** Saves the recovery key to a text file the user picks. */
+  backupSaveKey: "backup.save-key",
+  backupDelete: "backup.delete",
   // HUD → main
   hudInteractive: "hud.interactive",
   hudOpenApp: "hud.open-app",
@@ -254,6 +395,8 @@ export const Channels = {
   shortcutsChanged: "shortcuts.changed",
   shortcutsKey: "shortcuts.key",
   historyChanged: "history.changed",
+  cloudChanged: "cloud.changed",
+  backupChanged: "backup.changed",
   // recorder ↔ main
   recorderCommand: "recorder.command",
   recorderEvent: "recorder.event",

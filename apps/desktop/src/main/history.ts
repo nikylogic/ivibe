@@ -1,22 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { app, nativeImage } from "electron";
 import type { HistoryDetail, HistoryEntry } from "../shared/ipc.ts";
 import type { Payload } from "./compose.ts";
+import { database, inTransaction } from "./db.ts";
 
 /**
- * Finished results, kept on this device so they can be read, copied and pasted again. The text is
- * what was pasted (already redacted); the screenshots stay where compose saved them,
- * userData/proof/<id>. Nothing here is uploaded.
+ * Finished results, kept on this device so they can be read, copied and pasted again. Rows live
+ * in the local database (main/db.ts); the text is what was pasted (already redacted) and the
+ * screenshots stay where compose saved them, userData/proof/<id>. Only an end-to-end encrypted
+ * backup, if the user turns it on, ever leaves the device (main/backup.ts).
  */
 
-const MAX_ENTRIES = 200;
+export const MAX_ENTRIES = 200;
 const PREVIEW_WIDTH = 640;
 
-const file = () => join(app.getPath("userData"), "history.json");
-const proofFolder = (id: string) => join(app.getPath("userData"), "proof", id);
+export const proofFolder = (id: string) => join(app.getPath("userData"), "proof", id);
 
 let cached: HistoryEntry[] | null = null;
 
@@ -32,32 +33,43 @@ function isEntry(value: unknown): value is HistoryEntry {
 
 export function listHistory(): HistoryEntry[] {
   if (cached) return cached;
-  try {
-    const stored: unknown = JSON.parse(readFileSync(file(), "utf8"));
-    cached = Array.isArray(stored) ? stored.filter(isEntry) : [];
-  } catch {
-    cached = [];
-  }
+  const rows = database().prepare("SELECT json FROM history ORDER BY created_at DESC").all() as {
+    json: string;
+  }[];
+  cached = rows.flatMap((row) => {
+    try {
+      const entry: unknown = JSON.parse(row.json);
+      return isEntry(entry) ? [entry] : [];
+    } catch {
+      return [];
+    }
+  });
   return cached;
-}
-
-function save(entries: HistoryEntry[]): void {
-  // Written beside the real file and renamed, so a crash never leaves half a history.
-  const temp = `${file()}.tmp`;
-  writeFileSync(temp, JSON.stringify(entries));
-  renameSync(temp, file());
-  cached = entries;
 }
 
 function removeProof(entry: HistoryEntry): void {
   if (entry.proof.length > 0) rmSync(proofFolder(entry.id), { recursive: true, force: true });
 }
 
-/** Adds a result, newest first, dropping the oldest past the cap. */
-export function addHistory(entry: HistoryEntry): void {
-  const entries = [entry, ...listHistory().filter((other) => other.id !== entry.id)];
-  for (const dropped of entries.splice(MAX_ENTRIES)) removeProof(dropped);
-  save(entries);
+/** Adds results (newest first overall), dropping the oldest past the cap. */
+export function addHistory(...added: HistoryEntry[]): void {
+  const db = database();
+  const insert = db.prepare(
+    "INSERT INTO history (id, created_at, json) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET created_at = excluded.created_at, json = excluded.json",
+  );
+  inTransaction(db, () => {
+    for (const entry of added) insert.run(entry.id, entry.createdAt, JSON.stringify(entry));
+  });
+  cached = null;
+  const dropped = listHistory().slice(MAX_ENTRIES);
+  if (dropped.length > 0) {
+    const remove = db.prepare("DELETE FROM history WHERE id = ?");
+    inTransaction(db, () => {
+      for (const entry of dropped) remove.run(entry.id);
+    });
+    for (const entry of dropped) removeProof(entry);
+    cached = null;
+  }
 }
 
 export function getHistory(id: string): HistoryDetail | null {
@@ -86,14 +98,15 @@ export function historyPayload(entry: HistoryEntry): Payload {
 }
 
 export function deleteHistory(id: string): void {
-  const entries = listHistory();
-  const entry = entries.find((candidate) => candidate.id === id);
+  const entry = listHistory().find((candidate) => candidate.id === id);
   if (!entry) return;
   removeProof(entry);
-  save(entries.filter((candidate) => candidate !== entry));
+  database().prepare("DELETE FROM history WHERE id = ?").run(id);
+  cached = null;
 }
 
 export function clearHistory(): void {
   for (const entry of listHistory()) removeProof(entry);
-  save([]);
+  database().exec("DELETE FROM history");
+  cached = null;
 }

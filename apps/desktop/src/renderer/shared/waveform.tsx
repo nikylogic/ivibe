@@ -7,7 +7,7 @@ const styles = stylex.create({
   row: { display: "flex", alignItems: "center", flexShrink: 0 },
   bar: {
     borderRadius: 999,
-    transition: "height 110ms ease-out",
+    transition: "height var(--motion-micro) var(--motion-ease)",
   },
 });
 

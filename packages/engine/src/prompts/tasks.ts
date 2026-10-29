@@ -5,21 +5,38 @@
  * built-in mode. With Vibes these become the built-in vibes' bodies.
  */
 
-export function dictateTask(language: "keep" | "english"): string {
+import { languageRule } from "../languages.ts";
+import type { OutputLanguage } from "../languages.ts";
+
+export function dictateTask(language: OutputLanguage): string {
   return `Task: clean up dictated speech so it can be pasted as the user's own writing.
 - Remove filler words (um, uh, like, you know, basically, so yeah), false starts, stutters and repeated words.
 - Fix punctuation, capitalization and obvious transcription mistakes, especially names and technical terms.
 - When the speaker corrects themselves ("no wait, I mean…", "actually, make that…"), keep only the correction.
 - When they list things, format a short list. When they cover several topics, use paragraphs.
 - Keep their wording, tone and meaning. Do not summarize, formalize, answer or add anything.
-- ${
-    language === "english"
-      ? "Write in English. Translate Hindi or Hinglish parts faithfully."
-      : "Keep the language they spoke, including Hindi or Hinglish. Do not translate."
-  }`;
+- ${languageRule(language)}`;
 }
 
-export function promptTask(targetName: string): string {
+/**
+ * Dictate with text selected in the app in front: the speech is either an instruction about the
+ * selection or new words to put in its place.
+ */
+export function editTask(language: OutputLanguage): string {
+  return `Task: the user selected text in another app and then spoke. Your answer replaces the selection.
+
+First decide, without writing it down, what they want:
+- An instruction about the selected text ("make this more formal", "fix the grammar", "shorten it", "turn this into bullets", "translate to Hindi"): apply it to the text in <selection> and return the changed text.
+- New words meant to replace the selection (they simply dictated): return their words, cleaned up as dictation: no filler words, false starts or stutters, and only the final version of anything they corrected.
+
+How to write it:
+- Change only what the instruction asks for. Keep the meaning, facts, names, numbers, links, code and formatting (line breaks, lists, markdown) of everything else.
+- Keep the language of the selected text unless they ask for another one. For new words: ${languageRule(language).replace(/^./, (c) => c.toLowerCase())}
+- Placeholders such as [[secret-1]] stand for hidden values. Keep each one exactly as written, where it belongs.
+- Return only the replacement text.`;
+}
+
+export function promptTask(targetName: string, language: OutputLanguage): string {
   return `Task: turn what a developer said into a prompt they will paste into ${targetName}, so an AI agent can act on it without asking follow-up questions.
 
 First decide, without writing it down, what they want:
@@ -33,7 +50,7 @@ How to write it:
 - Apply their self-corrections and keep only the final decision. Drop filler and chatter.
 - Keep every concrete detail: names, values, file names, error text, and what they already tried.
 - Never invent requirements, files or causes. If they guessed a cause, keep it as their guess.
-- Write in English. Translate Hindi or Hinglish parts faithfully.
+- ${languageRule(language)}
 - Plain text with "-" bullets. No headings and no bold. Do not label the intent.
 
 Example. They said: "okay so on the settings page uh when I toggle dark mode it like flashes white for a second before going dark, it should just switch, I think it's the theme provider"
@@ -56,7 +73,7 @@ Add an export button to the reports table.
 - Use the existing Button component.`;
 }
 
-export function fixTask(targetName: string, proof: boolean): string {
+export function fixTask(targetName: string, proof: boolean, language: OutputLanguage): string {
   return `Task: you watch a short screen recording of a bug, with the developer's narration, and write the prompt they will paste into ${targetName} so the agent can fix it.
 You get redacted keyframes in time order (secrets are painted black), each with its size and its OCR lines (id: text), and the narration with timestamps.
 
@@ -67,6 +84,7 @@ Write "prompt":
 4. "Likely cause:" your best hypothesis and why, labelled as a hypothesis, with where to look first and how sure you are.
 5. A closing line asking the agent to find the root cause, fix it and say how it verified the fix.
 Plain text, short sections, "-" bullets. Do not mention screenshots; they are added after the prompt.
+${languageRule(language)}
 ${
   proof
     ? `Then choose "proof": 1 to 3 frames, in time order, that together prove the bug to someone who did not see the recording (typically the action, then the failure or error). For each frame:

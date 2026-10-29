@@ -3,6 +3,7 @@
 import { join } from "node:path";
 import { BrowserWindow, nativeTheme, screen, shell } from "electron";
 import type { Display } from "electron";
+import { windowIcon } from "./icons.ts";
 
 /**
  * The app's windows (docs/architecture.md §4.3): the main UI, the recording HUD and the hidden
@@ -46,6 +47,7 @@ export function createUiWindow(): BrowserWindow {
     minHeight: 560,
     show: false,
     title: "iVibe",
+    ...(windowIcon ? { icon: windowIcon } : {}),
     backgroundColor: canvas().color,
     // A frameless look: macOS keeps its traffic lights, Windows and Linux get overlay controls.
     titleBarStyle: "hidden",
@@ -99,13 +101,23 @@ export const HUD_SIZE = { width: 480, height: 200 };
 /** The pill grown into a result panel. */
 export const HUD_EXPANDED_SIZE = { width: 560, height: 640 };
 
-export function createHudWindow(display: Display): BrowserWindow {
+/** Bottom centre of the display, just above the taskbar or dock. */
+export function hudBounds(display: Display): Electron.Rectangle {
   const { x, y, width, height } = display.workArea;
-  const window = new BrowserWindow({
-    // Bottom centre, just above the taskbar or dock.
+  return {
     x: Math.round(x + (width - HUD_SIZE.width) / 2),
     y: y + height - HUD_SIZE.height - 8,
     ...HUD_SIZE,
+  };
+}
+
+/**
+ * Made once at launch and kept hidden between recordings, so the pill shows the moment a
+ * shortcut is pressed instead of after a page load.
+ */
+export function createHudWindow(display: Display): BrowserWindow {
+  const window = new BrowserWindow({
+    ...hudBounds(display),
     show: false,
     frame: false,
     transparent: true,
@@ -121,6 +133,10 @@ export function createHudWindow(display: Display): BrowserWindow {
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
+      // Keeps rendering while hidden, so showing it never flashes the last recording.
+      backgroundThrottling: false,
+      // The start and stop sounds play without a click in the pill.
+      autoplayPolicy: "no-user-gesture-required",
     },
   });
   window.setAlwaysOnTop(true, "screen-saver");

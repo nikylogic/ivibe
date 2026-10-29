@@ -6,7 +6,9 @@ import { IconButton } from "@astryxdesign/core/IconButton";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import {
   AlertCircle,
+  ArrowLeftRight,
   CheckCircle2,
+  RotateCcw,
   ChevronDown,
   ClipboardCheck,
   Copy,
@@ -24,8 +26,10 @@ import type {
 } from "../../shared/ipc.ts";
 import { withClass } from "../shared/shortcut.tsx";
 import { formatClock, mount } from "../shared/theme.tsx";
-import { asSentence } from "../shared/transcript.ts";
+import { asSentence } from "../../shared/transcript.ts";
 import { Waveform, useLevelHistory } from "../shared/waveform.tsx";
+import { CompactPill, SILENCE_HINT_MS } from "./compact.tsx";
+import { useChimes } from "./sounds.ts";
 
 declare global {
   interface Window {
@@ -33,8 +37,6 @@ declare global {
   }
 }
 
-/** No voice for this long at the start of a recording triggers a microphone hint. */
-const SILENCE_HINT_MS = 6000;
 const TOAST_MS = 2800;
 
 const ink = "#f2efe8";
@@ -68,7 +70,8 @@ const styles = stylex.create({
   card: {
     width: 420,
     transitionProperty: "width",
-    transitionDuration: "180ms",
+    transitionDuration: "var(--motion-layout)",
+    transitionTimingFunction: "var(--motion-ease)",
     display: "flex",
     flexDirection: "column",
     borderRadius: 22,
@@ -80,8 +83,8 @@ const styles = stylex.create({
     color: "#f2efe8",
     overflow: "hidden",
     animationName: "ivibe-rise",
-    animationDuration: "240ms",
-    animationTimingFunction: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+    animationDuration: "var(--motion-layout)",
+    animationTimingFunction: "var(--motion-ease)",
   },
 
   caption: {
@@ -136,6 +139,9 @@ const styles = stylex.create({
   status: { display: "flex", alignItems: "center", gap: 10, fontSize: 13, minWidth: 0 },
   statusText: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   open: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
     height: 30,
     paddingInline: 14,
     borderRadius: 999,
@@ -220,7 +226,8 @@ const styles = stylex.create({
     fontWeight: 500,
     boxShadow: "0 6px 18px rgba(0, 0, 0, 0.3)",
     animationName: "ivibe-rise",
-    animationDuration: "200ms",
+    animationDuration: "var(--motion-small)",
+    animationTimingFunction: "var(--motion-ease)",
   },
 });
 
@@ -260,7 +267,9 @@ function Caption({ status, heardVoice }: { status: RecordingStatus; heardVoice: 
   if (status.captions === "no-key") {
     return (
       <div {...stylex.props(styles.caption)}>
-        <span {...stylex.props(styles.hint)}>Live captions need your Meta key (Settings)</span>
+        <span {...stylex.props(styles.hint)}>
+          Live captions need iVibe Cloud or your Meta key (Settings)
+        </span>
       </div>
     );
   }
@@ -270,9 +279,11 @@ function Caption({ status, heardVoice }: { status: RecordingStatus; heardVoice: 
       <div {...stylex.props(styles.caption)}>
         <span {...stylex.props(silent ? styles.warn : styles.hint)}>
           {silent
-            ? "We can’t hear you. Pick your microphone in Settings."
+            ? `We can’t hear ${status.microphone || "your microphone"}. Pick another in Settings.`
             : isRecording || status.phase === "starting"
-              ? LISTENING_HINT[status.mode ?? "fix"]
+              ? status.editing
+                ? "Editing your selection. Say what to change, or dictate new text."
+                : LISTENING_HINT[status.mode ?? "fix"]
               : "No narration recorded."}
         </span>
       </div>
@@ -296,6 +307,16 @@ function Caption({ status, heardVoice }: { status: RecordingStatus; heardVoice: 
 }
 
 function Toast({ feedback }: { feedback: RecordingFeedback }) {
+  if (feedback.type === "fallback") {
+    return (
+      <div {...stylex.props(styles.toast)} role="status">
+        <ArrowLeftRight size={15} strokeWidth={2} />
+        {feedback.to === "key"
+          ? "Out of credits, so using your Meta key"
+          : "Your key was refused, so using your credits"}
+      </div>
+    );
+  }
   return (
     <div {...stylex.props(styles.toast)} role="status">
       <ShieldCheck size={15} strokeWidth={2} />
@@ -469,6 +490,11 @@ function Controls({
           <AlertCircle size={17} strokeWidth={2} color="#ff9c8a" />
           <span {...stylex.props(styles.statusText)}>{status.error ?? "Recording failed"}</span>
         </div>
+        {status.canRetry && (
+          <button {...stylex.props(styles.open)} onClick={() => void window.ivibeHud.retry()}>
+            <RotateCcw size={13} strokeWidth={2.25} /> Retry
+          </button>
+        )}
         <IconButton
           label="Dismiss"
           variant="ghost"
@@ -514,10 +540,16 @@ function Hud() {
   const [status, setStatus] = useState<RecordingStatus | null>(null);
   const toast = useFeedbackToast();
   const heardVoice = useHeardVoice(status?.phase === "recording");
+  useChimes(status?.phase, status?.sounds !== false);
 
   const [expanded, setExpanded] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   useEffect(() => window.ivibeHud.onState(setStatus), []);
+  // The window is hidden, not closed, between recordings: each one starts un-hovered.
+  useEffect(() => {
+    if (status?.phase === "starting") setHovered(false);
+  }, [status?.phase]);
 
   const result = status?.phase === "review" ? status.result : undefined;
   // A new recording (or no result) folds the panel away.
@@ -533,15 +565,35 @@ function Hud() {
 
   if (!status || status.phase === "idle") return null;
 
+  // Over the pill, the window stops passing clicks through (main/index.ts).
+  const hover = {
+    "data-pill": "",
+    onMouseEnter: () => {
+      setHovered(true);
+      window.ivibeHud.setInteractive(true);
+    },
+    onMouseLeave: () => {
+      setHovered(false);
+      window.ivibeHud.setInteractive(false);
+    },
+  };
+
+  if (status.pill === "compact") {
+    return (
+      <div {...stylex.props(styles.frame)}>
+        {toast && <Toast feedback={toast} />}
+        <div {...hover}>
+          <CompactPill status={status} heardVoice={heardVoice} hovered={hovered} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div {...stylex.props(styles.frame)}>
       {toast && <Toast feedback={toast} />}
       {/* The card drags the window; over it, the window stops passing clicks through. */}
-      <div
-        {...withClass("drag-region", styles.card, expanded && styles.cardExpanded)}
-        onMouseEnter={() => window.ivibeHud.setInteractive(true)}
-        onMouseLeave={() => window.ivibeHud.setInteractive(false)}
-      >
+      <div {...withClass("drag-region", styles.card, expanded && styles.cardExpanded)} {...hover}>
         {expanded && result ? (
           <ResultPanel result={result} onCollapse={toggle} />
         ) : (

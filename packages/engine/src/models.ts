@@ -15,6 +15,19 @@ export const ALLOWED_MODELS = [
 
 export type AllowedModel = (typeof ALLOWED_MODELS)[number];
 
+/**
+ * The one exception: iVibe Cloud's free trial writes text with the contributor variant of Spark,
+ * which costs a fraction of the standard model, and Meta may use those requests to improve its
+ * models. Only the Worker opts in (ClientOptions.trial), and only for accounts that have never
+ * paid; BYOK and paid runs never reach it. Disclosed on the welcome screen (D25).
+ */
+export const TRIAL_TEXT_MODEL = "muse-spark-1.3-contributor";
+
+/** The Spark model a writer uses: the trial one only when the caller opted in. */
+export function textModel(trial: boolean | undefined): AllowedModel | typeof TRIAL_TEXT_MODEL {
+  return trial ? TRIAL_TEXT_MODEL : "muse-spark-1.3";
+}
+
 /** Baseten model slugs come from config and must name Muse Spark Open. */
 export const BASETEN_MODEL_PREFIX = "meta-models/muse-spark-open";
 

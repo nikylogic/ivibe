@@ -1,0 +1,22 @@
+{
+  "name": "@ivibe/demo-bug",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The \"Save does nothing\" demo app: a profile form with one planted bug, recorded for the iVibe demo video.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174 --open",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@ivibe/config": "workspace:*",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "vite": "^8.3.5"
+  }
+}

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { dictateTask, fixTask, promptTask } from "./prompts/tasks.ts";
-import { clock, systemPrompt, transcriptBlock } from "./prompts/stack.ts";
+import { DEFAULT_OUTPUT_LANGUAGE } from "./languages.ts";
+import { dictateTask, editTask, fixTask, promptTask } from "./prompts/tasks.ts";
+import { clock, selectionBlock, systemPrompt, transcriptBlock } from "./prompts/stack.ts";
 import type { TranscriptLine, WriterContext } from "./prompts/stack.ts";
+import { textModel } from "./models.ts";
 import { createResponse, outputText } from "./responses.ts";
 import type { ClientOptions, InputContent } from "./responses.ts";
 import { TEXT_PADDING, clampBox, padBox, unionBoxes } from "./proof.ts";
@@ -10,13 +12,25 @@ import type { Box, ProofMark, ProofShot } from "./proof.ts";
 
 /**
  * Turns a recording into the text that gets pasted (docs/architecture.md D20). One Muse Spark
- * call per mode, with the system prompt built from the layers in prompts/ (D21). Dictate and
- * Prompt use minimal reasoning, which measured 1.2–2 s against 3–5 s at the default (Spike S17),
- * so the text lands about as fast as the user can switch windows.
+ * call per mode, with the system prompt built from the layers in prompts/ (D21). Dictate only
+ * fixes wording, so it uses minimal reasoning, the fastest of every model Meta lists (Spikes
+ * S17, S18). Prompt and Fix think a step more, since they must get the user's intent right.
  */
 
 export type OutputMode = "fix" | "prompt" | "dictate";
 export type { TranscriptLine, WriterContext };
+
+/**
+ * Output caps, reasoning included. They bound the worst-case cost of a call, which Cloud mode
+ * reserves from the user's balance before calling Meta (§6.5).
+ */
+export const MAX_OUTPUT_TOKENS = { fix: 12000, prompt: 3000, dictate: 2000, edit: 8000 } as const;
+
+/** The longest selection Dictate can edit; about 5,000 tokens. */
+export const MAX_SELECTION_CHARS = 20_000;
+
+/** Reasoning per mode (Spike S18): more for prompts that must get intent and proof right. */
+export const REASONING = { fix: "high", prompt: "low", dictate: "minimal" } as const;
 
 const FIX_SCHEMA = {
   type: "object",
@@ -61,16 +75,47 @@ interface FixOutput {
   }[];
 }
 
+/**
+ * Dictate. With `selection` (text selected in the app in front, secrets already masked), the
+ * speech edits it or replaces it, and the answer is pasted over it.
+ */
 export async function cleanUpDictation(
   transcript: readonly TranscriptLine[],
   context: WriterContext,
   client: ClientOptions,
+  selection?: string,
 ): Promise<string> {
-  const language = context.personal?.dictationLanguage ?? "keep";
+  const language = context.personal?.outputLanguage ?? DEFAULT_OUTPUT_LANGUAGE;
+  if (selection) {
+    const result = await createResponse(
+      {
+        model: textModel(client.trial),
+        reasoning: { effort: REASONING.dictate },
+        max_output_tokens: MAX_OUTPUT_TOKENS.edit,
+        input: [
+          { role: "system", content: systemPrompt(editTask(language), context, "dictation") },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: `${selectionBlock(selection.slice(0, MAX_SELECTION_CHARS))}
+
+${transcriptBlock(transcript, false)}`,
+              },
+            ],
+          },
+        ],
+      },
+      client,
+    );
+    return outputText(result);
+  }
   const result = await createResponse(
     {
-      model: "muse-spark-1.3",
-      reasoning: { effort: "minimal" },
+      model: textModel(client.trial),
+      reasoning: { effort: REASONING.dictate },
+      max_output_tokens: MAX_OUTPUT_TOKENS.dictate,
       input: [
         { role: "system", content: systemPrompt(dictateTask(language), context, "dictation") },
         {
@@ -91,12 +136,20 @@ export async function writePrompt(
 ): Promise<string> {
   const result = await createResponse(
     {
-      model: "muse-spark-1.3",
-      reasoning: { effort: "minimal" },
+      model: textModel(client.trial),
+      reasoning: { effort: REASONING.prompt },
+      max_output_tokens: MAX_OUTPUT_TOKENS.prompt,
       input: [
         {
           role: "system",
-          content: systemPrompt(promptTask(context.target.name), context, "agent"),
+          content: systemPrompt(
+            promptTask(
+              context.target.name,
+              context.personal?.outputLanguage ?? DEFAULT_OUTPUT_LANGUAGE,
+            ),
+            context,
+            "agent",
+          ),
         },
         { role: "user", content: [{ type: "input_text", text: transcriptBlock(transcript) }] },
       ],
@@ -199,14 +252,19 @@ export async function writeFixPrompt(input: FixInput, client: ClientOptions): Pr
 
   const result = await createResponse(
     {
-      model: "muse-spark-1.3",
-      reasoning: { effort: "medium" },
+      model: textModel(client.trial),
+      reasoning: { effort: REASONING.fix },
+      max_output_tokens: MAX_OUTPUT_TOKENS.fix,
       text: { format: { type: "json_schema", name: "fix", schema: FIX_SCHEMA, strict: true } },
       input: [
         {
           role: "system",
           content: systemPrompt(
-            fixTask(input.context.target.name, input.proof),
+            fixTask(
+              input.context.target.name,
+              input.proof,
+              input.context.personal?.outputLanguage ?? DEFAULT_OUTPUT_LANGUAGE,
+            ),
             input.context,
             "agent",
           ),

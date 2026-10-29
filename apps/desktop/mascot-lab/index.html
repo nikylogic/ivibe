@@ -1,0 +1,149 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mascot Lab</title>
+    <style>
+      :root {
+        --bg: #fcfbf8;
+        --panel: #f3f0ea;
+        --text: #1c1a17;
+        --muted: #6f6a62;
+        --line: #e4dfd6;
+      }
+      body[data-theme="dark"] {
+        --bg: #1a1918;
+        --panel: #242321;
+        --text: #f3f0ea;
+        --muted: #a39e95;
+        --line: #34322f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          13px/1.4 system-ui,
+          sans-serif;
+      }
+      main {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+      }
+      .sizes {
+        display: flex;
+        align-items: flex-end;
+        gap: 32px;
+      }
+      .sizes figure {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+      }
+      aside {
+        background: var(--panel);
+        border-left: 1px solid var(--line);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      button {
+        font: inherit;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--text);
+        cursor: pointer;
+      }
+      button[aria-pressed="true"] {
+        background: var(--text);
+        color: var(--bg);
+      }
+      input[type="range"] {
+        width: 100%;
+      }
+      .stat {
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+      }
+      label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="hero"></div>
+      <div class="sizes" id="sizes"></div>
+    </main>
+    <aside>
+      <section>
+        <h2>State</h2>
+        <div class="row" id="states"></div>
+      </section>
+      <section>
+        <h2>Voice level</h2>
+        <input id="level" type="range" min="0" max="0.3" step="0.005" value="0.06" />
+        <div class="row" style="margin-top: 8px">
+          <button id="talk" aria-pressed="false">Fake talking</button>
+          <button id="mic" aria-pressed="false">Use my mic</button>
+        </div>
+      </section>
+      <section>
+        <h2>Big preview size</h2>
+        <input id="size" type="range" min="64" max="420" step="2" value="300" />
+      </section>
+      <section>
+        <h2>View angle</h2>
+        <input id="turn" type="range" min="-180" max="180" step="1" value="0" />
+      </section>
+      <section>
+        <h2>Look</h2>
+        <div class="row">
+          <button id="theme" aria-pressed="false">Dark background</button>
+          <button id="still" aria-pressed="false">Reduced motion</button>
+          <button id="small" aria-pressed="true">Small sizes</button>
+        </div>
+      </section>
+      <section>
+        <h2>Cost</h2>
+        <div class="stat" id="stats">–</div>
+        <p class="stat">
+          Frames per second the big preview draws. When idle it should sit at 0 except for blinks
+          and when you move the mouse.
+        </p>
+      </section>
+    </aside>
+    <script type="module" src="./lab.ts"></script>
+  </body>
+</html>

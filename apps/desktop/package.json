@@ -10,6 +10,7 @@
   "homepage": "https://ivibe.tech",
   "scripts": {
     "dev": "electron-vite dev",
+    "mascot": "vite mascot-lab --port 5199 --open",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json",
@@ -36,6 +37,7 @@
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/three": "0.186.0",
     "@vitejs/plugin-react": "^6.1.2",
     "electron": "45.0.0",
     "electron-builder": "^26.18.0",
@@ -43,6 +45,11 @@
     "lucide-react": "^1.61.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "three": "0.186.1",
     "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "@blobatar/react": "2.7.0",
+    "blobatar": "2.7.0"
   }
 }

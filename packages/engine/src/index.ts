@@ -8,10 +8,13 @@
  * Design: docs/architecture.md §5.3.
  */
 
+export * from "./languages.ts";
 export * from "./models.ts";
 export * from "./proof.ts";
 export * from "./responses.ts";
+export * from "./retry.ts";
 export * from "./targets.ts";
+export * from "./transcribe.ts";
 export * from "./writers.ts";
 export * from "./prompts/destinations.ts";
 export * from "./prompts/personal.ts";

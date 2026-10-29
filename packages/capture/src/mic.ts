@@ -22,6 +22,11 @@ export class MicRecorder {
     return this.#context?.sampleRate ?? 0;
   }
 
+  /** The microphone's name, as the system shows it. */
+  get label(): string {
+    return this.#stream?.getAudioTracks()[0]?.label ?? "";
+  }
+
   async start(deviceId?: string): Promise<void> {
     this.#stream = await navigator.mediaDevices.getUserMedia({
       audio: {

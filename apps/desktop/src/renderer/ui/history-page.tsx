@@ -11,6 +11,7 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { ClipboardPaste, Copy, History, Image, Search, Trash2 } from "lucide-react";
 import type { HistoryDetail, HistoryEntry, OutputMode } from "../../shared/ipc.ts";
 import { PASTE_SHORTCUT, acceleratorKeys } from "../../shared/shortcuts.ts";
+import { transition } from "./motion.ts";
 
 const styles = stylex.create({
   page: {
@@ -86,7 +87,8 @@ const styles = stylex.create({
     paddingInline: 16,
     paddingBottom: 16,
     animationName: "ivibe-rise",
-    animationDuration: "220ms",
+    animationDuration: "var(--motion-small)",
+    animationTimingFunction: "var(--motion-ease)",
   },
   text: {
     margin: 0,
@@ -349,10 +351,13 @@ export function HistoryPage({
         <SegmentedControl
           label="Which results to show"
           value={mode}
-          onChange={(value) => {
-            setMode(value as OutputMode);
-            setOpenId(null);
-          }}
+          className="ivibe-segments"
+          onChange={(value) =>
+            transition("mode", () => {
+              setMode(value as OutputMode);
+              setOpenId(null);
+            })
+          }
         >
           {TABS.map((entry) => (
             <SegmentedControlItem

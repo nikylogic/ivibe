@@ -8,6 +8,8 @@ import type { RecordingFeedback, RecordingStatus } from "../shared/ipc.ts";
 const api = {
   stop: (): Promise<void> => ipcRenderer.invoke(Channels.recordingStop),
   cancel: (): Promise<void> => ipcRenderer.invoke(Channels.recordingCancel),
+  /** Writes the result again after a failure, from what was already recorded. */
+  retry: (): Promise<void> => ipcRenderer.invoke(Channels.recordingRetry),
   openApp: (): Promise<void> => ipcRenderer.invoke(Channels.hudOpenApp),
   /** Grows the pill into a panel showing the result, or shrinks it back. */
   expand: (expanded: boolean): Promise<void> => ipcRenderer.invoke(Channels.hudExpand, expanded),

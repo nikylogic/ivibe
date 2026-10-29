@@ -1,0 +1,40 @@
+// iVibe Cloud (docs/architecture.md §6). Workers Free plan.
+// One Worker serves api.ivibe.tech (the app's calls) and auth.ivibe.tech (GitHub sign-in).
+// Wrangler is run with npx (pinned in package.json scripts), so its local simulator's native
+// dependencies stay out of the workspace and its license check (§12.1). `pnpm dev` serves the
+// API on localhost:8787 and auth on localhost:8787/auth.
+// Secrets (wrangler secret put …): META_API_KEY, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, HASH_SALT,
+// and for iVibe Pro DODO_API_KEY and DODO_WEBHOOK_SECRET.
+{
+  "name": "ivibe-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // Only reachable on our own domains, not on *.workers.dev.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "api.ivibe.tech", "custom_domain": true },
+    { "pattern": "auth.ivibe.tech", "custom_domain": true },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ivibe",
+      "database_id": "9819d9da-b4ff-403a-8b92-a62681530ce5",
+      "migrations_dir": "migrations",
+    },
+  ],
+  // Pro users' end-to-end encrypted backups (§6.10); the server can't read them.
+  "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "ivibe-backups" }],
+  // Releases reservations left behind by runs that never finished, and deletes backups 90 days
+  // after Pro ended.
+  "triggers": { "crons": ["*/10 * * * *"] },
+  "vars": {
+    "API_URL": "https://api.ivibe.tech",
+    "AUTH_URL": "https://auth.ivibe.tech",
+    "APP_SCHEME": "tech.ivibe.app",
+    // Switch to https://live.dodopayments.com with the live key at launch.
+    "DODO_API_URL": "https://test.dodopayments.com",
+  },
+  "observability": { "enabled": true },
+}

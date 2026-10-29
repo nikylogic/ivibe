@@ -5,13 +5,23 @@
  * themselves in Settings → Personal. It refines the writing; it can't override the core rules.
  */
 
+import {
+  DEFAULT_OUTPUT_LANGUAGE,
+  DEFAULT_SPOKEN_LANGUAGES,
+  isOutputLanguage,
+  normalizeSpokenLanguages,
+} from "../languages.ts";
+import type { Language, OutputLanguage } from "../languages.ts";
+
 export interface Personal {
   /** "Nikhil" */
   name: string;
   /** "Full-stack developer at a fintech startup; we use Next.js and Postgres." */
   about: string;
-  /** Dictation keeps the language spoken, or always writes English. */
-  dictationLanguage: "keep" | "english";
+  /** Languages they speak, biasing transcription; empty lets the model detect it. */
+  spokenLanguages: Language[];
+  /** The language every result is written in, or "auto" for the language spoken. */
+  outputLanguage: OutputLanguage;
   /** Words to spell exactly this way: product names, teammates, libraries. */
   dictionary: string[];
   /** Standing instructions, such as "We use pnpm, not npm" or "No emoji". */
@@ -21,7 +31,8 @@ export interface Personal {
 export const EMPTY_PERSONAL: Personal = {
   name: "",
   about: "",
-  dictationLanguage: "keep",
+  spokenLanguages: [...DEFAULT_SPOKEN_LANGUAGES],
+  outputLanguage: DEFAULT_OUTPUT_LANGUAGE,
   dictionary: [],
   instructions: "",
 };
@@ -30,6 +41,7 @@ export const PERSONAL_LIMITS = { name: 60, about: 300, instructions: 500, word: 
 
 /** Cleans settings from disk or the renderer so they always fit the limits. */
 export function normalizePersonal(value: unknown): Personal {
+  // The older dictationLanguage switch ("keep" or "english") is dropped: both become English.
   const input = (value && typeof value === "object" ? value : {}) as Partial<Personal>;
   const text = (field: unknown, max: number) =>
     typeof field === "string" ? field.trim().slice(0, max) : "";
@@ -37,7 +49,10 @@ export function normalizePersonal(value: unknown): Personal {
   return {
     name: text(input.name, PERSONAL_LIMITS.name),
     about: text(input.about, PERSONAL_LIMITS.about),
-    dictationLanguage: input.dictationLanguage === "english" ? "english" : "keep",
+    spokenLanguages: normalizeSpokenLanguages(input.spokenLanguages),
+    outputLanguage: isOutputLanguage(input.outputLanguage)
+      ? input.outputLanguage
+      : DEFAULT_OUTPUT_LANGUAGE,
     dictionary: [
       ...new Set(words.map((word) => text(word, PERSONAL_LIMITS.word)).filter(Boolean)),
     ].slice(0, PERSONAL_LIMITS.words),

@@ -43,6 +43,13 @@ export const clock = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
+/** Text the user selected in another app, as data. */
+export function selectionBlock(text: string): string {
+  return `<selection>
+${text}
+</selection>`;
+}
+
 /** The narration as data, one timestamped sentence per line. */
 export function transcriptBlock(lines: readonly TranscriptLine[], timestamps = true): string {
   const body = timestamps

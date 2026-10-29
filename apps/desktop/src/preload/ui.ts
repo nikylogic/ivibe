@@ -4,7 +4,10 @@ import { contextBridge, ipcRenderer } from "electron";
 import { Channels } from "../shared/ipc.ts";
 import type {
   AppInfo,
+  BackupStatus,
   ByokStatus,
+  CloudStatus,
+  CloudUsage,
   HistoryDetail,
   HistoryEntry,
   RecordingStatus,
@@ -24,6 +27,7 @@ const api = {
     start: (): Promise<void> => ipcRenderer.invoke(Channels.recordingStart),
     stop: (): Promise<void> => ipcRenderer.invoke(Channels.recordingStop),
     cancel: (): Promise<void> => ipcRenderer.invoke(Channels.recordingCancel),
+    retry: (): Promise<void> => ipcRenderer.invoke(Channels.recordingRetry),
     get: (): Promise<RecordingStatus> => ipcRenderer.invoke(Channels.recordingGet),
     onState: (listener: (status: RecordingStatus) => void) =>
       subscribe(Channels.recordingState, listener),
@@ -44,6 +48,41 @@ const api = {
     set: (key: string): Promise<ByokStatus> => ipcRenderer.invoke(Channels.byokSet, key),
     clear: (): Promise<ByokStatus> => ipcRenderer.invoke(Channels.byokClear),
     status: (): Promise<ByokStatus> => ipcRenderer.invoke(Channels.byokStatus),
+  },
+  cloud: {
+    status: (): Promise<CloudStatus> => ipcRenderer.invoke(Channels.cloudStatus),
+    /** Opens GitHub sign-in in the browser; the result arrives through onChange. */
+    signIn: (): Promise<void> => ipcRenderer.invoke(Channels.cloudSignIn),
+    signOut: (): Promise<CloudStatus> => ipcRenderer.invoke(Channels.cloudSignOut),
+    /** Opens Pro checkout, or the subscription portal, in the browser. */
+    billing: (page: "checkout" | "portal"): Promise<void> =>
+      ipcRenderer.invoke(Channels.cloudBilling, page),
+    /** Billing → Usage; null when signed out or offline. */
+    usage: (): Promise<CloudUsage | null> => ipcRenderer.invoke(Channels.cloudUsage),
+    onChange: (listener: (status: CloudStatus) => void) =>
+      subscribe(Channels.cloudChanged, listener),
+  },
+  /** Settings → iVibe Cloud → Backup: end-to-end encrypted backups (main/backup.ts). */
+  backup: {
+    status: (): Promise<BackupStatus> => ipcRenderer.invoke(Channels.backupStatus),
+    /** A new recovery key to show; nothing is uploaded until confirm. */
+    begin: (): Promise<string> => ipcRenderer.invoke(Channels.backupBegin),
+    confirm: (lastGroup: string): Promise<BackupStatus> =>
+      ipcRenderer.invoke(Channels.backupConfirm, lastGroup),
+    now: (replace = false): Promise<void> => ipcRenderer.invoke(Channels.backupNow, replace),
+    connect: (recoveryKey: string): Promise<BackupStatus> =>
+      ipcRenderer.invoke(Channels.backupConnect, recoveryKey),
+    /** Returns how many results were restored. */
+    restore: (recoveryKey?: string): Promise<number> =>
+      ipcRenderer.invoke(Channels.backupRestore, recoveryKey),
+    /** Returns the folder it was saved to, or null if the user cancelled. */
+    exportTo: (recoveryKey?: string): Promise<string | null> =>
+      ipcRenderer.invoke(Channels.backupExport, recoveryKey),
+    reveal: (): Promise<string> => ipcRenderer.invoke(Channels.backupReveal),
+    saveKey: (): Promise<boolean> => ipcRenderer.invoke(Channels.backupSaveKey),
+    remove: (): Promise<BackupStatus> => ipcRenderer.invoke(Channels.backupDelete),
+    onChange: (listener: (status: BackupStatus) => void) =>
+      subscribe(Channels.backupChanged, listener),
   },
   app: {
     info: (): Promise<AppInfo> => ipcRenderer.invoke(Channels.appInfo),

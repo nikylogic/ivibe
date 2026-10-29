@@ -42,7 +42,7 @@ interface Span {
   rule: RuleId;
 }
 
-function matchRule(text: string, rule: PatternRule): Span[] {
+export function matchRule(text: string, rule: PatternRule): Span[] {
   const spans: Span[] = [];
   for (const match of text.matchAll(rule.pattern)) {
     const value = rule.group === undefined ? match[0] : match[rule.group];
@@ -54,7 +54,7 @@ function matchRule(text: string, rule: PatternRule): Span[] {
   return spans;
 }
 
-function entropySpans(text: string): Span[] {
+export function entropySpans(text: string): Span[] {
   const spans: Span[] = [];
   for (const match of text.matchAll(ENTROPY.candidate)) {
     if (isHighEntropyToken(match[0])) {
@@ -65,7 +65,7 @@ function entropySpans(text: string): Span[] {
 }
 
 /** Merges overlapping spans; the first rule to claim a character names the merged span. */
-function merge(spans: Span[]): Span[] {
+export function merge(spans: Span[]): Span[] {
   const sorted = spans.toSorted((a, b) => a.start - b.start);
   const merged: Span[] = [];
   for (const span of sorted) {

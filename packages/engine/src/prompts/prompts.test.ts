@@ -31,14 +31,28 @@ describe("normalizePersonal", () => {
   it("trims, de-duplicates and caps what it is given", () => {
     const personal = normalizePersonal({
       name: "  Nikhil  ",
-      dictationLanguage: "english",
+      spokenLanguages: ["Hindi", "Hindi", "Klingon", "English", "Tamil", "Telugu"],
+      outputLanguage: "Gujarati",
       dictionary: ["iVibe", "iVibe", " Muse Spark ", "", 7],
       instructions: "x".repeat(900),
     });
     expect(personal.name).toBe("Nikhil");
-    expect(personal.dictationLanguage).toBe("english");
+    // Only documented languages, once each, at most three; an unknown output falls back.
+    expect(personal.spokenLanguages).toEqual(["Hindi", "English", "Tamil"]);
+    expect(personal.outputLanguage).toBe("English");
     expect(personal.dictionary).toEqual(["iVibe", "Muse Spark"]);
     expect(personal.instructions).toHaveLength(500);
+  });
+
+  it("keeps an empty spoken list (automatic detection) and an automatic output", () => {
+    const personal = normalizePersonal({ spokenLanguages: [], outputLanguage: "auto" });
+    expect(personal.spokenLanguages).toEqual([]);
+    expect(personal.outputLanguage).toBe("auto");
+  });
+
+  it("starts with automatic detection and English results", () => {
+    expect(EMPTY_PERSONAL.spokenLanguages).toEqual([]);
+    expect(EMPTY_PERSONAL.outputLanguage).toBe("English");
   });
 
   it("falls back to empty settings for garbage", () => {
@@ -50,7 +64,7 @@ describe("normalizePersonal", () => {
 describe("systemPrompt", () => {
   it("puts the core rules first, then the task, destination and the user", () => {
     const prompt = systemPrompt(
-      promptTask("Claude Code"),
+      promptTask("Claude Code", "English"),
       {
         target: classifyTarget("WindowsTerminal", "claude"),
         personal: { ...EMPTY_PERSONAL, dictionary: ["Supabase"] },

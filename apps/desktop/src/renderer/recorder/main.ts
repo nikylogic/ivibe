@@ -160,6 +160,11 @@ class Session {
   #privacyQueue: Promise<void> = Promise.resolve();
   #segmenter: UtteranceSegmenter | null = null;
   #micStartedAt = 0;
+
+  /** The microphone being recorded, for the pill's "can't hear you" hint. */
+  get microphone(): string {
+    return this.#mic?.label ?? "";
+  }
   /** Secret kinds already announced, so a token on screen for 20 frames is reported once. */
   #announced = new Set<string>();
   #ocrMs = 0;
@@ -398,7 +403,7 @@ window.ivibeRecorder = {
     current = new Session(options);
     try {
       await current.start();
-      bridge.emit({ type: "started", width: 0, height: 0 });
+      bridge.emit({ type: "started", width: 0, height: 0, microphone: current.microphone });
     } catch (error) {
       current.dispose();
       current = null;

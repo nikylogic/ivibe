@@ -67,6 +67,21 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
           $out.editable = ($type -eq 'ControlType.Edit' -or $type -eq 'ControlType.Document') -and -not $c.IsPassword -and $c.IsEnabled
         } catch {}
       }
+    } elseif ($line -eq 'selection') {
+      # The text selected where keyboard focus is, read through UI Automation: no keystroke and
+      # no clipboard, so nothing in the app changes (Dictate's "edit selected text").
+      $out = @{ text = '' }
+      if ($uia) {
+        try {
+          $el = [System.Windows.Automation.AutomationElement]::FocusedElement
+          if (-not $el.Current.IsPassword) {
+            $pattern = $null
+            if ($el.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$pattern)) {
+              $out.text = (@($pattern.GetSelection()) | ForEach-Object { $_.GetText(20001) }) -join [char]10
+            }
+          }
+        } catch {}
+      }
     } elseif ($line -match '^held (\d+)$') {
       $out = @{ held = ([IVibe.Win32]::GetAsyncKeyState([int]$Matches[1]) -band 0x8000) -ne 0 }
     } elseif ($line -eq 'capsoff') {
@@ -220,6 +235,39 @@ export async function focusedWindow(): Promise<FocusedWindow | null> {
     // No accessibility permission, no xdotool, …: fall back to copying.
   }
   return null;
+}
+
+/**
+ * The text selected in the app in front, read without touching the keyboard or clipboard:
+ * UI Automation on Windows, the accessibility API on macOS, the PRIMARY selection on X11.
+ * Null when there is none or it can't be read.
+ */
+export async function selectedText(): Promise<string | null> {
+  try {
+    let text = "";
+    if (windows) {
+      text = (await windows.request<{ text?: string }>("selection", 2000))?.text ?? "";
+    } else if (process.platform === "darwin") {
+      const script = [
+        'tell application "System Events"',
+        "set p to first application process whose frontmost is true",
+        'return value of attribute "AXSelectedText" of (value of attribute "AXFocusedUIElement" of p)',
+        "end tell",
+      ];
+      text = (
+        await run(
+          "osascript",
+          script.flatMap((line) => ["-e", line]),
+          { timeout: 2000 },
+        )
+      ).stdout;
+    } else if (process.platform === "linux" && !process.env.WAYLAND_DISPLAY) {
+      text = (await run("xclip", ["-o", "-selection", "primary"], { timeout: 1000 })).stdout;
+    }
+    return text.trim() ? text : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface FieldState extends FocusedWindow {

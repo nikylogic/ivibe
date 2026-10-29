@@ -1,0 +1,22 @@
+{
+  "name": "@ivibe/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "iVibe Cloud on Cloudflare Workers: GitHub sign-in, the free trial, metered Meta calls and the credits ledger.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "npx wrangler@4.154.0 dev --var API_URL:http://localhost:8787 --var AUTH_URL:http://localhost:8787/auth",
+    "deploy": "npx wrangler@4.154.0 d1 migrations apply ivibe --remote && npx wrangler@4.154.0 deploy",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@ivibe/engine": "workspace:*",
+    "hono": "^4.13.14"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261021.1",
+    "@ivibe/config": "workspace:*"
+  }
+}

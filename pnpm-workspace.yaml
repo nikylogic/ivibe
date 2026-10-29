@@ -12,3 +12,5 @@ allowBuilds:
   "@astryxdesign/core": false
   # Squirrel.Windows tooling; we package with NSIS.
   electron-winstaller: false
+  # Vite 8 bundles with Rolldown; esbuild is optional and its platform package ships the binary.
+  esbuild: false

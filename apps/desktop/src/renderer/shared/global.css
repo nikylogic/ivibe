@@ -3,6 +3,24 @@
 /* Gives Vite a CSS asset to attach StyleX output to. */
 :root {
   --stylex-injection: 0;
+
+  /*
+   * Motion. One curve and three durations for the whole app, so nothing moves in its own
+   * style. Values mirror Astryx's neutral theme (--ease-standard, --duration-fast-min,
+   * --duration-fast, --duration-medium-min), whose tokens live on the theme wrapper, not here.
+   *
+   * - Motion explains a change (something opened, moved or arrived); it never decorates.
+   * - Animate opacity and transform. The only animated size is the sidebar's and the pill's
+   *   width, and their content is clipped, never reflowed, while they move.
+   * - Fast out, soft settle; no springs, overshoot, blur or staggered lists.
+   * - Exits are as quick as entrances or quicker. Loops only mean "live" (recording, waiting
+   *   for a key).
+   * - prefers-reduced-motion turns all of it off (below).
+   */
+  --motion-ease: cubic-bezier(0.24, 1, 0.4, 1);
+  --motion-micro: 95ms; /* hover, press, live levels */
+  --motion-small: 125ms; /* menus, toasts, a row or caption arriving */
+  --motion-layout: 225ms; /* sidebar, pill, a page switch: a surface changing */
 }
 
 html,
@@ -63,10 +81,147 @@ textarea,
 @keyframes ivibe-rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
     transform: none;
   }
+}
+
+/* The compact pill's working line (hud/compact.tsx): light runs along it. */
+@keyframes ivibe-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+
+@keyframes ivibe-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * Page switches (ui/main.tsx): the old page leaves fast, the new one rises 6px into place.
+ * The rest of the window doesn't cross-fade; the sidebar runs its own transitions.
+ */
+/* Only the live new state is shown; an unanimated old snapshot would sit on top of it. */
+::view-transition-old(root) {
+  display: none;
+}
+
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-group(page) {
+  animation-duration: var(--motion-layout);
+  animation-timing-function: var(--motion-ease);
+}
+
+/* Unscaled, so text never stretches while the page area resizes with the sidebar. */
+::view-transition-old(page),
+::view-transition-new(page) {
+  width: auto;
+  height: auto;
+}
+
+::view-transition-old(page) {
+  animation: ivibe-page-out var(--motion-micro) var(--motion-ease) both;
+}
+
+::view-transition-new(page) {
+  animation: ivibe-page-in var(--motion-layout) var(--motion-ease) both;
+}
+
+/*
+ * Switching Fix / Prompt / Dictate (record and history pages): the page cross-fades in place,
+ * while the mode switch itself (.ivibe-segments) changes instantly, as Astryx draws it.
+ */
+html:active-view-transition-type(mode) .ivibe-segments {
+  view-transition-name: segments;
+}
+
+html:active-view-transition-type(mode)::view-transition-old(segments) {
+  display: none;
+}
+
+html:active-view-transition-type(mode)::view-transition-new(segments) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html:active-view-transition-type(mode)::view-transition-old(page) {
+  animation: ivibe-page-out var(--motion-small) var(--motion-ease) both;
+}
+
+html:active-view-transition-type(mode)::view-transition-new(page) {
+  animation: ivibe-fade var(--motion-small) var(--motion-ease) both;
+}
+
+@keyframes ivibe-page-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes ivibe-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* The profile blob (ui/profile.tsx) wakes when its whole button is hovered, not just the blob. */
+@media (hover: hover) and (pointer: fine) {
+  [data-blob-host]:hover .mo-root {
+    --mo-amp: 1;
+    transform: translateY(-1.5px) scale(1.04);
+  }
+}
+
+/* As the sidebar collapses, its text fades out before the narrowing card can clip it: the nav
+   labels (everything after an item's icon) and the account name, plan and chevron. */
+.sidebar-collapsed .astryx-side-nav-item > :not(:first-child),
+.sidebar-collapsed [data-sidebar-text] {
+  opacity: 0;
+  transition: opacity var(--motion-micro) var(--motion-ease);
+}
+
+/* While it collapses, each nav item's row (and the selected one's highlight) shrinks to the
+   36 px square it becomes in the rail, in step with the card, so the highlight is never clipped
+   by the card's edge and nothing jumps when the icon-only layout takes over. In the rail the
+   square is centred in the 32 px content, 2 px left of the expanded row's start. Important,
+   because Astryx's own atomic styles outrank a plain selector. */
+.sidebar-collapsing .astryx-side-nav-item {
+  width: 36px !important;
+  margin-inline-start: -2px;
+  transition:
+    width var(--motion-layout) var(--motion-ease),
+    margin-inline-start var(--motion-layout) var(--motion-ease);
 }

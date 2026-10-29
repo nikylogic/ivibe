@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { assertAllowedModel } from "./models.ts";
+import { TRIAL_TEXT_MODEL, assertAllowedModel } from "./models.ts";
+import { fetchWithRetry } from "./retry.ts";
 import type { AllowedModel } from "./models.ts";
 
 /**
@@ -20,7 +21,7 @@ export interface InputMessage {
 }
 
 export interface ResponsesRequest {
-  model: AllowedModel;
+  model: AllowedModel | typeof TRIAL_TEXT_MODEL;
   input: InputMessage[];
   reasoning?: { effort: "minimal" | "low" | "medium" | "high" };
   text?: { format: Record<string, unknown> };
@@ -54,6 +55,8 @@ export interface ClientOptions {
   /** Injected so main-process code can use Electron's net.fetch and tests a fake. */
   fetch?: typeof fetch;
   signal?: AbortSignal;
+  /** iVibe Cloud free-trial runs only: allows TRIAL_TEXT_MODEL. The desktop never sets it. */
+  trial?: boolean;
 }
 
 /** Turns an HTTP failure into a message a user can act on, without echoing the response body. */
@@ -66,10 +69,10 @@ function describeFailure(status: number): string {
 
 export async function createResponse(
   request: ResponsesRequest,
-  { apiKey, baseUrl = META_API_BASE, fetch: fetchImpl = fetch, signal }: ClientOptions,
+  { apiKey, baseUrl = META_API_BASE, fetch: fetchImpl = fetch, signal, trial }: ClientOptions,
 ): Promise<ResponsesResult> {
-  assertAllowedModel(request.model);
-  const response = await fetchImpl(`${baseUrl}/responses`, {
+  if (!(trial && request.model === TRIAL_TEXT_MODEL)) assertAllowedModel(request.model);
+  const response = await fetchWithRetry(fetchImpl, `${baseUrl}/responses`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ ...request, store: false }),

@@ -5,5 +5,5 @@
     "types": ["node"],
     "jsx": "react-jsx"
   },
-  "include": ["src", "electron.vite.config.ts"]
+  "include": ["src", "mascot-lab", "electron.vite.config.ts"]
 }
