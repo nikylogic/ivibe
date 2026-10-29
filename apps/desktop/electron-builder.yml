@@ -49,6 +49,10 @@ dmg:
 
 linux:
   icon: ../../logo/desktop/linux/icons
+  # The package name (@ivibe/desktop) can't be a file name.
+  executableName: ivibe
+  # Links the running window to ivibe.desktop, so the taskbar shows its icon.
+  syncDesktopName: true
   category: Development
   maintainer: Nikhil P <hi.nikhilp@gmail.com>
   target:

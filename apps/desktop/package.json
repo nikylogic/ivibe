@@ -8,6 +8,7 @@
   "main": "out/main/index.js",
   "author": "Nikhil P",
   "homepage": "https://ivibe.tech",
+  "desktopName": "ivibe.desktop",
   "scripts": {
     "dev": "electron-vite dev",
     "mascot": "vite mascot-lab --port 5199 --open",
