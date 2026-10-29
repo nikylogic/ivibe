@@ -367,15 +367,41 @@ export async function backupDownload(path: string): Promise<Uint8Array> {
   return new Uint8Array(await response.arrayBuffer());
 }
 
-/** Live captions through iVibe Cloud. */
+/**
+ * Reserves the live captions of one recording up front (apps/api runs.ts), so a balance that
+ * can't cover them is refused before the user speaks. Returns the id each caption sends.
+ */
+export async function cloudOpenRecording(mode: OutputMode, token: string): Promise<string> {
+  const result = await api<{ id: string }>("/v1/recordings", {
+    method: "POST",
+    type: "application/json",
+    body: JSON.stringify({ mode }),
+    token,
+  });
+  return result.id;
+}
+
+/** Charges what a recording's captions used and gives the rest of its reservation back. */
+export async function cloudCloseRecording(id: string, token: string): Promise<void> {
+  const result = await api<{ credits: number }>(`/v1/recordings/${encodeURIComponent(id)}/close`, {
+    method: "POST",
+    token,
+  });
+  noteCredits(result.credits);
+}
+
+/** Live captions through iVibe Cloud, drawn from the recording's reservation when there is one. */
 export async function cloudTranscribe(
   wav: Uint8Array,
   token: string,
   languages: readonly Language[],
   signal?: AbortSignal,
+  recording?: string | null,
 ): Promise<string> {
   // Empty asks the Worker for automatic detection.
-  const query = `?languages=${encodeURIComponent(languages.join(","))}`;
+  const query =
+    `?languages=${encodeURIComponent(languages.join(","))}` +
+    (recording ? `&recording=${encodeURIComponent(recording)}` : "");
   const result = await api<{ text: string; credits: number }>(`/v1/transcribe${query}`, {
     method: "POST",
     type: "audio/wav",

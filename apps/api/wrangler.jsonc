@@ -26,8 +26,8 @@
   ],
   // Pro users' end-to-end encrypted backups (§6.10); the server can't read them.
   "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "ivibe-backups" }],
-  // Releases reservations left behind by runs that never finished, and deletes backups 90 days
-  // after Pro ended.
+  // Settles reservations left behind by runs and recordings that never finished (charging what
+  // they used), and deletes backups 90 days after Pro ended.
   "triggers": { "crons": ["*/10 * * * *"] },
   "vars": {
     "API_URL": "https://api.ivibe.tech",

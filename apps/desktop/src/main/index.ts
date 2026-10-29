@@ -1081,9 +1081,15 @@ void app.whenReady().then(() => {
   });
   warmUpOsBridge();
   registerIpc();
+  // Backups depend on who is signed in and their plan, not on credits, which change with every
+  // Cloud call; re-reading the backup on each of those added a request per caption.
+  let backupFor = "";
   onCloudChange((status) => {
     broadcast(Channels.cloudChanged, status);
-    if (!status.pending) void backupStatus();
+    const key = `${status.signedIn}:${status.login}:${status.tier}:${status.plan?.status}`;
+    if (status.pending || key === backupFor) return;
+    backupFor = key;
+    void backupStatus();
   });
   startBackups({
     applySettings: (change) => changeSettings(change),

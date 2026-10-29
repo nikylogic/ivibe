@@ -15,8 +15,12 @@ export function transcribe(
   access: MetaAccess,
   languages: readonly Language[],
   signal?: AbortSignal,
+  /** The iVibe Cloud recording whose reservation pays for it. */
+  recording?: string | null,
 ): Promise<string> {
-  if (access.kind === "cloud") return cloudTranscribe(wav, access.token, languages, signal);
+  if (access.kind === "cloud") {
+    return cloudTranscribe(wav, access.token, languages, signal, recording);
+  }
   return transcribeWav(wav, languages, {
     apiKey: access.key,
     fetch: net.fetch as typeof fetch,

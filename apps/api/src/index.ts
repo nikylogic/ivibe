@@ -13,11 +13,11 @@ import {
 import { checkoutRoute, planOffer, portalRoute, returnPage, webhookRoute } from "./billing.ts";
 import { exchangeToken, githubCallback, githubStart, me, requireSession, signOut } from "./auth.ts";
 import type { AppEnv, Env } from "./env.ts";
-import { composeRoute, transcribeRoute } from "./runs.ts";
+import { closeRecordingRoute, composeRoute, openRecordingRoute, transcribeRoute } from "./runs.ts";
 import { loadSettings } from "./settings.ts";
 import { usageRoute } from "./usage.ts";
 import { now } from "./util.ts";
-import { releaseStale } from "./wallet.ts";
+import { settleStale } from "./wallet.ts";
 
 /** iVibe Cloud (docs/architecture.md §6). */
 
@@ -50,6 +50,8 @@ api.use("/v1/*", async (c, next) => (PUBLIC.has(c.req.path) ? next() : requireSe
 api.get("/v1/me", me);
 api.get("/v1/usage", usageRoute);
 api.post("/v1/transcribe", transcribeRoute);
+api.post("/v1/recordings", openRecordingRoute);
+api.post("/v1/recordings/:id/close", closeRecordingRoute);
 api.post("/v1/compose", composeRoute);
 api.post("/v1/billing/checkout", checkoutRoute);
 api.post("/v1/billing/portal", portalRoute);
@@ -88,8 +90,8 @@ export default {
     return auth.fetch(new Request(url, request), env, ctx);
   },
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
-    const released = await releaseStale(env.DB);
-    if (released > 0) console.log(`released ${released} stale reservations`);
+    const settled = await settleStale(env.DB);
+    if (settled > 0) console.log(`settled ${settled} stale reservations`);
     const day = 86_400_000;
     await env.DB.batch([
       env.DB.prepare("DELETE FROM oauth_states WHERE created_at < ?").bind(now() - day),

@@ -18,7 +18,16 @@ import { loadSettings } from "./settings.ts";
 import type { Settings } from "./settings.ts";
 import { networkOf, sha256, toCredits } from "./util.ts";
 import { BadRequest, parseCompose } from "./validate.ts";
-import { activateTrial, balanceOf, hold, settle, trialOnly } from "./wallet.ts";
+import {
+  activateTrial,
+  balanceOf,
+  draw,
+  hold,
+  markUsed,
+  settle,
+  trialOnly,
+  undraw,
+} from "./wallet.ts";
 import type { HoldOutcome, TrialOutcome } from "./wallet.ts";
 
 /**
@@ -89,6 +98,27 @@ async function reserve(
   return trial === "already_claimed" ? first : trial;
 }
 
+/** The reply when a reservation is refused. */
+function refusal(
+  c: Ctx,
+  outcome: Exclude<Awaited<ReturnType<typeof reserve>>, "ok">,
+  trial: boolean,
+) {
+  // A paying account never ran on free credits, so it isn't told to look for more of them.
+  const message =
+    outcome === "insufficient_credits" && !trial ? PAID_OUT_OF_CREDITS : MESSAGES[outcome];
+  return apiError(c, outcome === "capacity_paused" ? 503 : 402, outcome, message);
+}
+
+/** The reply when Meta refuses or fails a call. */
+function metaFailure(c: Ctx, kind: string, cause: MetaApiError) {
+  console.error(`meta ${kind} failed: HTTP ${cause.status}`);
+  // A refused or unfunded key is on our side (META_API_KEY): retrying won't help, but the
+  // user's own key can, so it gets its own code that the desktop falls back on.
+  const refused = [401, 402, 403, 429].includes(cause.status);
+  return apiError(c, 502, refused ? "upstream_refused" : "upstream", upstreamMessage(cause.status));
+}
+
 /** Reserves `amount`, runs `work`, then settles with what the meter measured. */
 async function metered<T extends object>(
   c: Ctx,
@@ -107,12 +137,7 @@ async function metered<T extends object>(
     reserve(c, settings, { id: runId, userId, kind, amount }),
     trialOnly(db, userId),
   ]);
-  if (outcome !== "ok") {
-    // A paying account never ran on free credits, so it isn't told to look for more of them.
-    const message =
-      outcome === "insufficient_credits" && !trial ? PAID_OUT_OF_CREDITS : MESSAGES[outcome];
-    return apiError(c, outcome === "capacity_paused" ? 503 : 402, outcome, message);
-  }
+  if (outcome !== "ok") return refusal(c, outcome, trial);
   const reserved = Date.now();
   // Read the balance while Meta works, so the reply doesn't wait for it.
   const available = balanceOf(db, userId);
@@ -123,27 +148,19 @@ async function metered<T extends object>(
     result = await work(meter);
   } catch (cause) {
     // Calls that did complete still cost us; charge those and release the rest.
+    if (meter.cost > 0) await markUsed(db, runId, meter.cost);
     c.executionCtx.waitUntil(settle(db, runId, meter.cost, meter.calls));
-    if (cause instanceof MetaApiError) {
-      console.error(`meta ${kind} failed: HTTP ${cause.status}`);
-      // A refused or unfunded key is on our side (META_API_KEY): retrying won't help, but the
-      // user's own key can, so it gets its own code that the desktop falls back on.
-      const refused = [401, 402, 403, 429].includes(cause.status);
-      return apiError(
-        c,
-        502,
-        refused ? "upstream_refused" : "upstream",
-        upstreamMessage(cause.status),
-      );
-    }
+    if (cause instanceof MetaApiError) return metaFailure(c, kind, cause);
     throw cause;
   }
   const done = Date.now();
-  // Charge in the background: the user gets the text now. If the Worker stops first, the
-  // reservation is released by the cron (wallet.releaseStale), so nobody is overcharged.
+  // The cost is recorded before the user gets the result; the charge itself runs in the
+  // background. If the Worker stops before it does, the cron charges what was recorded
+  // (wallet.settleStale), so a run is never free and never charged more than it cost.
   const cost = Math.max(0, Math.min(Math.ceil(charge(meter)), amount));
+  const [, balance] = await Promise.all([markUsed(db, runId, cost), available]);
   c.executionCtx.waitUntil(settle(db, runId, cost, meter.calls));
-  const credits = toCredits((await available) + amount - cost);
+  const credits = toCredits(balance + amount - cost);
   console.log(
     `timing ${kind}${trial ? " (trial)" : ""}: reserve ${reserved - started} ms, meta ${done - reserved} ms`,
   );
@@ -186,6 +203,28 @@ export async function transcribeRoute(c: Ctx): Promise<Response> {
   }
   // Priced by length, so the reservation is the exact cost.
   const price = Math.ceil(Math.max(1, Math.ceil(seconds)) * settings.price.asrSecond);
+  // Inside a recording: one small write takes the price from its reservation, instead of a
+  // reservation and a settle of its own. A recording that is closed, expired, someone else's or
+  // used up falls through to a reservation of this caption alone, which the balance must cover.
+  const recording = c.req.query("recording");
+  const { userId } = c.get("session");
+  const started = Date.now();
+  if (recording && (await draw(c.env.DB, recording, userId, price))) {
+    const drawn = Date.now();
+    const meter = new Meter(settings, c.env.META_API_KEY);
+    try {
+      const text = await transcribeWav(wav, spoken, meter.client("asr", c.req.raw.signal));
+      console.log(
+        `timing transcribe (recording): draw ${drawn - started} ms, meta ${Date.now() - drawn} ms`,
+      );
+      return c.json({ text, cost: price });
+    } catch (cause) {
+      // A caption Meta didn't transcribe isn't charged.
+      await undraw(c.env.DB, recording, price);
+      if (cause instanceof MetaApiError) return metaFailure(c, "transcribe", cause);
+      throw cause;
+    }
+  }
   return metered(
     c,
     settings,
@@ -196,6 +235,72 @@ export async function transcribeRoute(c: Ctx): Promise<Response> {
     }),
     () => price,
   );
+}
+
+/**
+ * How long each mode records at most (apps/desktop/src/main/recording.ts), in seconds. A
+ * recording reserves the captions for twice that, plus room for each sentence's rounding: a
+ * caption that timed out may be sent again. What isn't used goes back when it closes.
+ */
+const RECORDING_SECONDS = { dictate: 300, prompt: 60, fix: 60 } as const;
+const CAPTION_SLACK_SECONDS = 30;
+/** The least a recording reserves: enough for its first sentences. */
+const MIN_RECORDING_SECONDS = 10;
+
+/**
+ * POST /v1/recordings {mode}. Reserves the live captions of one recording up front, so a balance
+ * that can't cover them is refused before the user speaks. Returns the recording's id, which
+ * each caption sends (POST /v1/transcribe?recording=…).
+ */
+export async function openRecordingRoute(c: Ctx): Promise<Response> {
+  const settings = await enabledSettings(c);
+  if (settings instanceof Response) return settings;
+  const body = (await c.req.json().catch(() => null)) as { mode?: unknown } | null;
+  const mode = body?.mode;
+  if (mode !== "dictate" && mode !== "prompt" && mode !== "fix") {
+    return apiError(c, 400, "bad_request", "Expected a mode");
+  }
+  const db = c.env.DB;
+  const { userId } = c.get("session");
+  const perSecond = settings.price.asrSecond;
+  const budget = Math.ceil((RECORDING_SECONDS[mode] * 2 + CAPTION_SLACK_SECONDS) * perSecond);
+  const least = Math.ceil(MIN_RECORDING_SECONDS * perSecond);
+  const id = crypto.randomUUID();
+  // A low balance reserves what it has: captions past it are refused one by one.
+  let [available, trial] = await Promise.all([balanceOf(db, userId), trialOnly(db, userId)]);
+  let outcome = await reserve(c, settings, {
+    id,
+    userId,
+    kind: "recording",
+    amount: Math.max(least, Math.min(budget, available)),
+  });
+  if (outcome === "insufficient_credits" && available > least) {
+    // The balance changed in between (another run, or the free trial just started): once more.
+    available = await balanceOf(db, userId);
+    trial = await trialOnly(db, userId);
+    outcome = await reserve(c, settings, {
+      id,
+      userId,
+      kind: "recording",
+      amount: Math.max(least, Math.min(budget, available)),
+    });
+  }
+  if (outcome !== "ok") return refusal(c, outcome, trial);
+  return c.json({ id });
+}
+
+/** POST /v1/recordings/:id/close. Charges what the recording's captions used; the rest goes back. */
+export async function closeRecordingRoute(c: Ctx): Promise<Response> {
+  const id = c.req.param("id") ?? "";
+  const { userId } = c.get("session");
+  const owned = await c.env.DB.prepare(
+    "SELECT 1 FROM runs WHERE id = ? AND user_id = ? AND kind = 'recording'",
+  )
+    .bind(id, userId)
+    .first();
+  if (!owned) return c.json({ error: "not_found", message: "No such recording" }, 404);
+  const cost = await settle(c.env.DB, id);
+  return c.json({ cost, credits: toCredits(await balanceOf(c.env.DB, userId)) });
 }
 
 /** Fits highlights with SAM 3.1, all in parallel; a failure or timeout keeps the model's box. */

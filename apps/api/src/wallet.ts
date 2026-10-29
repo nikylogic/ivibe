@@ -9,6 +9,10 @@ import { now, utcDay } from "./util.ts";
  * 1. Before a call, reserve the most it can cost from the user's wallet and the day's pool.
  * 2. After it, charge what Meta's usage says it cost (never more than the reservation) and give
  *    the rest back. A failed call gives it all back.
+ * 3. A recording reserves once for all its live captions, and each caption draws from that
+ *    reservation; what was drawn is charged when the recording closes.
+ * 4. What a run used is written before its result goes back, so a run whose settle never ran is
+ *    charged that, not released for free.
  *
  * Each step is one D1 batch, which runs as a single transaction. The CHECK constraints in the
  * schema decide whether a reservation fits, so concurrent runs can't overspend.
@@ -59,74 +63,114 @@ export async function hold(
   }
 }
 
-interface OpenRun {
-  id: string;
-  user_id: string;
-  day: string;
-  hold: number;
-  pooled: number;
-}
-
 /**
- * Settles a reservation exactly once: charges `actual` (capped at the reservation) and releases
- * the rest. A second settle of the same run changes nothing.
+ * Settles a reservation exactly once: charges what the run used (capped at the reservation) and
+ * releases the rest. `actual`, when given, is recorded as the use first. Everything happens in
+ * one transaction that reads the run's row itself, so a draw landing at the same moment is
+ * either charged or refused, never lost. A second settle of the same run changes nothing.
  */
 export async function settle(
   db: D1Database,
   runId: string,
-  actual: number,
+  actual: number | null = null,
   usage: unknown = null,
 ): Promise<number> {
-  const run = await db
-    .prepare("SELECT id, user_id, day, hold, pooled FROM runs WHERE id = ? AND status = 'held'")
-    .bind(runId)
-    .first<OpenRun>();
-  if (!run) return 0;
-  const cost = Math.max(0, Math.min(Math.ceil(actual), run.hold));
   const at = now();
-  const open = "EXISTS (SELECT 1 FROM runs WHERE id = ? AND status = 'held')";
-  await db.batch([
+  const open = "SELECT user_id, day, hold, used, pooled FROM runs WHERE id = ? AND status = 'held'";
+  const [, , , , settled] = await db.batch([
+    db
+      .prepare("UPDATE runs SET used = ? WHERE id = ? AND status = 'held' AND ? IS NOT NULL")
+      .bind(actual === null ? 0 : Math.max(0, Math.ceil(actual)), runId, actual),
     db
       .prepare(
-        `UPDATE wallets SET held = held - ?, balance = balance - ?, updated_at = ? WHERE user_id = ? AND ${open}`,
+        `UPDATE wallets SET held = wallets.held - r.hold, balance = wallets.balance - MIN(r.used, r.hold), updated_at = ?
+         FROM (${open}) AS r WHERE wallets.user_id = r.user_id`,
       )
-      .bind(run.hold, cost, at, run.user_id, run.id),
+      .bind(at, runId),
     db
       .prepare(
-        `UPDATE daily_pool SET held = held - ?, used = used + ? WHERE day = ? AND ? = 1 AND ${open}`,
+        `UPDATE daily_pool SET held = daily_pool.held - r.hold, used = daily_pool.used + MIN(r.used, r.hold)
+         FROM (${open}) AS r WHERE daily_pool.day = r.day AND r.pooled = 1`,
       )
-      .bind(run.hold, cost, run.day, run.pooled, run.id),
+      .bind(runId),
     db
       .prepare(
         `INSERT INTO ledger (id, user_id, kind, amount, ref, idempotency_key, created_at)
-         SELECT ?, ?, 'charge', ?, ?, ?, ? WHERE ? > 0 AND ${open}`,
+         SELECT ?, user_id, 'charge', -MIN(used, hold), id, 'charge:' || id, ?
+         FROM runs WHERE id = ? AND status = 'held' AND MIN(used, hold) > 0`,
       )
-      .bind(crypto.randomUUID(), run.user_id, -cost, run.id, `charge:${run.id}`, at, cost, run.id),
+      .bind(crypto.randomUUID(), at, runId),
     db
       .prepare(
-        "UPDATE runs SET status = ?, cost = ?, actual_cost = ?, usage = ?, settled_at = ? WHERE id = ? AND status = 'held'",
+        `UPDATE runs SET status = CASE WHEN MIN(used, hold) > 0 THEN 'settled' ELSE 'released' END,
+           cost = MIN(used, hold), actual_cost = used, usage = ?, settled_at = ?
+         WHERE id = ? AND status = 'held' RETURNING cost`,
       )
-      .bind(
-        cost > 0 ? "settled" : "released",
-        cost,
-        Math.ceil(actual),
-        usage === null ? null : JSON.stringify(usage),
-        at,
-        run.id,
-      ),
+      .bind(usage === null ? null : JSON.stringify(usage), at, runId),
   ]);
-  return cost;
+  return (settled?.results?.[0] as { cost?: number } | undefined)?.cost ?? 0;
 }
 
-export const release = (db: D1Database, runId: string) => settle(db, runId, 0);
+/**
+ * Records what a run cost before its result goes back, so that if the settle after it never
+ * runs (the Worker stopped), settleStale still charges it rather than releasing it free.
+ */
+export async function markUsed(db: D1Database, runId: string, cost: number): Promise<void> {
+  await db
+    .prepare("UPDATE runs SET used = ? WHERE id = ? AND status = 'held'")
+    .bind(Math.max(0, Math.ceil(cost)), runId)
+    .run();
+}
 
-/** Releases reservations from runs that died without settling (the Worker was killed, etc.). */
-export async function releaseStale(db: D1Database, olderThanMs = 10 * 60_000): Promise<number> {
+/** How long a recording's reservation can be drawn from: the longest recording, plus writing. */
+export const RECORDING_TTL_MS = 20 * 60_000;
+
+/**
+ * Takes `amount` from an open recording's reservation, in one statement. Refused (false) when the
+ * recording isn't this user's, is closed or expired, or the draw would go over what was reserved,
+ * so no number of parallel or repeated calls can use more than the reservation.
+ */
+export async function draw(
+  db: D1Database,
+  recordingId: string,
+  userId: string,
+  amount: number,
+): Promise<boolean> {
+  const { meta } = await db
+    .prepare(
+      `UPDATE runs SET used = used + ? WHERE id = ? AND user_id = ? AND kind = 'recording'
+         AND status = 'held' AND created_at > ? AND used + ? <= hold`,
+    )
+    .bind(amount, recordingId, userId, now() - RECORDING_TTL_MS, amount)
+    .run();
+  return meta.changes === 1;
+}
+
+/** Gives a draw back when its Meta call failed, so a failed caption costs nothing. */
+export async function undraw(db: D1Database, recordingId: string, amount: number): Promise<void> {
+  await db
+    .prepare(
+      "UPDATE runs SET used = MAX(0, used - ?) WHERE id = ? AND kind = 'recording' AND status = 'held'",
+    )
+    .bind(amount, recordingId)
+    .run();
+}
+
+/**
+ * Settles runs that were never settled (the Worker was stopped, a recording never closed): each
+ * is charged what it recorded as used and the rest is released. Recordings stay open for
+ * RECORDING_TTL_MS; every other run settles within seconds, so 10 minutes means it died.
+ */
+export async function settleStale(db: D1Database, olderThanMs = 10 * 60_000): Promise<number> {
+  const at = now();
   const { results } = await db
-    .prepare("SELECT id FROM runs WHERE status = 'held' AND created_at < ? LIMIT 200")
-    .bind(now() - olderThanMs)
+    .prepare(
+      `SELECT id FROM runs WHERE status = 'held'
+         AND created_at < CASE WHEN kind = 'recording' THEN ? ELSE ? END LIMIT 200`,
+    )
+    .bind(at - Math.max(olderThanMs, RECORDING_TTL_MS), at - olderThanMs)
     .all<{ id: string }>();
-  for (const run of results) await release(db, run.id);
+  for (const run of results) await settle(db, run.id);
   return results.length;
 }
 

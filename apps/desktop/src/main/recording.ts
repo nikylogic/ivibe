@@ -23,6 +23,7 @@ import { selectedText } from "./os-bridge.ts";
 import type { Destination, Payload } from "./compose.ts";
 import type { FocusedWindow } from "./os-bridge.ts";
 import type { MetaAccess } from "./cloud.ts";
+import { cloudCloseRecording, cloudOpenRecording } from "./cloud.ts";
 import { shouldFallBack } from "./access.ts";
 import { transcribe } from "./transcribe.ts";
 
@@ -39,6 +40,11 @@ const NO_ACCESS = "Sign in to iVibe Cloud or add your Meta API key in Settings f
 export const MAX_DICTATE_MS = 5 * 60_000;
 export const MIN_RECORDING_MS = 2_000;
 const CURSOR_SAMPLE_MS = 100;
+/**
+ * A caption that hasn't come back within the first limit is sent once more, so one slow request
+ * can't hold up the result, which waits for every caption.
+ */
+const CAPTION_TIMEOUTS_MS = [8_000, 20_000];
 
 interface CursorSample {
   t: number;
@@ -93,6 +99,8 @@ export class RecordingController extends EventEmitter<{
   #calledAt = 0;
   /** The latest result, kept so it can be pasted again (click-to-paste, the paste shortcut). */
   #payload: Payload | null = null;
+  /** iVibe Cloud: the reservation this recording's captions draw from (apps/api runs.ts). */
+  #cloudRecording: { token: string; id: Promise<string | null> } | null = null;
 
   constructor({ recorder, access, settings }: RecordingControllerOptions) {
     super();
@@ -148,6 +156,7 @@ export class RecordingController extends EventEmitter<{
   async start(display: Display): Promise<void> {
     const busy: RecordingStatus["phase"][] = ["starting", "recording", "finalizing", "writing"];
     if (busy.includes(this.#status.phase)) return;
+    this.#closeCloudRecording();
     this.#calledAt = Date.now();
     this.#display = display;
     this.#sourceId = null;
@@ -178,8 +187,12 @@ export class RecordingController extends EventEmitter<{
     });
     // Recording without a way to run it would only fail at the end, so it doesn't start.
     if (this.#route.length === 0) return this.#fail(NO_ACCESS);
+    this.#openCloudRecording();
+    const id = this.#id;
     // Before any iVibe window shows: the app in front now is where the result goes.
     this.#destination = await detectDestination();
+    // Cancelled, or refused by iVibe Cloud, while that ran: don't open the mic.
+    if (this.#id !== id || this.#status.phase !== "starting") return;
     console.log(`[iVibe timing] start: destination ${Date.now() - this.#calledAt} ms`);
     this.#set({ targetName: this.#destination.target.name });
     this.#selection = this.#readSelection();
@@ -244,6 +257,7 @@ export class RecordingController extends EventEmitter<{
     if (this.#status.phase !== "recording" && this.#status.phase !== "starting") return;
     this.#clearTicker();
     this.#send({ type: "cancel" });
+    this.#closeCloudRecording();
     this.#cursor = [];
     this.#resetTranscript();
     this.#set({ phase: "idle", elapsedMs: 0, transcript: [] });
@@ -359,6 +373,8 @@ export class RecordingController extends EventEmitter<{
     this.#set({ phase: "writing" });
     const waitStarted = Date.now();
     await Promise.all(this.#captions);
+    // Every caption is in: charge what they used and give the rest back.
+    this.#closeCloudRecording();
     if (signal.aborted) return;
     console.log(`[iVibe timing] ${this.#mode}: last captions ${Date.now() - waitStarted} ms`);
 
@@ -477,7 +493,11 @@ export class RecordingController extends EventEmitter<{
     const { signal } = this.#transcriptions;
     try {
       const languages = this.#settings().personal.spokenLanguages;
-      const text = await this.#withAccess((access) => transcribe(wav, access, languages, signal));
+      const text = await this.#withAccess(async (access) => {
+        // Cloud captions draw from the recording's reservation, once it's open.
+        const recording = access.kind === "cloud" ? await this.#cloudRecording?.id : null;
+        return this.#transcribeInTime(wav, access, languages, signal, recording);
+      });
       if (signal.aborted) return;
       // Coughs and clicks come back empty; drop them rather than show a blank caption.
       this.#updateSegment(id, text ? { state: "final", text } : null);
@@ -486,6 +506,78 @@ export class RecordingController extends EventEmitter<{
       console.warn("Live caption failed:", error instanceof Error ? error.message : error);
       this.#updateSegment(id, { state: "failed" });
     }
+  }
+
+  /** One caption, sent again once if the first try is too slow (CAPTION_TIMEOUTS_MS). */
+  async #transcribeInTime(
+    wav: Uint8Array,
+    access: MetaAccess,
+    languages: Settings["personal"]["spokenLanguages"],
+    signal: AbortSignal,
+    recording: string | null | undefined,
+  ): Promise<string> {
+    for (let attempt = 0; ; attempt++) {
+      const limit = CAPTION_TIMEOUTS_MS[attempt]!;
+      const timeout = AbortSignal.timeout(limit);
+      try {
+        return await transcribe(
+          wav,
+          access,
+          languages,
+          AbortSignal.any([signal, timeout]),
+          recording,
+        );
+      } catch (error) {
+        const last = attempt === CAPTION_TIMEOUTS_MS.length - 1;
+        if (!timeout.aborted || signal.aborted || last) throw error;
+        console.warn(`Live caption took over ${limit / 1000} s; sending it again`);
+      }
+    }
+  }
+
+  /**
+   * Reserves this recording's captions on iVibe Cloud while the mic opens. A balance that can't
+   * cover them drops Cloud from the route (to the user's own key, if there is one), or stops the
+   * recording before the user has said much.
+   */
+  #openCloudRecording(): void {
+    // Only when Cloud goes first: a Cloud fallback behind the user's key reserves per caption.
+    const cloud = this.#route[0];
+    if (cloud?.kind !== "cloud") return;
+    const id = this.#id;
+    const opened = cloudOpenRecording(this.#mode, cloud.token).catch((error: unknown) => {
+      if (this.#id === id && shouldFallBack(cloud, error)) {
+        this.#route = this.#route.filter((access) => access !== cloud);
+        if (this.#route.length === 0)
+          this.#abort(error instanceof Error ? error.message : NO_ACCESS);
+      }
+      // Offline or a server error: each caption reserves on its own instead.
+      return null;
+    });
+    this.#cloudRecording = { token: cloud.token, id: opened };
+  }
+
+  /** Charges what this recording's captions used; the rest of its reservation goes back. */
+  #closeCloudRecording(): void {
+    const recording = this.#cloudRecording;
+    if (!recording) return;
+    this.#cloudRecording = null;
+    // Not waited for. If it never arrives, the server charges the same when the reservation expires.
+    void recording.id
+      .then((id) => (id ? cloudCloseRecording(id, recording.token) : undefined))
+      .catch((error: unknown) =>
+        console.warn(
+          "Closing the Cloud recording failed:",
+          error instanceof Error ? error.message : error,
+        ),
+      );
+  }
+
+  /** Stops a recording that can't run, wherever it got to. */
+  #abort(message: string): void {
+    const { phase } = this.#status;
+    if (phase === "recording") this.#send({ type: "cancel" });
+    if (phase === "starting" || phase === "recording") this.#fail(message);
   }
 
   /**
@@ -513,6 +605,7 @@ export class RecordingController extends EventEmitter<{
 
   #fail(message: string, canRetry = false): void {
     this.#clearTicker();
+    this.#closeCloudRecording();
     this.#set({ phase: "error", error: message, canRetry });
   }
 

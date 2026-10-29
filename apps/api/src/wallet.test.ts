@@ -4,14 +4,18 @@ import type { DatabaseSync } from "node:sqlite";
 import { beforeEach, describe, expect, it } from "vitest";
 import { testDb, testSettings } from "./test-db.test-helper.ts";
 import {
+  RECORDING_TTL_MS,
   activateTrial,
   balanceOf,
+  draw,
   grantTrial,
   hold,
-  releaseStale,
+  markUsed,
   settle,
+  settleStale,
   trialOnly,
   trialState,
+  undraw,
 } from "./wallet.ts";
 
 const settings = testSettings;
@@ -115,8 +119,25 @@ describe("hold and settle", () => {
     addUser("u", 500_000);
     await hold(db, settings, { id: "r1", userId: "u", kind: "fix", amount: 100_000 });
     sqlite.prepare("UPDATE runs SET created_at = 0").run();
-    expect(await releaseStale(db)).toBe(1);
+    expect(await settleStale(db)).toBe(1);
     expect(wallet("u")).toEqual({ balance: 500_000, held: 0 });
+  });
+
+  it("charges a run whose result went out but whose settle never ran", async () => {
+    addUser("u", 500_000);
+    await hold(db, settings, { id: "r1", userId: "u", kind: "fix", amount: 100_000 });
+    await markUsed(db, "r1", 42_000);
+    sqlite.prepare("UPDATE runs SET created_at = 0").run();
+    expect(await settleStale(db)).toBe(1);
+    expect(wallet("u")).toEqual({ balance: 458_000, held: 0 });
+    expect(ledgerSum("u")).toBe(-42_000);
+  });
+
+  it("leaves runs that may still be working alone", async () => {
+    addUser("u", 500_000);
+    await hold(db, settings, { id: "r1", userId: "u", kind: "fix", amount: 100_000 });
+    expect(await settleStale(db)).toBe(0);
+    expect(wallet("u").held).toBe(100_000);
   });
 
   it("keeps the ledger equal to the balance", async () => {
@@ -130,6 +151,100 @@ describe("hold and settle", () => {
     for (let i = 0; i < 5; i++) {
       await hold(db, settings, { id: `r${i}`, userId: "u", kind: "fix", amount: 100_000 });
       await settle(db, `r${i}`, 37_000 + i);
+    }
+    expect(ledgerSum("u")).toBe(wallet("u").balance);
+  });
+});
+
+describe("recordings", () => {
+  const open = (id = "rec", userId = "u", amount = 30_000) =>
+    hold(db, settings, { id, userId, kind: "recording", amount });
+
+  it("lets captions draw from the reservation, then charges only what they used", async () => {
+    addUser("u", 500_000);
+    expect(await open()).toBe("ok");
+    expect(await draw(db, "rec", "u", 1_000)).toBe(true);
+    expect(await draw(db, "rec", "u", 2_500)).toBe(true);
+    expect(wallet("u")).toEqual({ balance: 500_000, held: 30_000 });
+    expect(await settle(db, "rec")).toBe(3_500);
+    expect(wallet("u")).toEqual({ balance: 496_500, held: 0 });
+    expect(ledgerSum("u")).toBe(-3_500);
+  });
+
+  it("never lets draws go over the reservation, however many there are", async () => {
+    addUser("u", 500_000);
+    await open("rec", "u", 10_000);
+    const results = await Promise.all(
+      Array.from({ length: 25 }, () => draw(db, "rec", "u", 1_000)),
+    );
+    expect(results.filter(Boolean)).toHaveLength(10);
+    expect(await settle(db, "rec")).toBe(10_000);
+    expect(wallet("u").balance).toBe(490_000);
+  });
+
+  it("refuses draws on someone else's recording", async () => {
+    addUser("u", 500_000);
+    addUser("v", 500_000);
+    await open("rec", "u");
+    expect(await draw(db, "rec", "v", 1_000)).toBe(false);
+    expect(await draw(db, "missing", "v", 1_000)).toBe(false);
+  });
+
+  it("refuses draws once the recording is closed or expired", async () => {
+    addUser("u", 500_000);
+    await open("a");
+    await settle(db, "a");
+    expect(await draw(db, "a", "u", 1_000)).toBe(false);
+    await open("b");
+    sqlite
+      .prepare("UPDATE runs SET created_at = ? WHERE id = 'b'")
+      .run(Date.now() - RECORDING_TTL_MS - 1);
+    expect(await draw(db, "b", "u", 1_000)).toBe(false);
+  });
+
+  it("only draws from recordings, not from a single run's reservation", async () => {
+    addUser("u", 500_000);
+    await hold(db, settings, { id: "fix1", userId: "u", kind: "fix", amount: 100_000 });
+    expect(await draw(db, "fix1", "u", 1_000)).toBe(false);
+  });
+
+  it("gives back a draw whose caption failed", async () => {
+    addUser("u", 500_000);
+    await open();
+    await draw(db, "rec", "u", 2_000);
+    await draw(db, "rec", "u", 1_000);
+    await undraw(db, "rec", 1_000);
+    expect(await settle(db, "rec")).toBe(2_000);
+  });
+
+  it("charges an abandoned recording what it used once it expires, and not before", async () => {
+    addUser("u", 500_000);
+    await open();
+    await draw(db, "rec", "u", 4_000);
+    sqlite.prepare("UPDATE runs SET created_at = ?").run(Date.now() - 11 * 60_000);
+    expect(await settleStale(db)).toBe(0);
+    sqlite.prepare("UPDATE runs SET created_at = ?").run(Date.now() - RECORDING_TTL_MS - 1);
+    expect(await settleStale(db)).toBe(1);
+    expect(wallet("u")).toEqual({ balance: 496_000, held: 0 });
+  });
+
+  it("can't reserve more than the balance", async () => {
+    addUser("u", 20_000);
+    expect(await open("rec", "u", 30_000)).toBe("insufficient_credits");
+  });
+
+  it("keeps the ledger equal to the balance", async () => {
+    addUser("u");
+    await grantTrial(db, settings, {
+      userId: "u",
+      deviceHash: "d",
+      networkHash: "n",
+      githubCreatedAt: OLD_ACCOUNT,
+    });
+    for (let i = 0; i < 4; i++) {
+      await open(`rec${i}`);
+      for (let j = 0; j < 5; j++) await draw(db, `rec${i}`, "u", 700 + j);
+      await settle(db, `rec${i}`);
     }
     expect(ledgerSum("u")).toBe(wallet("u").balance);
   });
