@@ -79,6 +79,7 @@ Copy these into the website's root (`public/`) folder, and paste `head.html` int
 | `x-banner-*.png`                                      | The X header (1500 x 500).                                                      |
 | `linkedin-banner-*.png`                               | The LinkedIn banner (1584 x 396).                                               |
 | `mascot-on-light-1024.png`, `mascot-on-dark-1024.png` | The mascot artwork on its square background.                                    |
+| `product-pro-light.png`, `product-pro-dark.png`       | The iVibe Pro product image (1024 x 1024) for the Dodo Payments checkout.       |
 
 ## Source
 

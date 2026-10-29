@@ -20,6 +20,7 @@ import linuxOnDark2x from "../../../../logo/desktop/linux/tray-on-dark@2x.png?as
 import linuxRecOnDark from "../../../../logo/desktop/linux/tray-recording-on-dark.png?asset";
 import linuxRecOnDark2x from "../../../../logo/desktop/linux/tray-recording-on-dark@2x.png?asset";
 import linuxAppIcon from "../../../../logo/desktop/linux/icons/512x512.png?asset";
+import windowsAppIcon from "../../../../logo/desktop/windows/icon.ico?asset";
 
 /**
  * The tray and menu-bar icons from logo/ (see logo/README.md): the mascot on a small tile that
@@ -75,7 +76,13 @@ export function onTrayThemeChange(callback: () => void): void {
 }
 
 /**
- * The window icon on Linux, where the taskbar takes it from the window. Windows and macOS use
- * the icon built into the app (electron-builder.yml).
+ * The window's taskbar icon. Linux always takes it from the window; on Windows the installed app
+ * has it built in (electron-builder.yml), but `pnpm dev` runs electron.exe and would show
+ * Electron's. macOS uses the app bundle's icon.
  */
-export const windowIcon = process.platform === "linux" ? linuxAppIcon : undefined;
+export const windowIcon =
+  process.platform === "win32"
+    ? windowsAppIcon
+    : process.platform === "linux"
+      ? linuxAppIcon
+      : undefined;

@@ -157,6 +157,10 @@ def cards():
             (("social", f"linkedin-banner-{theme}.png"), 1584, 396, True),
         ]:
             jobs.append(dict(card=True, out=out(*path), w=w, h=h, tagline=tagline, **look))
+        # The product image for checkout and invoices (Dodo Payments): square, mascot over
+        # "iVibe Pro", large enough to read when the checkout shows it small.
+        jobs.append(dict(card=True, stack=True, out=out("social", f"product-pro-{theme}.png"),
+                         w=1024, h=1024, tagline=False, **look))
         # The lockup: mascot and wordmark on a transparent background.
         jobs.append(dict(card=True, out=out("web", f"lockup-{theme}.png"), w=1200, h=440, tagline=False,
                          **{**look, "bg": None}))
@@ -245,16 +249,16 @@ def copies(svgs):
         "display": "standalone",
     }, indent=2) + "\n")
     write(out("web", "head.html"), f"""<!-- Paste into the site's <head>; the files go in the site's root (public/) folder. -->
-<link rel="icon" href="/favicon.ico" sizes="48x48">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
-<meta name="theme-color" content="{LIGHT_PAGE}" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="{DARK_PAGE}" media="(prefers-color-scheme: dark)">
-<meta property="og:image" content="https://ivibe.tech/og-light.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.ico" sizes="48x48" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="{LIGHT_PAGE}" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="{DARK_PAGE}" media="(prefers-color-scheme: dark)" />
+<meta property="og:image" content="https://ivibe.tech/og-light.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
 """)
 
 

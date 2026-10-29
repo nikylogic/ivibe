@@ -32,6 +32,28 @@ window.draw = async (job) => {
     ctx.fillStyle = job.bg;
     ctx.fillRect(0, 0, job.w, job.h);
   }
+  // Stacked: the mascot over "iVibe Pro", the group centred in the square.
+  if (job.stack) {
+    const m = job.w * 0.5;
+    const word = Math.round(job.w * 0.15);
+    ctx.font = word + 'px "Instrument Serif"';
+    const name = ctx.measureText("iVibe ").width;
+    ctx.font = "italic " + word + 'px "Instrument Serif"';
+    const width = name + ctx.measureText("Pro").width;
+    const gap = m * 0.08;
+    const top = (job.h - (m + gap + word * 0.8)) / 2;
+    ctx.drawImage(await image(job.mascot), (job.w - m) / 2, top, m, m);
+    const x = (job.w - width) / 2;
+    const y = top + m + gap + word * 0.8;
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = job.text;
+    ctx.font = word + 'px "Instrument Serif"';
+    ctx.fillText("iVibe ", x, y);
+    ctx.fillStyle = job.secondary;
+    ctx.font = "italic " + word + 'px "Instrument Serif"';
+    ctx.fillText("Pro", x + name, y);
+    return canvas.toDataURL("image/png");
+  }
   // The mascot, then the wordmark and tagline beside it, the group centred in the card.
   const m = Math.min(job.h * 0.74, job.w * 0.42);
   const word = Math.round(m * 0.36);
