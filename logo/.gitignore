@@ -1,0 +1,3 @@
+# Temporary renders while build.py runs.
+source/build/
+__pycache__/
