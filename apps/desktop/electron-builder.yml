@@ -1,0 +1,58 @@
+# Unsigned builds for the hackathon (docs/architecture.md §11): no Windows certificate and no
+# Apple Developer ID. macOS apps are ad-hoc signed so Apple Silicon will launch them; users clear
+# Gatekeeper once (see the download page).
+appId: tech.ivibe.app
+productName: iVibe
+copyright: Copyright © 2026 Nikhil P
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+protocols:
+  - name: iVibe
+    schemes: [tech.ivibe.app]
+artifactName: iVibe-${version}-${os}-${arch}.${ext}
+publish:
+  provider: github
+  owner: nikylogic
+  repo: ivibe
+  releaseType: draft
+
+win:
+  icon: ../../logo/desktop/windows/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: true
+  perMachine: false
+  artifactName: iVibe-Setup-${version}.${ext}
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  icon: ../../logo/desktop/macos/icon.icns
+  identity: "-"
+  hardenedRuntime: false
+  extendInfo:
+    NSMicrophoneUsageDescription: iVibe listens while you record so it can hear what you expected to happen.
+    NSScreenCaptureUsageDescription: iVibe records your screen while you show it a bug.
+dmg:
+  artifactName: iVibe-${version}-mac-${arch}.${ext}
+
+linux:
+  icon: ../../logo/desktop/linux/icons
+  category: Development
+  maintainer: Nikhil P <hi.nikhilp@gmail.com>
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
