@@ -43,7 +43,18 @@ const styles = stylex.create({
     backgroundColor: "var(--color-background-surface)",
   },
   // The sidebar floats inside the window as a card.
-  rail: { display: "flex", flexShrink: 0, padding: 10, paddingInlineEnd: 0 },
+  rail: {
+    display: "flex",
+    flexShrink: 0,
+    padding: 10,
+    paddingInlineEnd: 0,
+    transitionProperty: "padding-top",
+    transitionDuration: "var(--motion-layout)",
+    transitionTimingFunction: "var(--motion-ease)",
+  },
+  // macOS, collapsed: the rail is narrower than the traffic lights, so the card starts below
+  // them, and its title strip shrinks by as much, so nothing inside the card moves.
+  railBelowLights: { paddingTop: 44 },
   floating: {
     position: "relative",
     display: "flex",
@@ -65,7 +76,14 @@ const styles = stylex.create({
   nav: { width: 248, flexShrink: 0 },
   // Clears the macOS traffic lights and the Windows/Linux overlay controls; drags the window.
   titleBar: { height: 44, flexShrink: 0 },
-  navTitleBar: { height: 58, flexShrink: 0 },
+  navTitleBar: {
+    height: 58,
+    flexShrink: 0,
+    transitionProperty: "height",
+    transitionDuration: "var(--motion-layout)",
+    transitionTimingFunction: "var(--motion-ease)",
+  },
+  navTitleBarBelowLights: { height: 24 },
   // The collapse toggle floats over the card's top right corner, so it rides the card's edge as
   // the card narrows and ends up centred in the collapsed rail: no jump, never clipped.
   toggle: {
@@ -78,9 +96,18 @@ const styles = stylex.create({
     transitionTimingFunction: "var(--motion-ease)",
   },
   toggleCollapsed: { insetInlineEnd: 8 },
-  // The collapsed rail is narrower than the macOS traffic lights, so there the expand button
-  // sits just below them.
-  toggleBelowLights: { top: 26 },
+  // macOS: the toggle lives in the window's title bar. Expanded, it sits where it does elsewhere
+  // (the card's top right corner); collapsed, it slides up next to the traffic lights.
+  toggleMac: {
+    position: "fixed",
+    top: 21,
+    left: 217,
+    zIndex: 3,
+    transitionProperty: "left, top",
+    transitionDuration: "var(--motion-layout)",
+    transitionTimingFunction: "var(--motion-ease)",
+  },
+  toggleMacCollapsed: { top: 8, left: 80 },
   header: { display: "flex", flexDirection: "column", width: "100%" },
   brand: {
     display: "flex",
@@ -217,6 +244,9 @@ function Screens() {
     return () => document.removeEventListener("keydown", onKey);
   }, [inSettings]);
 
+  // macOS, collapsed: the card starts below the traffic lights (styles.railBelowLights).
+  const belowLights = isMac && collapsed && !inSettings;
+
   if (!ready) return null;
   if (!current.welcomed && !hasAccess) {
     return (
@@ -226,7 +256,7 @@ function Screens() {
 
   return (
     <div {...stylex.props(styles.root)}>
-      <div {...stylex.props(styles.rail)}>
+      <div {...stylex.props(styles.rail, belowLights && styles.railBelowLights)}>
         <div
           {...withClass(
             collapsed && !inSettings
@@ -283,7 +313,13 @@ function Screens() {
                 collapsible={collapsible}
                 header={
                   <div {...stylex.props(styles.header)}>
-                    <div {...withClass("drag-region", styles.navTitleBar)} />
+                    <div
+                      {...withClass(
+                        "drag-region",
+                        styles.navTitleBar,
+                        belowLights && styles.navTitleBarBelowLights,
+                      )}
+                    />
                     <div {...stylex.props(styles.brand)}>
                       <span {...stylex.props(styles.mascot, collapsed && styles.mascotCollapsed)}>
                         <Mascot size={62} />
@@ -333,15 +369,8 @@ function Screens() {
           </div>
           {/* After the nav: Electron applies drag regions in document order, so the button's
               no-drag must come after the drag strip it sits on, or clicks would drag the window. */}
-          {!inSettings && (
-            <span
-              {...withClass(
-                "no-drag",
-                styles.toggle,
-                collapsed && styles.toggleCollapsed,
-                collapsed && isMac && styles.toggleBelowLights,
-              )}
-            >
+          {!inSettings && !isMac && (
+            <span {...withClass("no-drag", styles.toggle, collapsed && styles.toggleCollapsed)}>
               {toggle}
             </span>
           )}
@@ -379,6 +408,12 @@ function Screens() {
           )}
         </div>
       </main>
+      {/* Last in the document, so its no-drag wins over the title-bar drag strips it sits on. */}
+      {!inSettings && isMac && (
+        <span {...withClass("no-drag", styles.toggleMac, collapsed && styles.toggleMacCollapsed)}>
+          {toggle}
+        </span>
+      )}
     </div>
   );
 }
