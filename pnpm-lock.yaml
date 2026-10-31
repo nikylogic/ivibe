@@ -340,6 +340,57 @@ importers:
         specifier: ^8.3.5
         version: 8.3.5(@types/node@26.6.5)(jiti@2.7.0)
 
+  apps/web:
+    devDependencies:
+      '@astryxdesign/build':
+        specifier: 0.7.4
+        version: 0.7.4(@babel/core@8.0.9)(@stylexjs/babel-plugin@0.19.1(supports-color@7.2.0))(@stylexjs/unplugin@0.19.1(supports-color@7.2.0)(unplugin@2.3.11))(postcss@8.5.31)(vite@8.3.5(@types/node@26.6.5)(jiti@2.7.0))
+      '@astryxdesign/core':
+        specifier: 0.7.4
+        version: 0.7.4(@stylexjs/stylex@0.19.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@astryxdesign/theme-neutral':
+        specifier: 0.7.4
+        version: 0.7.4(@astryxdesign/core@0.7.4(@stylexjs/stylex@0.19.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(react@19.3.1)
+      '@fontsource-variable/inter':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/instrument-serif':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@ivibe/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@stylexjs/stylex':
+        specifier: ^0.19.1
+        version: 0.19.1
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      '@types/three':
+        specifier: 0.186.0
+        version: 0.186.0
+      '@vitejs/plugin-react':
+        specifier: ^6.1.2
+        version: 6.1.2(vite@8.3.5(@types/node@26.6.5)(jiti@2.7.0))
+      lucide-react:
+        specifier: ^1.61.0
+        version: 1.61.0(@types/react@19.3.0)(react@19.3.1)
+      react:
+        specifier: ^19.3.1
+        version: 19.3.1
+      react-dom:
+        specifier: ^19.3.1
+        version: 19.3.1(react@19.3.1)
+      three:
+        specifier: 0.186.1
+        version: 0.186.1
+      vite:
+        specifier: ^8.3.5
+        version: 8.3.5(@types/node@26.6.5)(jiti@2.7.0)
+
   packages/agent:
     devDependencies:
       '@ivibe/config':
