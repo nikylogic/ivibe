@@ -24,7 +24,7 @@ import {
   latestRelease,
 } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
-import { Demo } from "./demo.tsx";
+import { Demo } from "./demo/index.tsx";
 
 /** What the headline says iVibe does, one mode at a time. */
 const LINES = [
@@ -402,7 +402,7 @@ export function Home({
           />
         </div>
         <section id="modes" {...stylex.props(styles.modes)}>
-          <Demo />
+          <Demo theme={mode} />
         </section>
       </main>
     </div>
