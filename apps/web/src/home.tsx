@@ -24,6 +24,7 @@ import {
   latestRelease,
 } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
+import { Demo } from "./demo.tsx";
 
 /** What the headline says iVibe does, one mode at a time. */
 const LINES = [
@@ -134,6 +135,14 @@ const styles = stylex.create({
     gap: 12,
   },
   seeIt: { paddingBottom: 28, display: "flex", justifyContent: "center" },
+  modes: {
+    paddingInline: 24,
+    paddingTop: 48,
+    paddingBottom: 96,
+    scrollMarginTop: 24,
+    display: "flex",
+    justifyContent: "center",
+  },
 });
 
 const appleIcon = (
@@ -392,7 +401,9 @@ export function Home({
             href="#modes"
           />
         </div>
-        <section id="modes" />
+        <section id="modes" {...stylex.props(styles.modes)}>
+          <Demo />
+        </section>
       </main>
     </div>
   );
