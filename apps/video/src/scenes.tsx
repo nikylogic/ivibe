@@ -2,7 +2,8 @@
 
 import type { ReactNode } from "react";
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
-import { Mascot } from "./mascot.tsx";
+import { Mascot3D } from "./mascot3d.tsx";
+import type { MascotCue } from "./mascot3d.tsx";
 import { Cursor, ModeTitle, Pill, Window, fade, mono, typed, useEnter } from "./parts.tsx";
 import { C, MONO, SANS, SERIF } from "./theme.ts";
 
@@ -106,28 +107,19 @@ function Title({
 
 // ---------------------------------------------------------------------------------------------
 
+/** A first hello, as on the website: shy (blush, glance away), then a smile. */
+const introCue = (frame: number): MascotCue => ({ state: frame < 8 ? "idle" : "shy" });
+
 export function Intro() {
-  const frame = useCurrentFrame();
-  const pop = useEnter(4, 12);
-  const word = useEnter(22);
-  const line = useEnter(40);
-  // A first hello: shy (glance down, blush), then a smile, as on the website.
-  const shy = interpolate(frame, [6, 18, 44, 54], [0, 1, 1, 0], clamp);
-  const happy = interpolate(frame, [50, 58], [0, 1], clamp);
+  const pop = useEnter(2, 12);
+  const word = useEnter(30);
+  const line = useEnter(54);
   return (
     <Stage>
-      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <div style={{ transform: `scale(${pop}) translateY(${(1 - pop) * 60}px)` }}>
-            <Mascot
-              size={230}
-              face={{
-                blush: shy,
-                happy,
-                look: { x: -0.7 * shy, y: 0.8 * shy },
-                key: frame / 9,
-              }}
-            />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+          <div style={{ transform: `scale(${pop}) translateY(${(1 - pop) * 60}px)`, margin: -40 }}>
+            <Mascot3D size={340} cue={introCue} />
           </div>
           <div
             style={{
@@ -731,21 +723,23 @@ export function Dictate() {
 
 // ---------------------------------------------------------------------------------------------
 
+/** Happy to see you again, then a blink and a look at the link. */
+const outroCue = (frame: number): MascotCue => ({
+  state: frame < 16 ? "idle" : "done",
+  blink: frame === 84,
+  look: frame > 60 ? { x: 0, y: 0.5 } : { x: 0, y: 0 },
+});
+
 export function Outro() {
-  const frame = useCurrentFrame();
   const pop = useEnter(2, 12);
   const text = useEnter(14);
   const sub = useEnter(26);
   const cta = useEnter(40);
-  const blink = interpolate(frame, [70, 74, 78], [0, 1, 0], clamp);
   return (
     <Stage>
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: 26 }}>
-        <div style={{ transform: `scale(${pop})` }}>
-          <Mascot
-            size={260}
-            face={{ happy: interpolate(frame, [20, 30], [0, 1], clamp), blink, key: frame / 10 }}
-          />
+        <div style={{ transform: `scale(${pop})`, margin: -50 }}>
+          <Mascot3D size={340} cue={outroCue} />
         </div>
         <div
           style={{

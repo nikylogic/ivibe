@@ -323,6 +323,15 @@ export class MascotScene {
   #smileTimer: ReturnType<typeof setTimeout> | undefined;
   /** Where the key settles when it stops: facing front again. Unset while it turns. */
   #keyRest: number | null = 0;
+  /**
+   * Driven frame by frame (the demo video, apps/video): the time of the frame being drawn, in ms.
+   * Null in the app, where the toy runs on the real clock.
+   */
+  #manualNow: number | null = null;
+
+  #now(): number {
+    return this.#manualNow ?? performance.now();
+  }
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -470,8 +479,8 @@ export class MascotScene {
   setState(state: MascotState): void {
     if (state === this.#state && state !== "shy") return;
     this.#state = state;
-    if (state === "done") this.#doneAt = performance.now();
-    if (state === "shy") this.#shyAt = performance.now();
+    if (state === "done") this.#doneAt = this.#now();
+    if (state === "shy") this.#shyAt = this.#now();
     this.#wake(1200);
   }
 
@@ -491,6 +500,29 @@ export class MascotScene {
     if (this.#still) return;
     this.#look.set(x, y);
     this.#wake(300);
+  }
+
+  /**
+   * Stops the toy's own clock, timers and frames: from now on it draws only when `renderAt` is
+   * called, each frame in order, as a video renderer does. Blinks happen only on `blink()`.
+   */
+  driveManually(): void {
+    this.#stop();
+    clearTimeout(this.#blinkTimer);
+    clearTimeout(this.#smileTimer);
+    this.#manualNow = 0;
+    this.#last = 0;
+  }
+
+  /** Draws the frame at `ms` (manual mode). Frames must come in order, a frame apart. */
+  renderAt(ms: number): void {
+    this.#manualNow = ms;
+    this.#tick(ms);
+  }
+
+  /** A blink now (manual mode, where blinks aren't scheduled). */
+  blink(): void {
+    this.#blinkAt = this.#now();
   }
 
   /** Off screen or the app hidden: draws nothing until shown again. */
@@ -568,8 +600,8 @@ export class MascotScene {
 
   /** Draws for at least `ms` more, then stops once everything has settled. */
   #wake(ms: number): void {
-    this.#awakeUntil = Math.max(this.#awakeUntil, performance.now() + ms);
-    if (!this.#visible || this.#frame) return;
+    this.#awakeUntil = Math.max(this.#awakeUntil, this.#now() + ms);
+    if (!this.#visible || this.#frame || this.#manualNow !== null) return;
     this.#last = performance.now();
     this.#frame = requestAnimationFrame(this.#tick);
   }
@@ -714,7 +746,11 @@ export class MascotScene {
     this.#renderer.render(this.#scene, this.#camera);
     this.frames++;
 
-    if (this.#visible && (this.#busy() || moving || now < this.#awakeUntil)) {
+    if (
+      this.#manualNow === null &&
+      this.#visible &&
+      (this.#busy() || moving || now < this.#awakeUntil)
+    ) {
       this.#frame = requestAnimationFrame(this.#tick);
     }
   };

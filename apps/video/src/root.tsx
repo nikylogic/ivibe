@@ -4,9 +4,9 @@ import { Audio, Composition, Series, getStaticFiles, interpolate, staticFile } f
 import { Dictate, Fix, Intro, Outro, Prompt } from "./scenes.tsx";
 import { FPS, sec } from "./theme.ts";
 
-/** Scene lengths, in frames: about 36 seconds in all. */
+/** Scene lengths, in frames: about 37 seconds in all. */
 const SCENES = [
-  { name: "Intro", frames: sec(3), Scene: Intro },
+  { name: "Intro", frames: sec(4), Scene: Intro },
   { name: "Fix", frames: sec(11), Scene: Fix },
   { name: "Prompt", frames: sec(8), Scene: Prompt },
   { name: "Dictate", frames: sec(8), Scene: Dictate },
