@@ -321,7 +321,11 @@ function Hero() {
         <span {...stylex.props(styles.firstLine)}>
           iVibe
           <span {...stylex.props(styles.mascot)} aria-hidden="true">
-            <Mascot size={Math.round(Math.min(150, Math.max(78, window.innerWidth * 0.11)))} />
+            {/* A first hello: it blushes and glances away, then smiles back (scene.ts). */}
+            <Mascot
+              size={Math.round(Math.min(150, Math.max(78, window.innerWidth * 0.11)))}
+              state="shy"
+            />
           </span>
           , AI that
         </span>
