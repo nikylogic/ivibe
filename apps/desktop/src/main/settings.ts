@@ -4,7 +4,7 @@ import { EMPTY_PERSONAL, normalizePersonal } from "@ivibe/engine";
 import type { OutputMode, Settings } from "../shared/ipc.ts";
 import { database } from "./db.ts";
 import { isAppLanguage } from "../shared/languages.ts";
-import { defaultShortcuts, isValidAccelerator } from "../shared/shortcuts.ts";
+import { OLD_MAC_SHORTCUTS, defaultShortcuts, isValidAccelerator } from "../shared/shortcuts.ts";
 import type { ShortcutMap } from "../shared/shortcuts.ts";
 
 /** User preferences, stored in the local database (main/db.ts). */
@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editSelection: true,
   pill: "compact",
   sounds: true,
+  pillVisibleInCaptures: false,
   pillOffsets: {},
   runOn: "auto",
   runFallback: true,
@@ -55,6 +56,16 @@ export function readSettings(): Settings {
     const row = database().prepare("SELECT json FROM settings WHERE id = 1").get() as
       { json: string } | undefined;
     const stored = (row ? JSON.parse(row.json) : {}) as Partial<Settings>;
+    // Saved before the macOS defaults changed, and never customised: take the new defaults.
+    if (
+      process.platform === "darwin" &&
+      stored.shortcuts &&
+      (Object.keys(OLD_MAC_SHORTCUTS) as OutputMode[]).every(
+        (mode) => stored.shortcuts?.[mode] === OLD_MAC_SHORTCUTS[mode],
+      )
+    ) {
+      delete stored.shortcuts;
+    }
     cached = {
       ...DEFAULT_SETTINGS,
       ...stored,
@@ -93,6 +104,9 @@ export function updateSettings(change: Partial<Settings>): Settings {
   if (typeof change.dictateCleanup === "boolean") next.dictateCleanup = change.dictateCleanup;
   if (typeof change.editSelection === "boolean") next.editSelection = change.editSelection;
   if (typeof change.sounds === "boolean") next.sounds = change.sounds;
+  if (typeof change.pillVisibleInCaptures === "boolean") {
+    next.pillVisibleInCaptures = change.pillVisibleInCaptures;
+  }
   if (change.pillOffsets && typeof change.pillOffsets === "object") {
     next.pillOffsets = Object.fromEntries(
       Object.entries(change.pillOffsets)

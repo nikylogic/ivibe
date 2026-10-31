@@ -7,6 +7,7 @@ import {
   BrowserWindow,
   Menu,
   clipboard,
+  dialog,
   nativeTheme,
   Tray,
   app,
@@ -408,7 +409,7 @@ function pillBounds(display: Display): Rectangle {
 /** The pill's window, made at launch and kept (hidden) between recordings. */
 function pill(): BrowserWindow {
   if (hudWindow && !hudWindow.isDestroyed()) return hudWindow;
-  const window = createHudWindow(displayUnderCursor());
+  const window = createHudWindow(displayUnderCursor(), readSettings().pillVisibleInCaptures);
   window.setBounds(pillBounds(displayUnderCursor()));
   // Remembers a drag, per display, as an offset from the usual spot.
   window.on("moved", () => {
@@ -495,6 +496,10 @@ function onStatus(status: RecordingStatus): void {
     clearTimeout(hudHideTimer);
     if (hudWindow && !hudWindow.isDestroyed() && !hudWindow.isVisible()) {
       hudWindow.showInactive();
+      // Windows can drop a hidden window's top-most level, leaving the pill behind full-screen
+      // or other always-on-top windows: claim it again on every show.
+      hudWindow.setAlwaysOnTop(true, "screen-saver");
+      hudWindow.moveTop();
       console.log(`[iVibe timing] start: pill shown after ${Date.now() - startCalledAt} ms`);
     }
   }
@@ -528,6 +533,9 @@ const MODE_LABELS: Record<OutputMode, string> = {
 function changeSettings(change: Partial<Settings>): Settings {
   const settings = updateSettings(change);
   if (change.appearance) nativeTheme.themeSource = settings.appearance;
+  if (change.pillVisibleInCaptures !== undefined && hudWindow && !hudWindow.isDestroyed()) {
+    hudWindow.setContentProtection(!settings.pillVisibleInCaptures);
+  }
   broadcast(Channels.settingsChanged, settings);
   if (change.shortcuts && shortcutsPaused === undefined) registerShortcuts();
   updateTrayMenu();
@@ -1063,8 +1071,42 @@ app.on("will-quit", () => {
 // Stay in the tray when every window is closed.
 app.on("window-all-closed", () => undefined);
 
+/**
+ * macOS: opened straight from the disk image (or Downloads), offer to move into Applications, so
+ * nobody has to drag it there. Moving quits and relaunches from the new place. Returns true then.
+ */
+function offerMoveToApplications(): boolean {
+  if (
+    process.platform !== "darwin" ||
+    !app.isPackaged ||
+    SELF_TEST ||
+    app.isInApplicationsFolder()
+  ) {
+    return false;
+  }
+  const choice = dialog.showMessageBoxSync({
+    type: "question",
+    message: "Move iVibe to your Applications folder?",
+    detail: "Run from the disk image, iVibe stops working when the disk image is ejected.",
+    buttons: ["Move to Applications", "Not Now"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (choice !== 0) return false;
+  try {
+    return app.moveToApplicationsFolder();
+  } catch (error) {
+    dialog.showErrorBox(
+      "iVibe couldn't move itself",
+      `Drag iVibe into Applications instead. (${error instanceof Error ? error.message : String(error)})`,
+    );
+    return false;
+  }
+}
+
 void app.whenReady().then(() => {
   if (BACKUP_TEST) return startBackupSelfTest();
+  if (offerMoveToApplications()) return;
   if (!process.env.ELECTRON_RENDERER_URL) serveRendererFiles();
   // Windows, their title-bar overlay and the renderer's light/dark tokens all follow this.
   nativeTheme.themeSource = readSettings().appearance;

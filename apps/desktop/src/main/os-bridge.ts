@@ -23,10 +23,14 @@ export interface FocusedWindow {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Windows: one long-lived PowerShell process that answers a line per command, so each call takes
-// milliseconds instead of PowerShell's ~400 ms start-up.
+// Windows: long-lived PowerShell processes that answer a line per command, so each call takes
+// milliseconds instead of PowerShell's ~400 ms start-up. Two of them: UI Automation calls (focus,
+// text fields, selection) can take hundreds of milliseconds in some apps, and click-to-paste polls
+// them, so key-state checks (hold-to-talk, Caps Lock) get their own process and never wait behind
+// one. Each command carries an id that comes back with its answer, so an answer that arrives after
+// its caller gave up can't be taken for the next command's.
 
-const WINDOWS_HELPER = String.raw`
+const windowsHelper = (uia: boolean) => String.raw`
 $ProgressPreference = 'SilentlyContinue'
 Add-Type -Namespace IVibe -Name Win32 -MemberDefinition @'
 [DllImport("user32.dll")] public static extern System.IntPtr GetForegroundWindow();
@@ -38,7 +42,7 @@ Add-Type -Namespace IVibe -Name Win32 -MemberDefinition @'
 [DllImport("user32.dll")] public static extern short GetKeyState(int vk);
 '@
 $uia = $false
-try { Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes; $uia = $true } catch {}
+${uia ? "try { Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes; $uia = $true } catch {}" : ""}
 function Describe($h) {
   $p = 0
   [void][IVibe.Win32]::GetWindowThreadProcessId($h, [ref]$p)
@@ -48,7 +52,8 @@ function Describe($h) {
   try { $name = (Get-Process -Id $p -ErrorAction Stop).ProcessName } catch {}
   return @{ process = $name; title = $sb.ToString(); handle = [string][int64]$h }
 }
-while ($null -ne ($line = [Console]::In.ReadLine())) {
+while ($null -ne ($request = [Console]::In.ReadLine())) {
+  $id, $line = $request -split ' ', 2
   try {
     if ($line -eq 'focused') {
       $out = Describe ([IVibe.Win32]::GetForegroundWindow())
@@ -115,80 +120,106 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
   } catch {
     $out = @{ error = $_.Exception.Message }
   }
+  $out.id = $id
   [Console]::Out.WriteLine(($out | ConvertTo-Json -Compress))
   [Console]::Out.Flush()
 }
 `;
 
 class WindowsHelper {
+  readonly #script: string;
   #child: ChildProcessWithoutNullStreams | null = null;
+  /** The process has answered at least once, so it is up and a timeout means it is stuck. */
+  #ready = false;
   #buffer = "";
-  #waiting: ((line: string | null) => void)[] = [];
-  #queue: Promise<unknown> = Promise.resolve();
+  #nextId = 1;
+  #waiting = new Map<string, (line: Record<string, unknown> | null) => void>();
+
+  constructor(uia: boolean) {
+    this.#script = Buffer.from(windowsHelper(uia), "utf16le").toString("base64");
+  }
 
   #start(): ChildProcessWithoutNullStreams {
     if (this.#child && this.#child.exitCode === null) return this.#child;
-    const encoded = Buffer.from(WINDOWS_HELPER, "utf16le").toString("base64");
     const child = spawn(
       "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+      ["-NoProfile", "-NonInteractive", "-EncodedCommand", this.#script],
       { windowsHide: true },
     );
+    this.#ready = false;
+    this.#buffer = "";
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
+      if (child !== this.#child) return;
       this.#buffer += chunk;
       let newline: number;
       while ((newline = this.#buffer.indexOf("\n")) >= 0) {
         const line = this.#buffer.slice(0, newline).trim();
         this.#buffer = this.#buffer.slice(newline + 1);
-        if (line.startsWith("{")) this.#waiting.shift()?.(line);
+        if (!line.startsWith("{")) continue;
+        try {
+          const answer = JSON.parse(line) as Record<string, unknown>;
+          this.#ready = true;
+          const id = String(answer.id);
+          const resolve = this.#waiting.get(id);
+          this.#waiting.delete(id);
+          resolve?.(answer);
+        } catch {
+          // Not an answer; ignore it.
+        }
       }
     });
+    child.on("error", () => undefined);
+    child.stdin.on("error", () => undefined);
     child.on("exit", () => {
-      for (const resolve of this.#waiting.splice(0)) resolve(null);
+      if (child !== this.#child) return;
+      for (const resolve of this.#waiting.values()) resolve(null);
+      this.#waiting.clear();
       this.#child = null;
     });
     this.#child = child;
     return child;
   }
 
-  /** Sends one command and waits for its JSON line; commands run one at a time. */
+  /** Sends one command and waits for its answer, or null after the timeout. */
   request<T>(command: string, timeoutMs = 4000): Promise<T | null> {
-    const next = this.#queue.then(
-      () =>
-        new Promise<T | null>((resolve) => {
-          const child = this.#start();
-          const timer = setTimeout(() => {
-            this.#waiting = this.#waiting.filter((waiter) => waiter !== done);
-            resolve(null);
-          }, timeoutMs);
-          const done = (line: string | null) => {
-            clearTimeout(timer);
-            try {
-              resolve(line ? (JSON.parse(line) as T) : null);
-            } catch {
-              resolve(null);
-            }
-          };
-          this.#waiting.push(done);
-          child.stdin.write(`${command}\n`);
-        }),
-    );
-    this.#queue = next;
-    return next;
+    return new Promise<T | null>((resolve) => {
+      const child = this.#start();
+      const id = String(this.#nextId++);
+      const timer = setTimeout(() => {
+        this.#waiting.delete(id);
+        resolve(null);
+        // Up but not answering (a UI Automation call that hangs): start a fresh one, so later
+        // commands don't queue behind it.
+        if (this.#ready && child === this.#child) {
+          this.#child = null;
+          for (const waiter of this.#waiting.values()) waiter(null);
+          this.#waiting.clear();
+          child.kill();
+        }
+      }, timeoutMs);
+      this.#waiting.set(id, (answer) => {
+        clearTimeout(timer);
+        resolve(answer as T | null);
+      });
+      child.stdin.write(`${id} ${command}\n`, () => undefined);
+    });
   }
 
   /** Starts PowerShell ahead of the first recording, so detection is instant. */
-  warmUp(): void {
-    void this.request("focused", 10_000);
+  warmUp(command: string): void {
+    void this.request(command, 15_000);
   }
 
   dispose(): void {
     this.#child?.kill();
+    this.#child = null;
   }
 }
 
-const windows = process.platform === "win32" ? new WindowsHelper() : null;
+const windows = process.platform === "win32" ? new WindowsHelper(true) : null;
+/** Hold-to-talk and Caps Lock: answers in milliseconds, whatever the UI Automation helper is doing. */
+const keys = process.platform === "win32" ? new WindowsHelper(false) : null;
 
 // ---------------------------------------------------------------------------------------------
 
@@ -381,8 +412,8 @@ export function virtualKey(accelerator: string): number | null {
  * and callers fall back to press-to-toggle.
  */
 export async function isKeyHeld(vk: number): Promise<boolean | null> {
-  if (!windows) return null;
-  const result = await windows.request<{ held?: boolean }>(`held ${vk}`, 1000);
+  if (!keys) return null;
+  const result = await keys.request<{ held?: boolean }>(`held ${vk}`, 1000);
   return result ? result.held === true : null;
 }
 
@@ -391,8 +422,8 @@ export async function isKeyHeld(vk: number): Promise<boolean | null> {
  * it had to press the key, which fires the shortcut again for the caller to ignore.
  */
 export async function capsLockOff(): Promise<boolean> {
-  if (!windows) return false;
-  const result = await windows.request<{ toggled?: boolean }>("capsoff");
+  if (!keys) return false;
+  const result = await keys.request<{ toggled?: boolean }>("capsoff", 1500);
   return result?.toggled === true;
 }
 
@@ -403,9 +434,11 @@ export function isOwnWindow(window: FocusedWindow): boolean {
 }
 
 export function warmUpOsBridge(): void {
-  windows?.warmUp();
+  windows?.warmUp("focused");
+  keys?.warmUp("held 0");
 }
 
 export function disposeOsBridge(): void {
   windows?.dispose();
+  keys?.dispose();
 }

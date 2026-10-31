@@ -21,13 +21,21 @@ const key = (
 });
 
 describe("shortcuts", () => {
-  it("defaults to Caps Lock on Windows and letters elsewhere", () => {
+  it("defaults to Caps Lock on Windows, Option+Space on macOS and letters on Linux", () => {
     expect(defaultShortcuts("win32")).toEqual({
       dictate: "Capslock",
       fix: "Control+Capslock",
       prompt: "Alt+Capslock",
     });
-    for (const accelerator of Object.values(defaultShortcuts("darwin"))) {
+    expect(defaultShortcuts("darwin")).toEqual({
+      dictate: "Alt+Space",
+      fix: "Control+Alt+Space",
+      prompt: "Alt+Shift+Space",
+    });
+    for (const accelerator of [
+      ...Object.values(defaultShortcuts("darwin")),
+      ...Object.values(defaultShortcuts("linux")),
+    ]) {
       expect(isValidAccelerator(accelerator)).toBe(true);
       expect(accelerator).not.toContain("Capslock");
     }

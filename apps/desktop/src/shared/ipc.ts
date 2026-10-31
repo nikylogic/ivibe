@@ -64,6 +64,11 @@ export interface Settings {
   pill: PillStyle;
   /** A soft sound when recording starts and stops. */
   sounds: boolean;
+  /**
+   * Screen recorders and screenshots can see the pill (for demos). Off, it is hidden from all
+   * captures, iVibe's own included.
+   */
+  pillVisibleInCaptures: boolean;
   /** Where the pill was dragged to, per display: an offset from its usual spot. */
   pillOffsets: Record<string, { dx: number; dy: number }>;
   /** With both a Cloud account and a key: which one a recording runs on first. */

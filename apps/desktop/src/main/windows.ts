@@ -115,7 +115,7 @@ export function hudBounds(display: Display): Electron.Rectangle {
  * Made once at launch and kept hidden between recordings, so the pill shows the moment a
  * shortcut is pressed instead of after a page load.
  */
-export function createHudWindow(display: Display): BrowserWindow {
+export function createHudWindow(display: Display, visibleInCaptures = false): BrowserWindow {
   const window = new BrowserWindow({
     ...hudBounds(display),
     show: false,
@@ -140,8 +140,9 @@ export function createHudWindow(display: Display): BrowserWindow {
     },
   });
   window.setAlwaysOnTop(true, "screen-saver");
-  // Keeps the HUD out of the recording on Windows; masked by the pipeline elsewhere.
-  window.setContentProtection(true);
+  // Keeps the HUD out of the recording (and of every other capture) unless Settings lets
+  // screen recorders see it, for demos.
+  window.setContentProtection(!visibleInCaptures);
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   window.setIgnoreMouseEvents(true, { forward: true });
   harden(window);

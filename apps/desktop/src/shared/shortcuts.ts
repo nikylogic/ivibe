@@ -11,14 +11,27 @@ import type { OutputMode } from "./ipc.ts";
 export type ShortcutMap = Record<OutputMode, string>;
 
 /**
- * Caps Lock on Windows: one key for the most common mode, a modifier for the others. Electron
- * can't register Caps Lock on macOS, where it is a modifier, so other platforms get letters.
+ * One key for the most common mode and a modifier on it for the others. Caps Lock on Windows.
+ * Electron can't register Caps Lock on macOS, where it is a modifier, so the Mac gets Option+Space,
+ * the key Mac voice apps use, within thumb's reach. Linux desktops take Alt+Space for the window
+ * menu, so Linux keeps letters.
  */
 export function defaultShortcuts(platform: string): ShortcutMap {
-  return platform === "win32"
-    ? { dictate: "Capslock", fix: "Control+Capslock", prompt: "Alt+Capslock" }
-    : { dictate: "Control+Alt+D", fix: "Control+Alt+F", prompt: "Control+Alt+P" };
+  if (platform === "win32") {
+    return { dictate: "Capslock", fix: "Control+Capslock", prompt: "Alt+Capslock" };
+  }
+  if (platform === "darwin") {
+    return { dictate: "Alt+Space", fix: "Control+Alt+Space", prompt: "Alt+Shift+Space" };
+  }
+  return { dictate: "Control+Alt+D", fix: "Control+Alt+F", prompt: "Control+Alt+P" };
 }
+
+/** macOS defaults before 0.1.3; kept so settings still on them move to the new ones. */
+export const OLD_MAC_SHORTCUTS: ShortcutMap = {
+  dictate: "Control+Alt+D",
+  fix: "Control+Alt+F",
+  prompt: "Control+Alt+P",
+};
 
 /** Pastes the latest result; fixed, so it is always where the result's hint says it is. */
 export const PASTE_SHORTCUT = "Control+Alt+V";

@@ -962,6 +962,13 @@ export function SettingsPage({
                   isDisabled={!current}
                   onChange={(sounds) => settings.change({ sounds })}
                 />
+                <Switch
+                  label="Show in screen recordings"
+                  description="Lets screen recorders and screenshots see the pill, for demos and tutorials. Off, it stays out of every capture, iVibe's own recordings included."
+                  value={current?.pillVisibleInCaptures ?? false}
+                  isDisabled={!current}
+                  onChange={(pillVisibleInCaptures) => settings.change({ pillVisibleInCaptures })}
+                />
               </Row>
               <Row title="Language" note="The language iVibe's screens are shown in.">
                 <Selector

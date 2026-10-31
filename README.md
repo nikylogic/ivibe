@@ -39,18 +39,25 @@ iVibe 0.1 is out for Windows, macOS and Linux. Get it from the [latest release](
 The installers aren't code-signed yet, so your computer asks once before opening iVibe:
 
 - **Windows:** if SmartScreen says "Windows protected your PC", click **More info**, then **Run anyway**.
-- **macOS:** drag iVibe to Applications. If macOS says it can't verify iVibe, open **System Settings → Privacy & Security** and click **Open Anyway**.
+- **macOS:** the quickest way is one line in Terminal, which installs the latest version into Applications and opens it, with no security prompt:
+
+  ```sh
+  curl -fsSL https://raw.githubusercontent.com/nikylogic/ivibe/main/scripts/install-mac.sh | bash
+  ```
+
+  Or open the `.dmg` and double-click iVibe: it offers to move itself to Applications. If macOS says it can't verify iVibe, open **System Settings → Privacy & Security** and click **Open Anyway**.
+
 - **Linux:** `sudo apt install ./iVibe-<version>-linux-amd64.deb`, or `chmod +x` the AppImage and run it.
 
 iVibe keeps itself up to date. On Windows and Linux it downloads updates in the background and installs them when you restart; on macOS it tells you when a new version is out.
 
 ## Three modes
 
-| Mode        | You give it              | It pastes                                                                         | Windows              | macOS and Linux      |
-| ----------- | ------------------------ | --------------------------------------------------------------------------------- | -------------------- | -------------------- |
-| **Fix**     | Your screen + your voice | A fix prompt for your coding agent, with annotated screenshots that prove the bug | `Ctrl` + `Caps Lock` | `Ctrl` + `Alt` + `F` |
-| **Prompt**  | Your voice               | A clear, structured prompt from what you rambled                                  | `Alt` + `Caps Lock`  | `Ctrl` + `Alt` + `P` |
-| **Dictate** | Your voice               | Your own words, cleaned up: no "um", no false starts                              | Hold `Caps Lock`     | `Ctrl` + `Alt` + `D` |
+| Mode        | You give it              | It pastes                                                                         | Windows              | macOS               | Linux                |
+| ----------- | ------------------------ | --------------------------------------------------------------------------------- | -------------------- | ------------------- | -------------------- |
+| **Fix**     | Your screen + your voice | A fix prompt for your coding agent, with annotated screenshots that prove the bug | `Ctrl` + `Caps Lock` | `⌃` + `⌥` + `Space` | `Ctrl` + `Alt` + `F` |
+| **Prompt**  | Your voice               | A clear, structured prompt from what you rambled                                  | `Alt` + `Caps Lock`  | `⇧` + `⌥` + `Space` | `Ctrl` + `Alt` + `P` |
+| **Dictate** | Your voice               | Your own words, cleaned up: no "um", no false starts                              | Hold `Caps Lock`     | `⌥` + `Space`       | `Ctrl` + `Alt` + `D` |
 
 Every shortcut can be changed in Settings. On Windows, hold `Caps Lock` to talk, or double-press it for hands-free. Results land where you were typing: screenshots are pasted as images into chat apps and Claude Code, and as file paths into other terminal agents. If you switched apps meanwhile, the result waits on the clipboard and pastes into the next text field you click, or with `Ctrl` + `Alt` + `V`.
 
