@@ -42,8 +42,8 @@ whatever the theme, and the light tile stands out on both light and dark desktop
 | `tray-on-dark.png` (+ `@2x`)  | The same on a dark menu bar.                                                   |
 | `tray-recording-on-*.png`     | While recording, with a red dot.                                               |
 
-The menu-bar icon keeps the mascot in colour; only its small background tile changes, light or
-dark, to suit the menu bar.
+The menu-bar icon keeps the mascot in colour on the app icon's white tile; the app uses the `on-light`
+tiles on every menu bar and taskbar, light or dark, so the icon matches everywhere.
 
 ### `desktop/linux/`
 

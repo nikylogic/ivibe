@@ -45,7 +45,7 @@ import {
   signOut,
 } from "./cloud.ts";
 import type { MetaAccess } from "./cloud.ts";
-import { onTrayThemeChange, trayIcons } from "./icons.ts";
+import { trayIcons } from "./icons.ts";
 import {
   checkForUpdates,
   installUpdate,
@@ -1157,12 +1157,6 @@ void app.whenReady().then(() => {
 
   tray = new Tray(trayIcons.idle());
   tray.setToolTip("iVibe");
-  onTrayThemeChange(() => {
-    const { phase } = recording.status;
-    tray?.setImage(
-      phase === "recording" || phase === "starting" ? trayIcons.recording() : trayIcons.idle(),
-    );
-  });
   tray.on("click", () => showUi());
   updateTrayMenu();
 

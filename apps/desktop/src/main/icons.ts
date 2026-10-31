@@ -1,30 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /// <reference types="electron-vite/node" />
 
-import { nativeImage, nativeTheme, systemPreferences } from "electron";
+import { nativeImage } from "electron";
 import type { NativeImage } from "electron";
 import winOnLight from "../../../../logo/desktop/windows/tray-on-light.ico?asset";
-import winOnDark from "../../../../logo/desktop/windows/tray-on-dark.ico?asset";
 import winRecOnLight from "../../../../logo/desktop/windows/tray-recording-on-light.ico?asset";
-import winRecOnDark from "../../../../logo/desktop/windows/tray-recording-on-dark.ico?asset";
 import macOnLight from "../../../../logo/desktop/macos/tray-on-light.png?asset";
 import macOnLight2x from "../../../../logo/desktop/macos/tray-on-light@2x.png?asset";
-import macOnDark from "../../../../logo/desktop/macos/tray-on-dark.png?asset";
-import macOnDark2x from "../../../../logo/desktop/macos/tray-on-dark@2x.png?asset";
 import macRecOnLight from "../../../../logo/desktop/macos/tray-recording-on-light.png?asset";
 import macRecOnLight2x from "../../../../logo/desktop/macos/tray-recording-on-light@2x.png?asset";
-import macRecOnDark from "../../../../logo/desktop/macos/tray-recording-on-dark.png?asset";
-import macRecOnDark2x from "../../../../logo/desktop/macos/tray-recording-on-dark@2x.png?asset";
-import linuxOnDark from "../../../../logo/desktop/linux/tray-on-dark.png?asset";
-import linuxOnDark2x from "../../../../logo/desktop/linux/tray-on-dark@2x.png?asset";
-import linuxRecOnDark from "../../../../logo/desktop/linux/tray-recording-on-dark.png?asset";
-import linuxRecOnDark2x from "../../../../logo/desktop/linux/tray-recording-on-dark@2x.png?asset";
+import linuxOnLight from "../../../../logo/desktop/linux/tray-on-light.png?asset";
+import linuxOnLight2x from "../../../../logo/desktop/linux/tray-on-light@2x.png?asset";
+import linuxRecOnLight from "../../../../logo/desktop/linux/tray-recording-on-light.png?asset";
+import linuxRecOnLight2x from "../../../../logo/desktop/linux/tray-recording-on-light@2x.png?asset";
 import linuxAppIcon from "../../../../logo/desktop/linux/icons/512x512.png?asset";
 import windowsAppIcon from "../../../../logo/desktop/windows/icon.ico?asset";
 
 /**
- * The tray and menu-bar icons from logo/ (see logo/README.md): the mascot on a small tile that
- * is light on a light taskbar or menu bar and dark on a dark one, with a red dot while recording.
+ * The tray and menu-bar icons from logo/ (see logo/README.md): the mascot on the same white tile
+ * as the app icon, whatever the colour of the taskbar or menu bar, with a red dot while recording.
  */
 
 /** A PNG with its @2x file added for high-DPI screens (asset files lose the @2x naming). */
@@ -34,46 +28,20 @@ function png(path: string, path2x: string): NativeImage {
   return image;
 }
 
-/**
- * Whether the taskbar or menu bar is dark. That is the OS setting, not the app's own appearance
- * (nativeTheme.themeSource), which the user can set the other way.
- */
-function darkBar(): boolean {
-  if (process.platform === "win32") return nativeTheme.shouldUseDarkColorsForSystemIntegratedUI;
-  if (process.platform === "darwin") {
-    return systemPreferences.getUserDefault("AppleInterfaceStyle", "string") === "Dark";
-  }
-  // Most Linux panels are dark, whatever the theme (GNOME's top bar always is).
-  return true;
-}
-
 function trayIcon(recording: boolean): NativeImage {
-  const dark = darkBar();
   if (process.platform === "win32") {
-    return nativeImage.createFromPath(
-      recording ? (dark ? winRecOnDark : winRecOnLight) : dark ? winOnDark : winOnLight,
-    );
+    return nativeImage.createFromPath(recording ? winRecOnLight : winOnLight);
   }
   if (process.platform === "darwin") {
-    if (recording)
-      return dark ? png(macRecOnDark, macRecOnDark2x) : png(macRecOnLight, macRecOnLight2x);
-    return dark ? png(macOnDark, macOnDark2x) : png(macOnLight, macOnLight2x);
+    return recording ? png(macRecOnLight, macRecOnLight2x) : png(macOnLight, macOnLight2x);
   }
-  return recording ? png(linuxRecOnDark, linuxRecOnDark2x) : png(linuxOnDark, linuxOnDark2x);
+  return recording ? png(linuxRecOnLight, linuxRecOnLight2x) : png(linuxOnLight, linuxOnLight2x);
 }
 
 export const trayIcons = {
   idle: () => trayIcon(false),
   recording: () => trayIcon(true),
 };
-
-/** Calls back when the taskbar or menu bar switches between light and dark. */
-export function onTrayThemeChange(callback: () => void): void {
-  nativeTheme.on("updated", callback);
-  if (process.platform === "darwin") {
-    systemPreferences.subscribeNotification("AppleInterfaceThemeChangedNotification", callback);
-  }
-}
 
 /**
  * The window's taskbar icon. Linux always takes it from the window; on Windows the installed app
