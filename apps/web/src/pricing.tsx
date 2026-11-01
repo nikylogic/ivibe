@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { Cloud, Download, KeyRound } from "lucide-react";
+import { Theme } from "@astryxdesign/core/theme";
 import { glide, MONO } from "./demo/kit.tsx";
+import { TONES } from "./demo/voice.ts";
+import { ivibeTheme } from "./theme.ts";
 
 /**
- * The price, as the receipt feature 6 ended on: one printed for each way to run iVibe. Each prints
+ * The price, as the receipt feature 6 ended on: one printed for each plan. Each prints
  * once when it comes into view and then stays still, so the numbers are easy to read. With reduced
  * motion both are simply there.
  */
@@ -41,11 +42,11 @@ const styles = stylex.create({
   receipts: {
     display: "grid",
     gridTemplateColumns: {
-      default: "repeat(2, minmax(0, 330px))",
-      "@media (max-width: 760px)": "minmax(0, 330px)",
+      default: "repeat(3, minmax(0, 310px))",
+      "@media (max-width: 960px)": "minmax(0, 330px)",
     },
     justifyContent: "center",
-    gap: { default: 40, "@media (max-width: 760px)": 32 },
+    gap: { default: 28, "@media (max-width: 960px)": 32 },
     marginTop: 56,
   },
   after: {
@@ -60,16 +61,52 @@ const styles = stylex.create({
 
 type Row = { label: string; value: string };
 
-const YOUR_KEY: Row[] = [
-  { label: "Recordings", value: "unlimited" },
-  { label: "Account", value: "not needed" },
-  { label: "Meta usage", value: "billed to your key" },
-];
-
-const PRO: Row[] = [
-  { label: "API key", value: "not needed" },
-  { label: "Meta usage", value: "$4 a month" },
-  { label: "Backups", value: "encrypted" },
+const PLANS: {
+  name: string;
+  action: string;
+  href: string;
+  rows: Row[];
+  total: string;
+  amount: string;
+  featured?: boolean;
+}[] = [
+  {
+    name: "Free",
+    action: "Download",
+    href: "/download",
+    rows: [
+      { label: "Recordings", value: "unlimited" },
+      { label: "Modes", value: "all three" },
+      { label: "Usage", value: "on your key" },
+    ],
+    total: "Forever",
+    amount: "$0",
+  },
+  {
+    name: "Pro",
+    action: "Buy",
+    href: "/download?plan=pro",
+    rows: [
+      { label: "API key", value: "not needed" },
+      { label: "Usage", value: "400 credits a month" },
+      { label: "Backups", value: "encrypted" },
+    ],
+    total: "Per month",
+    amount: "$8",
+    featured: true,
+  },
+  {
+    name: "Enterprise",
+    action: "Contact",
+    href: "mailto:business@ivibe.tech",
+    rows: [
+      { label: "Models", value: "open source" },
+      { label: "Runs on", value: "your servers" },
+      { label: "Or", value: "hosted by us" },
+    ],
+    total: "Price",
+    amount: "Let's talk",
+  },
 ];
 
 /** How much of the paper has come out, and when: the rows stop-start, the total comes last. */
@@ -81,7 +118,7 @@ const FEED = [
 ];
 const FEED_MS = 340;
 const PRINT_MS = FEED[FEED.length - 1]!.at + FEED_MS;
-/** The second receipt starts a beat after the first. */
+/** Each receipt starts a beat after the one before. */
 const STAGGER_MS = 280;
 
 function fedAt(t: number) {
@@ -120,7 +157,7 @@ function usePrint() {
       ([entry]) => {
         if (!entry?.isIntersecting) return;
         watch.disconnect();
-        const end = PRINT_MS + STAGGER_MS;
+        const end = PRINT_MS + STAGGER_MS * (PLANS.length - 1);
         const start = performance.now();
         const tick = (now: number) => {
           const elapsed = Math.max(0, now - start);
@@ -143,23 +180,18 @@ function usePrint() {
 
 function Receipt({
   name,
-  icon,
+  action,
+  href,
   rows,
   total,
   amount,
+  featured,
   t,
-}: {
-  name: string;
-  icon: ReactNode;
-  rows: Row[];
-  total: string;
-  amount: string;
-  t: number;
-}) {
+}: (typeof PLANS)[number] & { t: number }) {
   const fed = t === Infinity ? 1 : fedAt(t);
   return (
     <article style={{ position: "relative", paddingTop: 22 }}>
-      {/* The pill the paper comes out of. */}
+      {/* The pill the paper comes out of: the plan, and what to do about it. */}
       <div
         style={{
           position: "absolute",
@@ -171,20 +203,32 @@ function Receipt({
           borderRadius: 999,
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
+          justifyContent: "space-between",
+          paddingInline: "18px 6px",
           color: "#f4f1ea",
           fontSize: 14,
           fontWeight: 500,
           background: "#0f0e0d",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          boxShadow: "0 10px 30px rgba(0, 0, 0, 0.26), 0 2px 6px rgba(0, 0, 0, 0.18)",
+          border: featured
+            ? `1px solid rgba(${TONES.Prompt}, 0.85)`
+            : "1px solid rgba(255, 255, 255, 0.08)",
+          boxShadow: featured
+            ? `0 0 22px rgba(${TONES.Prompt}, 0.28), 0 10px 30px rgba(0, 0, 0, 0.26)`
+            : "0 10px 30px rgba(0, 0, 0, 0.26), 0 2px 6px rgba(0, 0, 0, 0.18)",
         }}
       >
-        {icon}
         <h3 style={{ margin: 0, font: "inherit", color: "inherit" }}>{name}</h3>
+        <Theme theme={ivibeTheme} mode="dark">
+          <Button label={action} variant="primary" size="sm" href={href} />
+        </Theme>
       </div>
-      <div style={{ filter: "drop-shadow(0 12px 16px rgba(0, 0, 0, 0.2))", marginInline: 12 }}>
+      <div
+        style={{
+          position: "relative",
+          filter: "drop-shadow(0 12px 16px rgba(0, 0, 0, 0.2))",
+          marginInline: 12,
+        }}
+      >
         <div
           style={{
             background: PAPER,
@@ -254,41 +298,22 @@ export function Pricing() {
       <div {...stylex.props(styles.words)}>
         <VStack gap={4}>
           <Heading level={2} xstyle={styles.title}>
-            Two ways to run it.
+            Pick how you run it.
           </Heading>
           <Text size="lg" color="secondary">
-            Same app. You choose who pays Meta.
+            Same app, every plan.
           </Text>
         </VStack>
       </div>
       <div ref={box} {...stylex.props(styles.receipts)}>
-        <Receipt
-          name="Your key"
-          icon={<KeyRound size={15} strokeWidth={2} aria-hidden="true" />}
-          rows={YOUR_KEY}
-          total="Owed to iVibe"
-          amount="$0.00"
-          t={t}
-        />
-        <Receipt
-          name="iVibe Pro"
-          icon={<Cloud size={15} strokeWidth={2} aria-hidden="true" />}
-          rows={PRO}
-          total="Per month"
-          amount="$8.00"
-          t={t === Infinity ? t : t - STAGGER_MS}
-        />
+        {PLANS.map((plan, index) => (
+          <Receipt key={plan.name} {...plan} t={t - index * STAGGER_MS} />
+        ))}
       </div>
       <div {...stylex.props(styles.after)}>
         <Text color="secondary">
-          Pro usage resets each month. Not sure yet? Try it on free credits with GitHub.
+          Credits reset monthly. Not sure yet? Try free credits with GitHub.
         </Text>
-        <Button
-          label="Download"
-          variant="primary"
-          icon={<Download size={16} strokeWidth={2} aria-hidden="true" />}
-          href="/download"
-        />
       </div>
     </section>
   );

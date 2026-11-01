@@ -224,6 +224,9 @@ export function DownloadPage({
             {release.version ? `Version ${release.version}` : "The latest version"}, for Mac,
             Windows and Linux.
           </Text>
+          {new URLSearchParams(window.location.search).get("plan") === "pro" && (
+            <Text weight="semibold">Install iVibe, then buy Pro inside the app.</Text>
+          )}
         </div>
 
         <VStack gap={8}>
