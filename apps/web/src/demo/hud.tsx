@@ -342,15 +342,23 @@ export function Toast({ t, at, children }: { t: number; at: number; children: Re
 /** The bars' shape in the compact pill: tallest in the middle (shared/voice-wave.tsx). */
 const envelope = (index: number, count: number) => {
   const x = (index - (count - 1) / 2) / ((count - 1) / 2);
-  return 0.32 + 0.68 * Math.cos((x * Math.PI) / 2) ** 1.4;
+  return 0.5 + 0.5 * Math.cos((x * Math.PI) / 2) ** 1.4;
 };
 
-/** A voice that keeps talking: phrases of about two seconds with short pauses between. */
+/**
+ * A calm, continuous voice level: a few slow waves layered like the rise and fall of speech.
+ * No hard pauses or jagged syllables, since the hero shows these bars many times their size.
+ */
 function talking(t: number): number {
-  const phrase = t % 2600;
-  if (phrase > 2100) return 0.06;
-  const syllable = Math.abs(Math.sin(t / 85) * Math.sin(t / 31 + 1.3));
-  return 0.25 + syllable * 0.75 * (0.6 + 0.4 * Math.sin((phrase / 2100) * Math.PI));
+  const s = t / 1000;
+  const voice =
+    0.5 +
+    0.2 * Math.sin(s * 1.15) +
+    0.12 * Math.sin(s * 2.7 + 1.1) +
+    0.07 * Math.sin(s * 4.3 + 2.4);
+  // Phrases swell and soften every few seconds.
+  const breath = 0.78 + 0.22 * Math.sin(s * 0.42 - 0.6);
+  return voice * breath;
 }
 
 const BARS = 13;
@@ -373,13 +381,16 @@ export function CompactPill() {
       last = time;
       const level = still ? 0.6 : talking(time);
       for (let index = 0; index < BARS; index++) {
+        // A ripple that travels across the bars, so neighbours move together like a real wave.
         const sway = still
           ? 1
-          : 0.72 + 0.28 * Math.sin((time / 1000) * (2.1 + ((index * 7) % 5) * 0.37) + index * 1.3);
+          : 0.8 +
+            0.16 * Math.sin((time / 1000) * 1.9 - index * 0.55) +
+            0.06 * Math.sin((time / 1000) * 3.1 + index * 1.7);
         const want = level * envelope(index, BARS) * sway;
-        shown[index]! += (want - shown[index]!) * (1 - Math.exp(-dt * 22));
+        shown[index]! += (want - shown[index]!) * (1 - Math.exp(-dt * 7));
         const bar = bars.current[index];
-        if (bar) bar.style.height = `${Math.max(2.5, shown[index]! * 18).toFixed(2)}px`;
+        if (bar) bar.style.height = `${Math.max(2.5, shown[index]! * 18).toFixed(3)}px`;
       }
       if (!still) raf = requestAnimationFrame(paint);
     };
