@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Badge } from "@astryxdesign/core/Badge";
-import { Card } from "@astryxdesign/core/Card";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { Check } from "lucide-react";
-import { CLEAN, FIX_PROMPT, ProofConsole, ProofPage } from "./demo/apps.tsx";
+import { Check, SendHorizontal } from "lucide-react";
+import { FIX_PROMPT, ProofConsole, ProofPage } from "./demo/apps.tsx";
 import { APP_NAME, AppIcon } from "./demo/icons.tsx";
 import type { App } from "./demo/icons.tsx";
 import { Hud, Toast } from "./demo/hud.tsx";
 import type { HudPhase, Segment } from "./demo/hud.tsx";
-import { bump, ease, MONO } from "./demo/kit.tsx";
+import { bump, ease, glide, MONO } from "./demo/kit.tsx";
 import { TONES } from "./demo/voice.ts";
 import type { Tone } from "./demo/voice.ts";
 import { detectPlatform } from "./release.ts";
@@ -72,18 +71,6 @@ const styles = stylex.create({
 
 const tone = (name: Tone, alpha = 1) => `rgba(${TONES[name]}, ${alpha})`;
 const still = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/** Shown from `start`, fading and rising in over `ms`. */
-function enter(t: number, start: number, ms = 320): CSSProperties {
-  const shown = ease(t, start, ms);
-  return { opacity: shown, transform: `translateY(${((1 - shown) * 8).toFixed(2)}px)` };
-}
-
-/** Shown from `start` until `end`. */
-function during(t: number, start: number, end: number, ms = 300): CSSProperties {
-  const shown = ease(t, start, ms) * (1 - ease(t, end, ms));
-  return { opacity: shown, transform: `translateY(${((1 - shown) * 8).toFixed(2)}px)` };
-}
 
 /**
  * A story clock: `t` runs from 0 to `total` while the band is on screen, rests a moment, and
@@ -276,41 +263,253 @@ function Keycap({ label, width = 52 }: { label: string; width?: number }) {
 }
 
 // 1. Press a key. Just talk. -------------------------------------------------------------------
+//
+// Your words appear as you say them, ums and all. When you stop, the fillers and the false start
+// lift away, what's left slides together into one clean sentence, and it lands in WhatsApp.
 
-const TALK: Segment[] = [
-  { text: "Hey Asha, um, the demo is, uh,", at: 1000, final: 1900 },
-  { text: "the demo is ready for tomorrow.", at: 2000, final: 2900 },
-  { text: "So, like, let me know what you think.", at: 3100, final: 4100 },
+/** `breaks`: the clean sentence starts a new line here. */
+type Word = { raw: string; clean?: string; drop?: true; breaks?: true };
+
+const WORDS: Word[] = [
+  { raw: "hey", clean: "Hey" },
+  { raw: "asha,", clean: "Asha," },
+  { raw: "um,", drop: true },
+  { raw: "the", drop: true },
+  { raw: "demo", drop: true },
+  { raw: "is,", drop: true },
+  { raw: "uh,", drop: true },
+  { raw: "the" },
+  { raw: "demo" },
+  { raw: "is" },
+  { raw: "ready" },
+  { raw: "for" },
+  { raw: "tomorrow." },
+  { raw: "so,", drop: true },
+  { raw: "like,", drop: true },
+  { raw: "let", clean: "Let", breaks: true },
+  { raw: "me" },
+  { raw: "know" },
+  { raw: "what" },
+  { raw: "you" },
+  { raw: "think", clean: "think!" },
 ];
-const TALK_MS = 8200;
+
+/** The story, in ms. */
+const KEY = 350;
+const LISTEN = 550;
+const SAY = 850;
+const STEP = 165;
+const STOP = SAY + WORDS.length * STEP + 250;
+const MARK = STOP + 150;
+const LIFT = MARK + 500;
+const MOVE = LIFT + 380;
+const MOVE_MS = 820;
+const BOX = MOVE + MOVE_MS + 80;
+const PASTED = BOX + 120;
+const OUT = PASTED + 2300;
+const TALK_MS = OUT + 450;
+/** Where reduced motion rests: the clean sentence, pasted. */
+const TALK_STILL = OUT - 200;
+
+/** The two layouts the words move between, in the scene's pixels. */
+const RAW_BOX = { left: 24, top: 34, width: 512 };
+const CLEAN_BOX = { left: 46, top: 52, width: 400 };
+const WORD_STYLE: CSSProperties = {
+  fontSize: 25,
+  lineHeight: "36px",
+  fontWeight: 500,
+  letterSpacing: "-0.012em",
+};
+
+type Spot = { x: number; y: number };
+
+/**
+ * Lays both versions of the sentence out once, hidden, and reads where every word sits, so the
+ * visible words can glide between them with transforms alone.
+ */
+function useSpots() {
+  const raw = useRef<HTMLDivElement>(null);
+  const clean = useRef<HTMLDivElement>(null);
+  const [spots, setSpots] = useState<{ raw: Spot[]; clean: Spot[]; height: number } | null>(null);
+  useEffect(() => {
+    let live = true;
+    const read = (box: HTMLDivElement | null) =>
+      Array.from(box?.querySelectorAll<HTMLElement>(":scope > span") ?? [], (element) => ({
+        x: element.offsetLeft,
+        y: element.offsetTop,
+      }));
+    void document.fonts.ready.then(() => {
+      if (!live) return;
+      const cleanSpots = read(clean.current);
+      setSpots({
+        raw: read(raw.current),
+        // Clean spots are listed only for the words that stay; give the dropped ones theirs too.
+        clean: cleanSpots,
+        height: clean.current?.offsetHeight ?? 0,
+      });
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const measure = (
+    <>
+      <div
+        ref={raw}
+        style={{ ...WORD_STYLE, ...at(RAW_BOX), visibility: "hidden" }}
+        aria-hidden="true"
+      >
+        {WORDS.map((word, index) => (
+          <span key={index} style={{ display: "inline-block" }}>
+            {word.raw}&nbsp;
+          </span>
+        ))}
+      </div>
+      <div
+        ref={clean}
+        style={{ ...WORD_STYLE, ...at(CLEAN_BOX), visibility: "hidden" }}
+        aria-hidden="true"
+      >
+        {WORDS.filter((word) => !word.drop).map((word, index) => (
+          <Fragment key={index}>
+            {word.breaks && <br />}
+            <span style={{ display: "inline-block" }}>{word.clean ?? word.raw}&nbsp;</span>
+          </Fragment>
+        ))}
+      </div>
+    </>
+  );
+  return { spots, measure };
+}
+
+function at(box: { left: number; top: number; width: number }): CSSProperties {
+  return { position: "absolute", left: box.left, top: box.top, width: box.width };
+}
+
+const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
 
 function TalkScene() {
-  const clock = useClock(TALK_MS);
-  const { t } = clock;
+  const clock = useClock(TALK_MS, 500);
+  const t = still() ? TALK_STILL : clock.t;
   const mac = detectPlatform() === "mac";
+  const { spots, measure } = useSpots();
+  // Everything fades together at the end of the loop.
+  const shown = 1 - ease(t, OUT, 420);
   const phase: HudPhase | null =
-    t < 500
+    t < LISTEN
       ? null
-      : t < 4600
-        ? { kind: "listening", since: 500, hint: "Listening. Speak naturally.", segments: TALK }
-        : t < 5600
+      : t < STOP
+        ? { kind: "listening", since: LISTEN, hint: "Listening. Speak naturally.", segments: [] }
+        : t < PASTED
           ? { kind: "working", label: "Cleaning up your words for WhatsApp…" }
           : { kind: "pasted", label: "Pasted into WhatsApp" };
+  const box = ease(t, BOX, 420);
+  let kept = 0;
+  let dropped = 0;
   return (
-    <Scene clock={clock} width={560} height={300} hue="Dictate">
-      {/* The shortcut, pressed... */}
+    <Scene clock={clock} width={560} height={400} hue="Dictate">
+      {measure}
+      {/* WhatsApp's message box, appearing around the clean sentence. */}
+      {spots && (
+        <div
+          style={{
+            position: "absolute",
+            left: CLEAN_BOX.left - 22,
+            top: CLEAN_BOX.top - 16,
+            width: CLEAN_BOX.width + 92,
+            height: spots.height + 32,
+            borderRadius: 26,
+            background: "var(--color-background-card)",
+            boxShadow: "inset 0 0 0 1px var(--color-border), 0 18px 40px -26px rgba(0,0,0,0.45)",
+            opacity: box * shown,
+            transform: `scale(${mix(0.97, 1, box)})`,
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              right: 12,
+              bottom: 12,
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              display: "grid",
+              placeItems: "center",
+              background: "#25d366",
+              color: "#fff",
+            }}
+          >
+            <SendHorizontal size={18} strokeWidth={2.2} />
+          </span>
+        </div>
+      )}
+      {/* The words. */}
+      {spots &&
+        WORDS.map((word, index) => {
+          const said = ease(t, SAY + index * STEP, 240);
+          const from = spots.raw[index]!;
+          const base: CSSProperties = {
+            ...WORD_STYLE,
+            position: "absolute",
+            left: 0,
+            top: 0,
+            whiteSpace: "nowrap",
+            borderRadius: 7,
+          };
+          if (word.drop) {
+            // Marked in the pill's colour, then lifted away.
+            const order = dropped++;
+            const mark = ease(t, MARK + order * 40, 260);
+            const lift = ease(t, LIFT + order * 55, 460);
+            return (
+              <span
+                key={index}
+                style={{
+                  ...base,
+                  transform: `translate3d(${RAW_BOX.left + from.x}px, ${RAW_BOX.top + from.y - lift * 16}px, 0) scale(${1 - lift * 0.06})`,
+                  opacity: said * (1 - lift) * shown,
+                  color: `color-mix(in srgb, ${tone("Dictate")} ${mark * 100}%, var(--color-text-secondary))`,
+                  background: tone("Dictate", 0.16 * mark),
+                  boxShadow: `0 0 0 3px ${tone("Dictate", 0.16 * mark)}`,
+                }}
+              >
+                {word.raw}
+              </span>
+            );
+          }
+          // Kept: glides from where it was said to its place in the clean sentence.
+          const to = spots.clean[kept]!;
+          const move = glide(t, MOVE + kept++ * 14, MOVE_MS);
+          const x = mix(RAW_BOX.left + from.x, CLEAN_BOX.left + to.x, move);
+          const y = mix(RAW_BOX.top + from.y, CLEAN_BOX.top + to.y, move);
+          return (
+            <span
+              key={index}
+              style={{
+                ...base,
+                transform: `translate3d(${x.toFixed(2)}px, ${(y + (1 - said) * 6).toFixed(2)}px, 0)`,
+                opacity: said * shown,
+                color: `color-mix(in srgb, var(--color-text-primary) ${move * 100}%, var(--color-text-secondary))`,
+              }}
+            >
+              {move > 0.5 ? (word.clean ?? word.raw) : word.raw}
+            </span>
+          );
+        })}
+      {/* The shortcut, pressed where the pill then opens. */}
       <div
         style={{
           position: "absolute",
           left: 0,
           right: 0,
-          top: 36,
+          bottom: 22,
           display: "flex",
           justifyContent: "center",
-          ...during(t, -300, 4600),
+          opacity: 1 - ease(t, LISTEN - 60, 200),
+          transform: `translateY(${bump(t, KEY, 260) * 3}px) scale(${1 - ease(t, LISTEN - 60, 200) * 0.1})`,
         }}
       >
-        <span style={{ display: "flex", gap: 8, transform: `translateY(${bump(t, 250) * 3}px)` }}>
+        <span style={{ display: "flex", gap: 8 }}>
           {mac ? (
             <>
               <Keycap label="⌥" />
@@ -321,23 +520,9 @@ function TalkScene() {
           )}
         </span>
       </div>
-      {/* ...and what you said, cleaned up and pasted. */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: 28,
-          display: "flex",
-          justifyContent: "center",
-          ...enter(t, 5700, 420),
-        }}
-      >
-        <Card padding={4} maxWidth={400}>
-          <Text>{CLEAN}</Text>
-        </Card>
+      <div style={{ position: "absolute", inset: 0, opacity: shown }}>
+        <PillAt phase={phase} t={t} />
       </div>
-      <PillAt phase={phase} t={t} />
     </Scene>
   );
 }
