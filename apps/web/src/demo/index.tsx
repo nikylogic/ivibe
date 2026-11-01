@@ -453,7 +453,7 @@ export function Showcase({
 
     if (world.current) {
       world.current.style.transform = `translate(${x - g.pill.x * k}px, ${y - g.pill.y * k}px) scale(${k})`;
-      world.current.style.setProperty("--wave", String(0.3 + 0.7 * smooth(p, 0.05, 0.4)));
+      world.current.style.setProperty("--wave", String(0.14 + 0.86 * smooth(p, 0.05, 0.4)));
     }
     if (card.current) {
       card.current.style.clipPath = `inset(${rect.top}px ${rect.right}px ${rect.bottom}px ${rect.left}px round ${radius}px)`;
@@ -783,6 +783,10 @@ export function Showcase({
             position: "absolute",
             inset: 0,
             paddingTop: NAV - 20,
+            // Keeps the middle quiet, so the headline and the downloads lead and the
+            // waveform only shows at the edges.
+            background:
+              "radial-gradient(ellipse 52% 46% at 50% 54%, rgba(16, 15, 14, 0.94) 0%, rgba(16, 15, 14, 0.72) 50%, transparent 100%)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
