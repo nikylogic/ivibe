@@ -21,6 +21,7 @@ import { Footer } from "./finale.tsx";
 import { Nav } from "./nav.tsx";
 import { detectPlatform, MAC_INSTALL, REPO, RELEASES_URL } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
+import { breadcrumbs, usePageMeta } from "./seo.ts";
 import { ivibeTheme } from "./theme.ts";
 
 const styles = stylex.create({
@@ -187,6 +188,13 @@ export function DownloadPage({
   mode: ThemeMode;
   onModeChange: (mode: ThemeMode) => void;
 }) {
+  usePageMeta({
+    title: "Download iVibe for Windows, Mac and Linux",
+    description:
+      "Get the latest iVibe for Windows, macOS (Apple silicon and Intel) or Linux. Free and open source: press a shortcut, talk, and paste the result.",
+    path: "/download",
+    jsonLd: [breadcrumbs({ name: "iVibe", path: "/" }, { name: "Download", path: "/download" })],
+  });
   const release = useRelease();
   const detected = detectPlatform();
   const order: Platform[] =
@@ -200,7 +208,6 @@ export function DownloadPage({
   // A happy hello: the mascot is pleased you came to get it.
   const [mood, setMood] = useState<MascotState>("idle");
   useEffect(() => {
-    document.title = "Download iVibe";
     const hello = setTimeout(() => setMood("done"), 500);
     const rest = setTimeout(() => setMood("idle"), 2500);
     return () => {

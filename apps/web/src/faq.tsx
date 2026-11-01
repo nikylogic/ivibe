@@ -17,7 +17,7 @@ import { REPO } from "./release.ts";
  */
 
 /** In `said`, the words in [brackets] are the fillers that lift away. */
-const QUESTIONS = [
+export const QUESTIONS = [
   {
     ask: "Is it free?",
     said: "[um,] is it, [like,] actually free?",

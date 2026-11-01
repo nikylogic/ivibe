@@ -13,15 +13,17 @@ import type { ThemeMode } from "@astryxdesign/core/theme";
 import { ChevronRight, Monitor } from "lucide-react";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import type { MascotState } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
-import { FALLBACK_RELEASE, detectPlatform, latestRelease } from "./release.ts";
+import { FALLBACK_RELEASE, REPO, detectPlatform, latestRelease } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
 import { scrollToDemo, Showcase } from "./demo/index.tsx";
 import { say, WORD_MS } from "./demo/voice.ts";
 import { ivibeTheme } from "./theme.ts";
 import { heroMascotSize, Nav } from "./nav.tsx";
 import { Features } from "./features.tsx";
-import { Faq } from "./faq.tsx";
+import { Faq, QUESTIONS } from "./faq.tsx";
 import { Roadmap } from "./roadmap.tsx";
+import { SITE, usePageMeta } from "./seo.ts";
+import type { PageMeta } from "./seo.ts";
 import { Pricing } from "./pricing.tsx";
 import { Finale, Footer } from "./finale.tsx";
 import { ThemeSwitch } from "./theme-switch.tsx";
@@ -312,7 +314,7 @@ function Hero({ release }: { release: Release }) {
               onLevel={pretendVoice}
             />
           </span>
-          , AI that
+          , AI that{" "}
         </span>
         <span {...stylex.props(styles.rotating)}>
           <span
@@ -349,6 +351,48 @@ function Hero({ release }: { release: Release }) {
   );
 }
 
+/** What search engines read about the product. Every fact here is also shown on the page. */
+const HOME_META: PageMeta = {
+  title: "iVibe: voice dictation and bug prompts for coding agents",
+  description:
+    "Show a bug and say what's wrong: iVibe writes the prompt for your coding agent, with marked-up screenshots as proof. It also cleans up dictation in any app.",
+  path: "/",
+  jsonLd: [
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "iVibe",
+      url: SITE,
+      image: `${SITE}/og-light.png`,
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Windows, macOS, Linux",
+      license: "https://www.gnu.org/licenses/agpl-3.0.html",
+      offers: [
+        { "@type": "Offer", name: "Free", price: "0", priceCurrency: "USD" },
+        { "@type": "Offer", name: "Pro", price: "8", priceCurrency: "USD" },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "iVibe",
+      url: SITE,
+      logo: `${SITE}/icon-512.png`,
+      email: "business@ivibe.tech",
+      sameAs: [`https://github.com/${REPO}`],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: QUESTIONS.map(({ ask, answer }) => ({
+        "@type": "Question",
+        name: ask,
+        acceptedAnswer: { "@type": "Answer", text: answer },
+      })),
+    },
+  ],
+};
+
 export function Home({
   mode,
   onModeChange,
@@ -356,6 +400,7 @@ export function Home({
   mode: ThemeMode;
   onModeChange: (mode: ThemeMode) => void;
 }) {
+  usePageMeta(HOME_META);
   const [heroDark, setHeroDark] = useState(true);
   const release = useRelease();
   // Arriving from another page's "How it works": glide to the demo once the page is laid out.

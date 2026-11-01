@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useEffect } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Link } from "@astryxdesign/core/Link";
@@ -11,6 +10,7 @@ import type { ThemeMode } from "@astryxdesign/core/theme";
 import { Footer } from "./finale.tsx";
 import { TopBar } from "./home.tsx";
 import { Nav } from "./nav.tsx";
+import { breadcrumbs, usePageMeta } from "./seo.ts";
 import { ivibeTheme } from "./theme.ts";
 
 /** The promises the site makes, in plain words, one short page each. */
@@ -22,10 +22,18 @@ export type LegalPageName = "privacy" | "terms" | "refunds";
 
 const PAGES: Record<
   LegalPageName,
-  { title: string; sections: { heading: string; body: string[] }[] }
+  {
+    title: string;
+    seoTitle: string;
+    description: string;
+    sections: { heading: string; body: string[] }[];
+  }
 > = {
   privacy: {
     title: "Privacy",
+    seoTitle: "Privacy Policy · iVibe",
+    description:
+      "What stays on your computer, what goes to Meta's models, what iVibe keeps, and the choices you have. No analytics, and secrets are painted over first.",
     sections: [
       {
         heading: "On your device",
@@ -68,6 +76,9 @@ const PAGES: Record<
   },
   terms: {
     title: "Terms",
+    seoTitle: "Terms of Service · iVibe",
+    description:
+      "The terms for using iVibe: credits and Pro, using your own Meta key, AI mistakes and the warranty.",
     sections: [
       {
         heading: "Using iVibe",
@@ -109,6 +120,8 @@ const PAGES: Record<
   },
   refunds: {
     title: "Refunds",
+    seoTitle: "Refund Policy · iVibe",
+    description: "How refunds and cancellations work for iVibe Pro, and how to ask for one.",
     sections: [
       {
         heading: "Cancelling",
@@ -161,9 +174,12 @@ export function LegalPage({
   onModeChange: (mode: ThemeMode) => void;
 }) {
   const page = PAGES[name];
-  useEffect(() => {
-    document.title = `${page.title} · iVibe`;
-  }, [page.title]);
+  usePageMeta({
+    title: page.seoTitle,
+    description: page.description,
+    path: `/${name}`,
+    jsonLd: [breadcrumbs({ name: "iVibe", path: "/" }, { name: page.title, path: `/${name}` })],
+  });
   return (
     <div {...stylex.props(styles.page)}>
       <Theme theme={ivibeTheme} mode={mode}>

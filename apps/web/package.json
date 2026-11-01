@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "deploy": "pnpm build && npx wrangler@4.154.0 deploy",
+    "deploy": "pnpm build && node scripts/prerender.mjs && npx wrangler@4.154.0 deploy",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json"
@@ -25,6 +25,7 @@
     "@types/three": "0.186.0",
     "@vitejs/plugin-react": "^6.1.2",
     "lucide-react": "^1.61.0",
+    "playwright-core": "1.56.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "three": "0.186.1",

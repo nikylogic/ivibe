@@ -6,8 +6,8 @@
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "./dist",
-    // /docs, /welcome and the rest are all served by the one page, which picks what to show.
-    "not_found_handling": "single-page-application",
+    // Every page has its own file (scripts/prerender.mjs); anything else is a real 404.
+    "not_found_handling": "404-page",
   },
   "routes": [
     { "pattern": "ivibe.tech", "custom_domain": true },

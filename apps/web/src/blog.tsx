@@ -15,6 +15,7 @@ import { TONES } from "./demo/voice.ts";
 import { Footer } from "./finale.tsx";
 import { TopBar } from "./home.tsx";
 import { Nav } from "./nav.tsx";
+import { breadcrumbs, SITE, usePageMeta } from "./seo.ts";
 import { REPO } from "./release.ts";
 import { ivibeTheme } from "./theme.ts";
 
@@ -266,6 +267,8 @@ export function assertRedacted(frame: object): asserts frame is RedactedFrame {
 type Post = {
   slug: string;
   title: string;
+  /** Short enough not to be cut off in search results. */
+  seoTitle: string;
   summary: string;
   date: string;
   tone: keyof typeof TONES;
@@ -277,6 +280,7 @@ const POSTS: Post[] = [
   {
     slug: "how-ivibe-hides-your-secrets",
     title: "How iVibe hides your secrets before anything leaves your computer",
+    seoTitle: "How iVibe hides secrets on your screen · iVibe",
     summary:
       "A developer's screen is full of keys. Here's how they get painted over first, and how the code makes skipping that step hard.",
     date: "November 1, 2026",
@@ -382,6 +386,7 @@ const POSTS: Post[] = [
   {
     slug: "from-its-broken-to-proof",
     title: "From “it's broken” to proof",
+    seoTitle: "From “it's broken” to a bug prompt with proof · iVibe",
     summary:
       "How a voice note and a screen recording become a prompt your coding agent can act on, with screenshots marked up to show the bug.",
     date: "November 1, 2026",
@@ -523,10 +528,17 @@ function Cover({ post }: { post: Post }) {
   return <canvas ref={canvas} aria-hidden="true" {...stylex.props(styles.cover)} />;
 }
 
+/** "November 1, 2026" as 2026-11-01, whatever the reader's time zone. */
+const isoDate = (date: string) => new Date(`${date} UTC`).toISOString().slice(0, 10);
+
 function PostList() {
-  useEffect(() => {
-    document.title = "Blog · iVibe";
-  }, []);
+  usePageMeta({
+    title: "iVibe Blog: voice, privacy and coding agents",
+    description:
+      "How iVibe works under the hood: keeping secrets off your screen, turning a voice note into a prompt, and what we learn building it in the open.",
+    path: "/blog",
+    jsonLd: [breadcrumbs({ name: "iVibe", path: "/" }, { name: "Blog", path: "/blog" })],
+  });
   return (
     <main {...stylex.props(styles.list)}>
       <Heading level={1} xstyle={styles.listTitle}>
@@ -542,7 +554,7 @@ function PostList() {
               </Heading>
               <Text color="secondary">{post.summary}</Text>
               <Text size="sm" color="secondary">
-                {post.date}
+                <time dateTime={isoDate(post.date)}>{post.date}</time>
               </Text>
             </a>
           </article>
@@ -553,8 +565,32 @@ function PostList() {
 }
 
 function PostPage({ post }: { post: Post }) {
+  const path = `/blog/${post.slug}`;
+  usePageMeta({
+    title: post.seoTitle,
+    description: post.summary,
+    path,
+    type: "article",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: post.title,
+        description: post.summary,
+        datePublished: isoDate(post.date),
+        url: `${SITE}${path}`,
+        image: `${SITE}/og-light.png`,
+        author: { "@type": "Organization", name: "iVibe", url: SITE },
+        publisher: { "@type": "Organization", name: "iVibe", url: SITE },
+      },
+      breadcrumbs(
+        { name: "iVibe", path: "/" },
+        { name: "Blog", path: "/blog" },
+        { name: post.title, path },
+      ),
+    ],
+  });
   useEffect(() => {
-    document.title = `${post.title} · iVibe`;
     window.scrollTo(0, 0);
   }, [post]);
   return (
@@ -569,7 +605,7 @@ function PostPage({ post }: { post: Post }) {
         />
       </div>
       <Text size="sm" color="secondary">
-        {post.date}
+        <time dateTime={isoDate(post.date)}>{post.date}</time>
       </Text>
       <Heading level={1} xstyle={styles.title}>
         {post.title}
@@ -587,6 +623,14 @@ function PostPage({ post }: { post: Post }) {
   );
 }
 
+const slugOf = (path: string) => path.replace(/\/+$/, "").replace(/^\/blog\/?/, "");
+
+/** Whether an address under /blog is a real page; otherwise it's a 404. */
+export const hasBlogPage = (path: string) => {
+  const slug = slugOf(path);
+  return !slug || POSTS.some((post) => post.slug === slug);
+};
+
 export function BlogPage({
   mode,
   onModeChange,
@@ -594,7 +638,7 @@ export function BlogPage({
   mode: ThemeMode;
   onModeChange: (mode: ThemeMode) => void;
 }) {
-  const slug = window.location.pathname.replace(/\/+$/, "").replace(/^\/blog\/?/, "");
+  const slug = slugOf(window.location.pathname);
   const post = POSTS.find((item) => item.slug === slug);
   return (
     <div {...stylex.props(styles.page)}>

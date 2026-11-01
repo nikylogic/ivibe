@@ -26,6 +26,7 @@ import {
 import { Footer } from "./finale.tsx";
 import { TopBar } from "./home.tsx";
 import { Nav } from "./nav.tsx";
+import { breadcrumbs, usePageMeta } from "./seo.ts";
 import { detectPlatform, MAC_INSTALL, RELEASES_URL, REPO } from "./release.ts";
 import type { Platform } from "./release.ts";
 import { ivibeTheme } from "./theme.ts";
@@ -322,6 +323,9 @@ function StartStop({ mode }: { mode: Mode }) {
 type Section = { heading: string; body: ReactNode };
 type DocPage = {
   slug: string;
+  /** What search results show, which can say more than the short sidebar title. */
+  seoTitle: string;
+  description: string;
   group: string;
   title: string;
   lead: string;
@@ -333,6 +337,9 @@ const github = `https://github.com/${REPO}`;
 const PAGES: DocPage[] = [
   {
     slug: "",
+    seoTitle: "What is iVibe? · iVibe Docs",
+    description:
+      "iVibe turns your voice and screen into prompts for coding agents and clean text anywhere. Start here to learn Fix, Prompt and Dictate.",
     group: "Get started",
     title: "Introduction",
     lead: "iVibe is a desktop app that turns your voice, and your screen when it helps, into text pasted where you were typing.",
@@ -374,6 +381,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "install",
+    seoTitle: "Install iVibe on Windows, Mac and Linux · iVibe Docs",
+    description:
+      "Install iVibe on Windows, macOS or Linux, get past the first security prompt, and allow the permissions it needs.",
     group: "Get started",
     title: "Install",
     lead: "Get iVibe running on your computer. The installers aren't code-signed yet, so your computer asks once.",
@@ -488,6 +498,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "quickstart",
+    seoTitle: "Your first recording · iVibe Docs",
+    description:
+      "Make your first iVibe recording: press the shortcut, talk, stop, and paste the result into your coding agent or any app.",
     group: "Get started",
     title: "Your first recording",
     lead: "From nothing to pasted text in under a minute, using Dictate.",
@@ -530,6 +543,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "fix",
+    seoTitle: "Fix mode: turn a bug into a prompt · iVibe Docs",
+    description:
+      "Show a bug and say what's wrong. Fix writes a prompt for your coding agent, with marked-up screenshots as proof and secrets painted over.",
     group: "Modes",
     title: "Fix",
     lead: "Show the bug and say what's wrong. iVibe writes the prompt and picks the screenshots that prove it. iVibe captures the bug; your coding agent fixes it.",
@@ -576,6 +592,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "prompt",
+    seoTitle: "Prompt mode: voice to coding prompts · iVibe Docs",
+    description:
+      "Say what you want built, and Prompt turns it into a clear prompt for Claude Code, Cursor or any coding agent.",
     group: "Modes",
     title: "Prompt",
     lead: "Ramble an idea. iVibe turns it into a clear, structured prompt. It uses your voice only, not your screen.",
@@ -602,6 +621,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "dictate",
+    seoTitle: "Dictate mode: clean voice typing · iVibe Docs",
+    description:
+      "Talk in any app and get clean text without the ums. Turn cleanup on or off, edit selected text, and retry a result.",
     group: "Modes",
     title: "Dictate",
     lead: "Your own words, cleaned up: no filler words, no false starts. It uses your voice only, and a recording can last up to 5 minutes.",
@@ -653,6 +675,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "pasting",
+    seoTitle: "Where iVibe results go · iVibe Docs",
+    description:
+      "How iVibe pastes into the app you started in, how screenshots are attached, what happens if you switch apps, and how to find an old result.",
     group: "Using iVibe",
     title: "Where results go",
     lead: "iVibe pastes into the app you were in when you started recording.",
@@ -698,6 +723,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "shortcuts",
+    seoTitle: "iVibe keyboard shortcuts · iVibe Docs",
+    description:
+      "The default iVibe shortcuts for Fix, Prompt and Dictate on your computer, and how to start, stop and cancel a recording.",
     group: "Using iVibe",
     title: "Shortcuts",
     lead: "Each mode has its own shortcut, and you can change them.",
@@ -717,6 +745,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "settings",
+    seoTitle: "iVibe settings and customization · iVibe Docs",
+    description:
+      "Make iVibe yours: change shortcuts, the recording pill, the languages you speak, history and other settings.",
     group: "Using iVibe",
     title: "Make it yours",
     lead: "A little context once, so every result sounds like you.",
@@ -770,6 +801,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "plans",
+    seoTitle: "iVibe plans and credits · iVibe Docs",
+    description:
+      "How iVibe's Free and Pro plans work: use your own Meta key, the 50 free credits, Pro's 400 credits a month, and what a credit buys.",
     group: "Account",
     title: "Plans and credits",
     lead: "iVibe needs Meta's models to run. There are three ways to reach them, and the app is the same on all of them.",
@@ -845,6 +879,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "backups",
+    seoTitle: "Encrypted backups for Pro · iVibe Docs",
+    description:
+      "iVibe Pro backs up your history and settings with end-to-end encryption. Turn it on, keep your recovery key safe, and see what happens when Pro ends.",
     group: "Account",
     title: "Backups",
     lead: "Pro keeps your history and settings safe, encrypted so that only you can read them.",
@@ -882,6 +919,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "privacy",
+    seoTitle: "iVibe privacy and security · iVibe Docs",
+    description:
+      "How iVibe protects your work: secrets painted over on your computer, what reaches Meta's models, and where your key and history are kept.",
     group: "Account",
     title: "Privacy and security",
     lead: "What leaves your computer, and what doesn't. The full policy is on the Privacy page.",
@@ -929,6 +969,9 @@ const PAGES: DocPage[] = [
   },
   {
     slug: "troubleshooting",
+    seoTitle: "Troubleshooting iVibe · iVibe Docs",
+    description:
+      "Fixes for the problems people hit most with iVibe, from a pill that doesn't appear to sign-in prompts and “No speech was heard”.",
     group: "Help",
     title: "Troubleshooting",
     lead: "The problems people hit most, and what to do.",
@@ -1096,6 +1139,9 @@ function OsSwitch({ os, onChange }: { os: Platform; onChange: (os: Platform) => 
   );
 }
 
+/** Whether an address under /docs is a real page; otherwise it's a 404. */
+export const hasDocsPage = (path: string) => PAGES.some((page) => page.slug === slugFrom(path));
+
 export function DocsPage({
   mode,
   onModeChange,
@@ -1146,9 +1192,19 @@ export function DocsPage({
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  useEffect(() => {
-    document.title = `${page.title} · iVibe Docs`;
-  }, [page.title]);
+  usePageMeta({
+    title: page.seoTitle,
+    description: page.description,
+    path: pathOf(page),
+    type: page.slug ? "article" : "website",
+    jsonLd: [
+      breadcrumbs(
+        { name: "iVibe", path: "/" },
+        { name: "Docs", path: "/docs" },
+        ...(page.slug ? [{ name: page.title, path: pathOf(page) }] : []),
+      ),
+    ],
+  });
 
   // Arriving on a link to one section of a page.
   useEffect(() => {

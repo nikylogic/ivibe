@@ -12,19 +12,20 @@ import "@fontsource/instrument-serif/400-italic.css";
 import "./global.css";
 import { ivibeTheme } from "./theme.ts";
 import { Home } from "./home.tsx";
-import { BlogPage } from "./blog.tsx";
-import { DocsPage } from "./docs.tsx";
+import { BlogPage, hasBlogPage } from "./blog.tsx";
+import { DocsPage, hasDocsPage } from "./docs.tsx";
 import { DownloadPage } from "./download.tsx";
 import { LegalPage } from "./legal.tsx";
+import { NotFoundPage } from "./not-found.tsx";
 import { WelcomePage } from "./welcome.tsx";
 import type { LegalPageName } from "./legal.tsx";
 
-/** Anything that isn't one of these pages is the home page. */
 const path = window.location.pathname.replace(/\/+$/, "");
 const onDownload = path === "/download";
 const onWelcome = path === "/welcome";
 const onDocs = path === "/docs" || path.startsWith("/docs/");
 const onBlog = path === "/blog" || path.startsWith("/blog/");
+const onHome = path === "";
 const legalPage: LegalPageName | null =
   path === "/privacy" || path === "/terms" || path === "/refunds"
     ? (path.slice(1) as LegalPageName)
@@ -54,16 +55,18 @@ function App() {
     <Theme theme={ivibeTheme} mode={mode}>
       {legalPage ? (
         <LegalPage name={legalPage} mode={mode} onModeChange={setMode} />
-      ) : onBlog ? (
+      ) : onBlog && hasBlogPage(path) ? (
         <BlogPage mode={mode} onModeChange={setMode} />
-      ) : onDocs ? (
+      ) : onDocs && hasDocsPage(path) ? (
         <DocsPage mode={mode} onModeChange={setMode} />
       ) : onWelcome ? (
         <WelcomePage mode={mode} onModeChange={setMode} />
       ) : onDownload ? (
         <DownloadPage mode={mode} onModeChange={setMode} />
-      ) : (
+      ) : onHome ? (
         <Home mode={mode} onModeChange={setMode} />
+      ) : (
+        <NotFoundPage mode={mode} onModeChange={setMode} />
       )}
     </Theme>
   );

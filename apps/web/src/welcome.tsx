@@ -15,6 +15,7 @@ import { fetchAccount, OPEN_APP_URL } from "./account.ts";
 import { Footer } from "./finale.tsx";
 import { TopBar } from "./home.tsx";
 import { Nav } from "./nav.tsx";
+import { usePageMeta } from "./seo.ts";
 import { ivibeTheme } from "./theme.ts";
 
 const styles = stylex.create({
@@ -82,10 +83,15 @@ export function WelcomePage({
   mode: ThemeMode;
   onModeChange: (mode: ThemeMode) => void;
 }) {
+  usePageMeta({
+    title: "Welcome to Pro · iVibe",
+    description: "Thanks for choosing iVibe Pro.",
+    path: "/welcome",
+    noindex: true,
+  });
   const [stage, setStage] = useState<Stage>({ name: "confirming" });
 
   useEffect(() => {
-    document.title = "Welcome to Pro · iVibe";
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const check = async (tries: number) => {
