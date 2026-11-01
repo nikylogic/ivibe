@@ -843,10 +843,10 @@ export function Showcase({
             position: "absolute",
             inset: 0,
             paddingTop: NAV - 20,
-            // Keeps the middle calm, so the headline and the downloads lead while the pill's
-            // light glows through, and sinks the corners into shadow.
+            // A calm, dark middle so the eye goes straight to the downloads: the waveform and its
+            // light show only towards the sides. The corners sink into shadow.
             background: [
-              "radial-gradient(ellipse 50% 44% at 50% 54%, rgba(16, 15, 14, 0.86) 0%, rgba(16, 15, 14, 0.58) 50%, transparent 100%)",
+              "radial-gradient(ellipse 44% 46% at 50% 54%, rgba(16, 15, 14, 0.97) 0%, rgba(16, 15, 14, 0.93) 48%, rgba(16, 15, 14, 0.6) 75%, transparent 100%)",
               "radial-gradient(ellipse 85% 80% at 50% 50%, transparent 55%, rgba(8, 7, 6, 0.6) 100%)",
             ].join(", "),
             display: "flex",

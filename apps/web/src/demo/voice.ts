@@ -16,7 +16,7 @@ export const TONES: Record<Tone, string> = {
 };
 
 /** How long each word takes to say and type in, in ms. */
-export const WORD_MS = 190;
+export const WORD_MS = 110;
 
 let spokeAt = Number.NEGATIVE_INFINITY;
 let speakMs = 0;
@@ -26,7 +26,8 @@ const listeners = new Set<(tone: Tone) => void>();
 /** Says a line: the waveform speaks for as long as its words take, in the line's mode. */
 export function say(text: string, next: Tone): void {
   spokeAt = performance.now();
-  speakMs = text.split(/\s+/).length * WORD_MS;
+  // A little longer than the typing, so the voice is heard as the line settles.
+  speakMs = Math.max(900, text.split(/\s+/).length * WORD_MS * 1.6);
   tone = next;
   for (const listener of listeners) listener(next);
 }

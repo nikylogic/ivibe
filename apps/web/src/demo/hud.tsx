@@ -453,7 +453,7 @@ export function CompactPill() {
           position: "absolute",
           inset: "-2px -4px",
           // The light stays even where the hero dims the bars.
-          opacity: "calc(0.75 + 0.25 * var(--wave, 1))",
+          opacity: "calc(0.5 + 0.5 * var(--wave, 1))",
         }}
       >
         <span ref={glow} style={{ position: "absolute", inset: 0, opacity: 0.55 }}>
