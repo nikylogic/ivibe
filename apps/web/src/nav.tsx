@@ -20,8 +20,10 @@ import { ivibeTheme } from "./theme.ts";
  */
 const openAt = () => window.innerHeight * 0.22;
 /** The bar's height and the mascot's size in it. */
-const BAR = 50;
-const SLOT = 36;
+const BAR = 42;
+const SLOT = 30;
+/** The Download button's corner plus its gap to the edge, so the bar's corners follow the button's. */
+const RADIUS = 17;
 const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 /** The bar's own colour: the app's pill, the same in light and dark. */
 const PILL = "rgba(15, 14, 13, 0.92)";
@@ -253,15 +255,15 @@ export function Nav({ page }: { page: "home" | "download" }) {
             style={{
               position: "absolute",
               inset: 0,
-              borderRadius: 999,
+              borderRadius: RADIUS,
               background: `radial-gradient(60% 120% at 22% 120%, rgba(${TONES[tone]}, 0.16), transparent 70%), ${PILL}`,
               boxShadow:
                 "inset 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06)",
               backdropFilter: "blur(14px)",
               WebkitBackdropFilter: "blur(14px)",
               clipPath: open
-                ? "inset(0 0 0 0 round 999px)"
-                : `inset(0 calc(100% - ${BAR}px) 0 0 round 999px)`,
+                ? `inset(0 0 0 0 round ${RADIUS}px)`
+                : `inset(0 calc(100% - ${BAR}px) 0 0 round ${RADIUS}px)`,
               opacity: phase === "landing" || open ? 1 : 0,
               transition: `clip-path 520ms ${EASE}, opacity 280ms ease ${
                 phase === "landing" ? "240ms" : phase === "leaving" ? "260ms" : "0ms"
