@@ -363,17 +363,26 @@ function talking(t: number): number {
 
 const BARS = 13;
 
+const BAR = 2.5;
+const TALLEST = 18;
+/** The bar's pieces are drawn this many times larger and scaled down, so they stay crisp when the hero zooms in on them. */
+const DETAIL = 16;
+
 /**
  * The app's default, compact pill while you talk: a small capsule holding only a waveform of 13
- * bars that sway around the voice level (hud/compact.tsx). It animates itself, writing bar
- * heights directly, so it costs nothing to the page around it. Its bars' brightness follows the
- * `--wave` custom property, which the hero dims while the camera is inside the pill.
+ * bars that sway around the voice level (hud/compact.tsx). It animates itself, so it costs
+ * nothing to the page around it, and only with transforms: each bar is two round caps that slide
+ * apart and a strip between them that stretches, all moved by the graphics card without
+ * repainting. That matters in the hero, which shows these bars many times their size. Their
+ * brightness follows the `--wave` custom property, which the hero dims inside the pill.
  */
 export function CompactPill() {
-  const bars = useRef<(HTMLSpanElement | null)[]>([]);
+  const parts = useRef<
+    { top: HTMLSpanElement | null; mid: HTMLSpanElement | null; bottom: HTMLSpanElement | null }[]
+  >(Array.from({ length: BARS }, () => ({ top: null, mid: null, bottom: null })));
   useEffect(() => {
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const shown = Array.from({ length: BARS }, () => 0);
+    const shown = Array.from({ length: BARS }, () => 0.3);
     let raf = 0;
     let last = performance.now();
     const paint = (time: number) => {
@@ -389,21 +398,35 @@ export function CompactPill() {
             0.06 * Math.sin((time / 1000) * 3.1 + index * 1.7);
         const want = level * envelope(index, BARS) * sway;
         shown[index]! += (want - shown[index]!) * (1 - Math.exp(-dt * 7));
-        const bar = bars.current[index];
-        if (bar) bar.style.height = `${Math.max(2.5, shown[index]! * 18).toFixed(3)}px`;
+        const stretch = Math.max(0, shown[index]! * TALLEST - BAR);
+        const { top, mid, bottom } = parts.current[index]!;
+        if (top)
+          top.style.transform = `translate3d(0, ${(-stretch / 2).toFixed(3)}px, 0) scale(${1 / DETAIL})`;
+        if (bottom)
+          bottom.style.transform = `translate3d(0, ${(stretch / 2).toFixed(3)}px, 0) scale(${1 / DETAIL})`;
+        if (mid)
+          mid.style.transform = `scale3d(${1 / DETAIL}, ${(stretch / DETAIL).toFixed(4)}, 1)`;
       }
       if (!still) raf = requestAnimationFrame(paint);
     };
     raf = requestAnimationFrame(paint);
     return () => cancelAnimationFrame(raf);
   }, []);
+  const piece = {
+    position: "absolute",
+    left: (BAR - BAR * DETAIL) / 2,
+    width: BAR * DETAIL,
+    background: ink,
+    willChange: "transform",
+  } as const;
   return (
     <div
       style={{
+        position: "relative",
         height: 36,
         display: "inline-flex",
         alignItems: "center",
-        gap: 2.5,
+        gap: BAR,
         paddingInline: 14,
         borderRadius: 999,
         background:
@@ -412,22 +435,53 @@ export function CompactPill() {
         boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2)",
       }}
     >
-      {Array.from({ length: BARS }, (_, index) => (
-        <span
-          key={index}
-          ref={(element) => {
-            bars.current[index] = element;
-          }}
-          style={{
-            width: 2.5,
-            height: 2.5,
-            borderRadius: 999,
-            background: ink,
-            opacity: "var(--wave, 1)",
-            boxShadow: "0 0 2px rgba(255, 228, 196, 0.55), 0 0 6px rgba(255, 196, 140, 0.25)",
-          }}
-        />
-      ))}
+      {/* A still, soft glow behind the bars, instead of a glow on each moving bar. */}
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: "6px 10px",
+          borderRadius: 999,
+          background: "radial-gradient(closest-side, rgba(255, 214, 170, 0.14), transparent)",
+          opacity: "var(--wave, 1)",
+        }}
+      />
+      {Array.from({ length: BARS }, (_, index) => {
+        const slot = parts.current[index]!;
+        return (
+          <span
+            key={index}
+            style={{ position: "relative", width: BAR, height: TALLEST, opacity: "var(--wave, 1)" }}
+          >
+            <span
+              ref={(element) => {
+                slot.mid = element;
+              }}
+              style={{
+                ...piece,
+                top: TALLEST / 2 - DETAIL / 2,
+                height: DETAIL,
+                transform: `scale3d(${1 / DETAIL}, 0, 1)`,
+              }}
+            />
+            {(["top", "bottom"] as const).map((end) => (
+              <span
+                key={end}
+                ref={(element) => {
+                  slot[end] = element;
+                }}
+                style={{
+                  ...piece,
+                  top: (TALLEST - BAR * DETAIL) / 2,
+                  height: BAR * DETAIL,
+                  borderRadius: "50%",
+                  transform: `scale(${1 / DETAIL})`,
+                }}
+              />
+            ))}
+          </span>
+        );
+      })}
     </div>
   );
 }
