@@ -35,7 +35,7 @@ import {
   Wallpaper,
 } from "./desktop.tsx";
 import { CompactPill, Hud, Toast } from "./hud.tsx";
-import { Play } from "lucide-react";
+import { Play, RotateCcw } from "lucide-react";
 import type { HudPhase, Segment } from "./hud.tsx";
 import type { App } from "./icons.tsx";
 import { between, bump, Cursor, ease, H, Keys, launch, top, W } from "./kit.tsx";
@@ -444,6 +444,8 @@ export function Showcase({
   const [frozen] = useState(frozenFrame);
   const [mode, setMode] = useState<Mode>(frozen?.mode ?? "fix");
   const [playing, setPlaying] = useState(frozen !== null);
+  // All three modes have played: the card offers a replay.
+  const [finished, setFinished] = useState(false);
   const [t, setT] = useState(0);
   const [stage, setStage] = useState({ desktop: false, settled: false });
   const { vw, vh } = useViewport();
@@ -594,6 +596,7 @@ export function Showcase({
   useEffect(() => {
     if (!stage.settled && playing && !frozen) {
       setPlaying(false);
+      setFinished(false);
       setMode("fix");
       setT(0);
     }
@@ -624,7 +627,14 @@ export function Showcase({
       last = time;
       if (elapsed >= duration) {
         setT(0);
-        setMode(ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length]!);
+        const next = ORDER.indexOf(mode) + 1;
+        if (next < ORDER.length) setMode(ORDER[next]!);
+        else {
+          // The last mode is done: back to the calm card, with a replay.
+          setPlaying(false);
+          setFinished(true);
+          setMode("fix");
+        }
         return;
       }
       setT(elapsed);
@@ -646,6 +656,7 @@ export function Showcase({
   const start = (next: Mode) => {
     setT(0);
     setMode(next);
+    setFinished(false);
     setPlaying(true);
   };
 
@@ -826,13 +837,19 @@ export function Showcase({
           }}
         >
           <Text size="xl" weight="semibold">
-            Ready to see how it works?
+            {finished ? "Fix, Prompt and Dictate, in one pill." : "Ready to see how it works?"}
           </Text>
           <Button
-            label="Play demo"
+            label={finished ? "Replay demo" : "Play demo"}
             variant="primary"
-            icon={<Play size={14} strokeWidth={0} fill="currentColor" />}
-            onClick={() => start(mode)}
+            icon={
+              finished ? (
+                <RotateCcw size={14} strokeWidth={2.25} />
+              ) : (
+                <Play size={14} strokeWidth={0} fill="currentColor" />
+              )
+            }
+            onClick={() => start("fix")}
           />
         </div>
 
@@ -881,34 +898,43 @@ export function Showcase({
             right: 16,
             top: 0,
             opacity: 0,
-            pointerEvents: stage.settled ? "auto" : "none",
+            pointerEvents: stage.settled && playing ? "auto" : "none",
           }}
         >
-          <VStack gap={3} hAlign="center">
-            <VStack gap={2} hAlign="center">
-              <SegmentedControl
-                label="Mode"
-                value={mode}
-                onChange={(value) => start(value as Mode)}
-              >
-                {ORDER.map((item) => (
-                  <SegmentedControlItem key={item} value={item} label={LABELS[item]} />
-                ))}
-              </SegmentedControl>
-              <div style={{ width: 200, visibility: playing ? "visible" : "hidden" }}>
-                <ProgressBar
-                  label={`${LABELS[mode]} demo`}
-                  isLabelHidden
-                  value={(t / duration) * 100}
-                />
+          {/* Only while the demo plays: before it, the card is just the pill and Play. */}
+          <div
+            style={{
+              opacity: playing ? 1 : 0,
+              transform: playing ? "none" : "translateY(-6px)",
+              transition: "opacity 400ms ease, transform 400ms ease",
+            }}
+          >
+            <VStack gap={3} hAlign="center">
+              <VStack gap={2} hAlign="center">
+                <SegmentedControl
+                  label="Mode"
+                  value={mode}
+                  onChange={(value) => start(value as Mode)}
+                >
+                  {ORDER.map((item) => (
+                    <SegmentedControlItem key={item} value={item} label={LABELS[item]} />
+                  ))}
+                </SegmentedControl>
+                <div style={{ width: 200 }}>
+                  <ProgressBar
+                    label={`${LABELS[mode]} demo`}
+                    isLabelHidden
+                    value={(t / duration) * 100}
+                  />
+                </div>
+              </VStack>
+              <div style={{ maxWidth: 560, textAlign: "center" }}>
+                <Text color="secondary" size="sm">
+                  {SUMMARY[mode]}
+                </Text>
               </div>
             </VStack>
-            <div style={{ maxWidth: 560, textAlign: "center" }}>
-              <Text color="secondary" size="sm">
-                {SUMMARY[mode]}
-              </Text>
-            </div>
-          </VStack>
+          </div>
         </div>
       </div>
     </section>
