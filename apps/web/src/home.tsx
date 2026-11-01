@@ -12,6 +12,7 @@ import { Popover } from "@astryxdesign/core/Popover";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
+import { Theme } from "@astryxdesign/core/theme";
 import type { ThemeMode } from "@astryxdesign/core/theme";
 import { ChevronRight, Monitor, Moon, Sun } from "lucide-react";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
@@ -25,6 +26,7 @@ import {
 } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
 import { Showcase } from "./demo/index.tsx";
+import { ivibeTheme } from "./theme.ts";
 
 /** What the headline says iVibe does, one mode at a time. */
 const LINES = [
@@ -377,11 +379,14 @@ export function Home({
   mode: ThemeMode;
   onModeChange: (mode: ThemeMode) => void;
 }) {
+  const [heroDark, setHeroDark] = useState(true);
   return (
     <div {...stylex.props(styles.page)}>
-      <TopBar mode={mode} onModeChange={onModeChange} />
+      <Theme theme={ivibeTheme} mode={heroDark ? "dark" : mode}>
+        <TopBar mode={mode} onModeChange={onModeChange} />
+      </Theme>
       <main>
-        <Showcase theme={mode} hero={<Hero />} />
+        <Showcase theme={mode} hero={<Hero />} onHeroDark={setHeroDark} />
       </main>
     </div>
   );

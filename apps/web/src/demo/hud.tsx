@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Spinner } from "@astryxdesign/core/Spinner";
@@ -352,13 +353,39 @@ function talking(t: number): number {
   return 0.25 + syllable * 0.75 * (0.6 + 0.4 * Math.sin((phrase / 2100) * Math.PI));
 }
 
+const BARS = 13;
+
 /**
  * The app's default, compact pill while you talk: a small capsule holding only a waveform of 13
- * bars that sway around the voice level (hud/compact.tsx).
+ * bars that sway around the voice level (hud/compact.tsx). It animates itself, writing bar
+ * heights directly, so it costs nothing to the page around it. Its bars' brightness follows the
+ * `--wave` custom property, which the hero dims while the camera is inside the pill.
  */
-export function CompactPill({ t }: { t: number }) {
-  const bars = 13;
-  const level = talking(t);
+export function CompactPill() {
+  const bars = useRef<(HTMLSpanElement | null)[]>([]);
+  useEffect(() => {
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const shown = Array.from({ length: BARS }, () => 0);
+    let raf = 0;
+    let last = performance.now();
+    const paint = (time: number) => {
+      const dt = Math.min(64, time - last) / 1000;
+      last = time;
+      const level = still ? 0.6 : talking(time);
+      for (let index = 0; index < BARS; index++) {
+        const sway = still
+          ? 1
+          : 0.72 + 0.28 * Math.sin((time / 1000) * (2.1 + ((index * 7) % 5) * 0.37) + index * 1.3);
+        const want = level * envelope(index, BARS) * sway;
+        shown[index]! += (want - shown[index]!) * (1 - Math.exp(-dt * 22));
+        const bar = bars.current[index];
+        if (bar) bar.style.height = `${Math.max(2.5, shown[index]! * 18).toFixed(2)}px`;
+      }
+      if (!still) raf = requestAnimationFrame(paint);
+    };
+    raf = requestAnimationFrame(paint);
+    return () => cancelAnimationFrame(raf);
+  }, []);
   return (
     <div
       style={{
@@ -368,19 +395,28 @@ export function CompactPill({ t }: { t: number }) {
         gap: 2.5,
         paddingInline: 14,
         borderRadius: 999,
-        background: "rgba(15, 14, 13, 0.94)",
+        background:
+          "radial-gradient(120% 140% at 50% 30%, rgba(255, 244, 228, 0.07), transparent 60%), rgba(15, 14, 13, 0.96)",
         border: "1px solid rgba(255, 255, 255, 0.08)",
         boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2)",
       }}
     >
-      {Array.from({ length: bars }, (_, index) => {
-        const sway =
-          0.72 + 0.28 * Math.sin((t / 1000) * (2.1 + ((index * 7) % 5) * 0.37) + index * 1.3);
-        const height = Math.max(2.5, level * envelope(index, bars) * sway * 18);
-        return (
-          <span key={index} style={{ width: 2.5, height, borderRadius: 999, background: ink }} />
-        );
-      })}
+      {Array.from({ length: BARS }, (_, index) => (
+        <span
+          key={index}
+          ref={(element) => {
+            bars.current[index] = element;
+          }}
+          style={{
+            width: 2.5,
+            height: 2.5,
+            borderRadius: 999,
+            background: ink,
+            opacity: "var(--wave, 1)",
+            boxShadow: "0 0 2px rgba(255, 228, 196, 0.55), 0 0 6px rgba(255, 196, 140, 0.25)",
+          }}
+        />
+      ))}
     </div>
   );
 }

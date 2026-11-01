@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useEffect, useRef, useState } from "react";
-import type { ReactNode, RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { ProgressBar } from "@astryxdesign/core/ProgressBar";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
+import { Theme } from "@astryxdesign/core/theme";
 import type { ThemeMode } from "@astryxdesign/core/theme";
 import { Mascot } from "../../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import type { MascotState } from "../../../desktop/src/renderer/shared/mascot/scene.ts";
 import { detectPlatform } from "../release.ts";
+import { ivibeTheme } from "../theme.ts";
 import {
   CHROME,
   ChromeWindow,
@@ -308,13 +310,19 @@ const NARROW_VIEW = 600;
 /** Room for the site's top bar above the card, and for the mode controls under it. */
 const NAV = 76;
 const CONTROLS = 132;
-/** How far you scroll, in viewport heights, for the hero to settle into the card. */
-const ZOOM_RUN = 0.9;
+/** How far you scroll, in viewport heights, from the hero to the settled card. */
+const RUN = 1.6;
+/** Where the camera stops pulling out of the pill and starts shrinking the desktop. */
+const PULL_BACK = 0.55;
+/** The compact pill's waveform, in stage pixels: 13 bars of 2.5 with gaps of 2.5. */
+const WAVE = { width: 62.5, height: 36 };
 
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 const smooth = (value: number, from: number, to: number) => {
-  const p = Math.min(1, Math.max(0, (value - from) / (to - from)));
+  const p = clamp01((value - from) / (to - from));
   return p * p * (3 - 2 * p);
 };
+const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
 
 function useViewport(): { vw: number; vh: number } {
   const read = () => ({ vw: document.documentElement.clientWidth, vh: window.innerHeight });
@@ -327,37 +335,57 @@ function useViewport(): { vw: number; vh: number } {
   return size;
 }
 
-/** 0 at the top of the page, 1 once the hero has shrunk into the demo card. */
-function useZoomProgress(section: RefObject<HTMLElement | null>, vh: number): number {
-  const [progress, setProgress] = useState(0);
-  useEffect(() => {
-    let raf = 0;
-    const update = () => {
-      raf = 0;
-      const element = section.current;
-      if (!element) return;
-      const top = element.getBoundingClientRect().top;
-      setProgress(Math.min(1, Math.max(0, -top / (vh * ZOOM_RUN))));
-    };
-    const schedule = () => {
-      if (!raf) raf = requestAnimationFrame(update);
-    };
-    update();
-    window.addEventListener("scroll", schedule, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", schedule);
-      cancelAnimationFrame(raf);
-    };
-  }, [section, vh]);
-  return progress;
+/** Everything the camera needs, from the viewport and where the demo is looking. */
+function geometry(vw: number, vh: number, env: Env, focus: number) {
+  const availableHeight = Math.max(240, vh - NAV - CONTROLS);
+  const fitWidth = Math.min(W, vw - 32, (availableHeight * W) / H);
+  const narrow = fitWidth < 640;
+  const view = narrow ? NARROW_VIEW : W;
+  const cardWidth = Math.min(narrow ? vw - 32 : fitWidth, (availableHeight * view) / H);
+  const cardHeight = (cardWidth * H) / view;
+  const card = {
+    left: (vw - cardWidth) / 2,
+    top: NAV + Math.max(0, (availableHeight - cardHeight) / 2),
+    width: cardWidth,
+    height: cardHeight,
+  };
+  const pill = { x: W / 2, y: H - pillBottom(env) - 18 };
+  const pan = narrow ? Math.min(W - view, Math.max(0, focus - view / 2)) : 0;
+  // Three camera positions, each a scale and the screen point where the pill's centre lands.
+  const inside = {
+    k: Math.max((vw * 0.92) / WAVE.width, (vh * 1.08) / WAVE.height),
+    x: vw / 2,
+    y: vh / 2,
+  };
+  const coverK = Math.max(vw / W, vh / H) * 1.04;
+  const desktop = { k: coverK, x: vw / 2, y: pill.y * coverK + vh - H * coverK };
+  const settled = {
+    k: cardWidth / view,
+    x: card.left + (pill.x - pan) * (cardWidth / view),
+    y: card.top + pill.y * (cardWidth / view),
+  };
+  return { card, pill, inside, desktop, settled };
 }
 
 /**
- * The hero and the demo as one piece, the way Superwhisper does it: the hero's backdrop is a
- * desktop, close up, with iVibe's pill listening. Scrolling zooms out (the backdrop shrinks into a
- * card and the menu bar, dock and mascot come into view) and the demo plays on that desktop.
+ * The hero and the demo as one camera move, the way Superwhisper does it. The hero is the inside
+ * of iVibe's pill: its waveform, huge and glowing, moving like a voice. Scrolling pulls the camera
+ * back out of the pill until it is the small pill above the dock, then the desktop shrinks into a
+ * card where the demo plays.
+ *
+ * The scroll never re-renders React: a loop eases towards the scroll position and writes
+ * transforms and opacities straight to the elements, so it stays smooth with a mouse wheel too.
  */
-export function Showcase({ theme, hero }: { theme: ThemeMode; hero: ReactNode }) {
+export function Showcase({
+  theme,
+  hero,
+  onHeroDark,
+}: {
+  theme: ThemeMode;
+  hero: ReactNode;
+  /** Whether the top of the screen is the dark inside of the pill, for the site's top bar. */
+  onHeroDark: (dark: boolean) => void;
+}) {
   const systemDark = usePrefersDark();
   const [os] = useState(demoOs);
   const env: Env = { os, dark: theme === "dark" || (theme === "system" && systemDark) };
@@ -365,35 +393,150 @@ export function Showcase({ theme, hero }: { theme: ThemeMode; hero: ReactNode })
   const [mode, setMode] = useState<Mode>(frozen?.mode ?? "fix");
   const [playing, setPlaying] = useState(frozen !== null);
   const [t, setT] = useState(0);
-  const [idle, setIdle] = useState(0);
-  const section = useRef<HTMLElement>(null);
-  const card = useRef<HTMLDivElement>(null);
-  const still = useRef(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const [stage, setStage] = useState({ desktop: false, settled: false });
   const { vw, vh } = useViewport();
-  const progress = useZoomProgress(section, vh);
+  const still = useRef(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const now = script(mode, env);
   const duration = now.ms;
 
+  const section = useRef<HTMLElement>(null);
+  const shadow = useRef<HTMLDivElement>(null);
+  const card = useRef<HTMLDivElement>(null);
+  const world = useRef<HTMLDivElement>(null);
+  const words = useRef<HTMLDivElement>(null);
+  const desktopLayer = useRef<HTMLDivElement>(null);
+  const invitation = useRef<HTMLDivElement>(null);
+  const controls = useRef<HTMLDivElement>(null);
+  /** The eased scroll progress the camera is drawn at. */
+  const shown = useRef(0);
+  const heroDark = useRef<boolean | null>(null);
+
+  // What the camera loop reads; refreshed on every render.
+  const live = useRef({ vw, vh, env, focus: W / 2, onHeroDark });
+  live.current = { vw, vh, env, focus: playing ? now.focus(t) : W / 2, onHeroDark };
+
+  /** Draws the camera at progress p: 0 is inside the pill, 1 is the settled card. */
+  const draw = useCallback((p: number) => {
+    const { vw, vh, env, focus, onHeroDark } = live.current;
+    const g = geometry(vw, vh, env, focus);
+    const a = smooth(p, 0, PULL_BACK);
+    const b = smooth(p, PULL_BACK, 1);
+    const from = b > 0 ? g.desktop : g.inside;
+    const to = b > 0 ? g.settled : g.desktop;
+    const amount = b > 0 ? b : a;
+    // Scale changes by the same ratio per step, which reads as a steady pull back.
+    const k = from.k * (to.k / from.k) ** amount;
+    const x = mix(from.x, to.x, amount);
+    const y = mix(from.y, to.y, amount);
+    // The visible part of the screen: all of it in the hero, the card once settled.
+    const left = g.card.left * b;
+    const top = g.card.top * b;
+    const width = mix(vw, g.card.width, b);
+    const height = mix(vh, g.card.height, b);
+    const rect = {
+      left,
+      top,
+      right: Math.max(0, vw - left - width),
+      bottom: Math.max(0, vh - top - height),
+    };
+    const radius = 22 * b;
+
+    if (world.current) {
+      world.current.style.transform = `translate(${x - g.pill.x * k}px, ${y - g.pill.y * k}px) scale(${k})`;
+      world.current.style.setProperty("--wave", String(0.3 + 0.7 * smooth(p, 0.05, 0.4)));
+    }
+    if (card.current) {
+      card.current.style.clipPath = `inset(${rect.top}px ${rect.right}px ${rect.bottom}px ${rect.left}px round ${radius}px)`;
+    }
+    if (shadow.current) {
+      Object.assign(shadow.current.style, {
+        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        width: `${vw - rect.left - rect.right}px`,
+        height: `${vh - rect.top - rect.bottom}px`,
+        borderRadius: `${radius}px`,
+        opacity: String(b),
+      });
+    }
+    const heroShown = 1 - smooth(p, 0.02, 0.2);
+    if (words.current) {
+      words.current.style.opacity = String(heroShown);
+      words.current.style.transform = `translateY(${-p * 140}px) scale(${1 - 0.06 * clamp01(p * 4)})`;
+      words.current.style.visibility = heroShown <= 0 ? "hidden" : "visible";
+      words.current.style.pointerEvents = heroShown > 0.5 ? "auto" : "none";
+    }
+    if (desktopLayer.current) desktopLayer.current.style.opacity = String(smooth(p, 0.3, 0.6));
+    const settled = smooth(p, 0.86, 1);
+    if (invitation.current) {
+      invitation.current.style.opacity = String(settled);
+      invitation.current.style.transform = `translate(${g.card.left + g.card.width / 2}px, ${
+        g.card.top + g.card.height * 0.44 + (1 - settled) * 14
+      }px) translate(-50%, -50%)`;
+    }
+    if (controls.current) {
+      controls.current.style.opacity = String(settled);
+      controls.current.style.transform = `translateY(${rect.top + (vh - rect.top - rect.bottom) + 18}px)`;
+    }
+
+    // The top bar sits on the pill's dark inside until the pill's top edge passes under it.
+    const pillTop = y - (WAVE.height / 2) * k;
+    const dark = b === 0 && pillTop < 64;
+    if (dark !== heroDark.current) {
+      heroDark.current = dark;
+      onHeroDark(dark);
+    }
+    setStage((current) => {
+      const next = { desktop: p > 0.25, settled: p > 0.8 };
+      return current.desktop === next.desktop && current.settled === next.settled ? current : next;
+    });
+  }, []);
+
+  // The camera loop: follows the scroll with a short ease, then rests.
+  useEffect(() => {
+    let raf = 0;
+    let last = performance.now();
+    const target = () => {
+      const element = section.current;
+      if (!element) return 0;
+      return clamp01(-element.getBoundingClientRect().top / (live.current.vh * RUN));
+    };
+    const tick = (time: number) => {
+      const dt = Math.min(64, time - last);
+      last = time;
+      const goal = target();
+      const gap = goal - shown.current;
+      shown.current =
+        Math.abs(gap) < 0.0005 || still.current
+          ? goal
+          : shown.current + gap * (1 - Math.exp(-dt / 85));
+      draw(shown.current);
+      raf = shown.current === goal ? 0 : requestAnimationFrame(tick);
+    };
+    const wake = () => {
+      if (raf) return;
+      last = performance.now();
+      raf = requestAnimationFrame(tick);
+    };
+    shown.current = target();
+    draw(shown.current);
+    window.addEventListener("scroll", wake, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", wake);
+      cancelAnimationFrame(raf);
+    };
+  }, [draw]);
+
+  // A resize, a new theme or the demo looking elsewhere (on a phone) moves the camera too.
+  useLayoutEffect(() => draw(shown.current));
+
   // Scrolling back up to the hero puts the demo away; it starts over from Play.
   useEffect(() => {
-    if (progress < 0.5 && playing && !frozen) {
+    if (!stage.settled && playing && !frozen) {
       setPlaying(false);
       setMode("fix");
       setT(0);
     }
-  }, [progress, playing, frozen]);
-
-  // The hero's pill keeps listening while the demo isn't playing.
-  useEffect(() => {
-    if (playing || still.current) return;
-    let raf = 0;
-    const tick = (time: number) => {
-      setIdle(time);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playing]);
+  }, [stage.settled, playing, frozen]);
 
   // The demo's clock: plays while on screen, moves to the next mode at the end of each.
   useEffect(() => {
@@ -433,44 +576,11 @@ export function Showcase({ theme, hero }: { theme: ThemeMode; hero: ReactNode })
     };
   }, [mode, duration, frozen, playing]);
 
-  // The card where the hero settles: as wide as fits, leaving room for the bar and controls.
-  const availableHeight = Math.max(240, vh - NAV - CONTROLS);
-  const fitWidth = Math.min(W, vw - 32, (availableHeight * W) / H);
-  const narrow = fitWidth < 640;
-  const view = narrow ? NARROW_VIEW : W;
-  const cardWidth = Math.min(narrow ? vw - 32 : fitWidth, (availableHeight * view) / H);
-  const cardHeight = (cardWidth * H) / view;
-  const cardLeft = (vw - cardWidth) / 2;
-  const cardTop = NAV + Math.max(0, (availableHeight - cardHeight) / 2);
-
-  const e = smooth(progress, 0, 1);
-  const rect = {
-    left: cardLeft * e,
-    top: cardTop * e,
-    width: vw + (cardWidth - vw) * e,
-    height: vh + (cardHeight - vh) * e,
-  };
-
-  // The pill is the point both ends of the zoom agree on: near the bottom of the hero, and in
-  // its place above the dock once the whole desktop shows.
-  const pill = { x: W / 2, y: H - pillBottom(env) - 18 };
-  const focus = playing ? now.focus(t) : W / 2;
-  const pan = narrow ? Math.min(W - view, Math.max(0, focus - view / 2)) : 0;
-  const k0 = Math.max(vw / W, vh / H) * 1.12;
-  const k1 = cardWidth / view;
-  const k = k0 * (k1 / k0) ** e;
-  const at = {
-    x: vw / 2 + ((pill.x - pan) * k1 - vw / 2) * e,
-    y: vh * 0.89 + (pill.y * k1 - vh * 0.89) * e,
-  };
-
-  const heroShown = 1 - smooth(progress, 0.04, 0.38);
-  const desktopShown = smooth(progress, 0.35, 0.85);
-  const settled = smooth(progress, 0.82, 1);
   const fade = playing ? ease(t, 0, 350) * (1 - ease(t, duration - 450, 400)) : 0;
   const phase = playing ? now.hud(t) : null;
   const nod = playing ? Math.max(0, ...now.keys.map((press) => bump(t, press.at - 60))) : 0;
   const mac = env.os === "mac";
+  const open = playing ? now.open : { chrome: true };
 
   const start = (next: Mode) => {
     setT(0);
@@ -483,24 +593,27 @@ export function Showcase({ theme, hero }: { theme: ThemeMode; hero: ReactNode })
       ref={section}
       id="modes"
       aria-label="iVibe"
-      style={{ position: "relative", height: vh * (1 + ZOOM_RUN) }}
+      style={{ position: "relative", height: vh * (1 + RUN) }}
     >
       <div style={{ position: "sticky", top: 0, height: vh, overflow: "hidden" }}>
+        <div
+          ref={shadow}
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            boxShadow: "0 30px 80px rgba(30,20,10,0.22), 0 0 0 1px var(--color-border)",
+          }}
+        />
         <div
           ref={card}
           role="img"
           aria-label={
-            playing ? `${LABELS[mode]}: ${SUMMARY[mode]}` : "A desktop with iVibe's pill listening"
+            playing ? `${LABELS[mode]}: ${SUMMARY[mode]}` : "iVibe's pill, listening, on a desktop"
           }
-          style={{
-            position: "absolute",
-            ...rect,
-            borderRadius: 22 * e,
-            overflow: "hidden",
-            boxShadow: `0 30px 80px rgba(30,20,10,${0.22 * e}), 0 0 0 ${e}px var(--color-border)`,
-          }}
+          style={{ position: "absolute", inset: 0, overflow: "hidden" }}
         >
           <div
+            ref={world}
             aria-hidden="true"
             style={{
               position: "absolute",
@@ -509,67 +622,53 @@ export function Showcase({ theme, hero }: { theme: ThemeMode; hero: ReactNode })
               width: W,
               height: H,
               transformOrigin: "0 0",
-              transform: `translate(${at.x - pill.x * k}px, ${at.y - pill.y * k}px) scale(${k})`,
             }}
           >
             <Wallpaper env={env} />
-            {playing ? (
+            {playing && (
               <div style={{ position: "absolute", inset: 0, opacity: fade }}>{now.windows(t)}</div>
-            ) : (
-              // Before the demo: the bug on one side, the prompt it became on the other. In the
-              // hero they sit at the edges, out of focus; zooming out slides them into place.
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  filter: `blur(${(1 - e) * 2.5}px)`,
-                  opacity: 0.55 + 0.45 * e,
-                }}
-              >
-                <ChromeWindow
-                  env={env}
-                  t={10_000}
-                  clicks={[0]}
-                  style={{
-                    left: -170 + 186 * e,
-                    top: top(env, 170),
-                    ...CHROME,
-                    transform: "scale(0.52)",
-                    transformOrigin: "0 0",
-                  }}
-                />
-                <ClaudeCodeWindow
-                  env={env}
-                  t={10_000}
-                  pasteAt={0}
-                  style={{
-                    left: 880 - 180 * e,
-                    top: top(env, 205),
-                    width: 590,
-                    height: 340,
-                    transform: "scale(0.52)",
-                    transformOrigin: "0 0",
-                  }}
-                />
-              </div>
             )}
-            <div style={{ opacity: desktopShown }}>
+            <div ref={desktopLayer} style={{ position: "absolute", inset: 0, opacity: 0 }}>
               {mac ? (
                 <>
                   <MenuBar env={env} app={playing ? now.active(t) : "chrome"} />
                   <Dock
                     env={env}
-                    open={playing ? now.open : { chrome: true, terminal: true }}
+                    open={open}
                     pressed={playing ? now.dockPressed?.(t) : undefined}
                   />
                 </>
               ) : (
                 <Taskbar
                   env={env}
-                  open={playing ? now.open : { chrome: true, terminal: true }}
+                  open={open}
                   active={playing ? now.active(t) : "chrome"}
                   pressed={playing ? now.dockPressed?.(t) : undefined}
                 />
+              )}
+              {/*
+                The mascot sits still in the corner and nods with each key press; the shortcut
+                floats above it on its own layer, so showing it never moves the mascot.
+              */}
+              {stage.desktop && (
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 16,
+                    bottom: mascotBottom(env),
+                    width: MASCOT,
+                    height: MASCOT,
+                  }}
+                >
+                  <div
+                    style={{
+                      transform: `translateY(${nod * 3}px) scale(${1 + nod * 0.04}, ${1 - nod * 0.06})`,
+                      transformOrigin: "50% 100%",
+                    }}
+                  >
+                    <Mascot size={MASCOT} state={mascotState(phase)} />
+                  </div>
+                </div>
               )}
             </div>
 
@@ -604,33 +703,10 @@ export function Showcase({ theme, hero }: { theme: ThemeMode; hero: ReactNode })
                   {phase && <Hud t={t} phase={phase} pressed={now.viewPressed?.(t)} />}
                 </div>
               ) : (
-                <CompactPill t={idle} />
+                <CompactPill />
               )}
             </div>
 
-            {/*
-              The mascot sits still in the corner and nods with each key press; the shortcut
-              floats above it on its own layer, so showing it never moves the mascot.
-            */}
-            <div
-              style={{
-                position: "absolute",
-                right: 16,
-                bottom: mascotBottom(env),
-                width: MASCOT,
-                height: MASCOT,
-                opacity: desktopShown,
-              }}
-            >
-              <div
-                style={{
-                  transform: `translateY(${nod * 3}px) scale(${1 + nod * 0.04}, ${1 - nod * 0.06})`,
-                  transformOrigin: "50% 100%",
-                }}
-              >
-                <Mascot size={MASCOT} state={mascotState(phase)} />
-              </div>
-            </div>
             {playing && (
               <>
                 <div
@@ -658,54 +734,41 @@ export function Showcase({ theme, hero }: { theme: ThemeMode; hero: ReactNode })
               </>
             )}
           </div>
-
-          {/* Once the desktop has settled into its card: the invitation to watch. */}
-          {!playing && settled > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 16,
-                paddingBottom: cardHeight * 0.12,
-                opacity: settled,
-                transform: `translateY(${(1 - settled) * 12}px)`,
-                pointerEvents: settled > 0.5 ? "auto" : "none",
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  left: "50%",
-                  top: "50%",
-                  width: Math.min(560, cardWidth * 0.8),
-                  height: 260,
-                  transform: `translate(-50%, calc(-50% - ${cardHeight * 0.06}px))`,
-                  background:
-                    "radial-gradient(closest-side, color-mix(in srgb, var(--color-background-surface) 82%, transparent), transparent)",
-                }}
-              />
-              <span style={{ position: "relative" }}>
-                <Text size="xl" weight="semibold">
-                  Ready to see how it works?
-                </Text>
-              </span>
-              <Button
-                label="Play demo"
-                variant="primary"
-                icon={<Play size={14} strokeWidth={0} fill="currentColor" />}
-                onClick={() => start(mode)}
-              />
-            </div>
-          )}
         </div>
 
-        {/* The hero's words, over the close-up desktop; they leave as the zoom starts. */}
+        {/* Once the desktop has settled into its card: the invitation to watch. */}
         <div
+          ref={invitation}
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            display: playing ? "none" : "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 16,
+            padding: "28px 48px",
+            borderRadius: 999,
+            background:
+              "radial-gradient(closest-side, color-mix(in srgb, var(--color-background-surface) 70%, transparent), transparent)",
+            opacity: 0,
+            pointerEvents: stage.settled && !playing ? "auto" : "none",
+          }}
+        >
+          <Text size="xl" weight="semibold">
+            Ready to see how it works?
+          </Text>
+          <Button
+            label="Play demo"
+            variant="primary"
+            icon={<Play size={14} strokeWidth={0} fill="currentColor" />}
+            onClick={() => start(mode)}
+          />
+        </div>
+
+        {/* The hero's words, over the inside of the pill; they leave as the camera pulls back. */}
+        <div
+          ref={words}
           style={{
             position: "absolute",
             inset: 0,
@@ -713,24 +776,23 @@ export function Showcase({ theme, hero }: { theme: ThemeMode; hero: ReactNode })
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            opacity: heroShown,
-            transform: `translateY(${-progress * 70}px) scale(${1 - 0.05 * Math.min(1, progress * 3)})`,
-            pointerEvents: heroShown > 0.5 ? "auto" : "none",
-            visibility: heroShown <= 0 ? "hidden" : "visible",
           }}
         >
-          {hero}
+          <Theme theme={ivibeTheme} mode="dark">
+            {hero}
+          </Theme>
         </div>
 
         {/* The modes, under the card. */}
         <div
+          ref={controls}
           style={{
             position: "absolute",
             left: 16,
             right: 16,
-            top: rect.top + rect.height + 18,
-            opacity: settled,
-            pointerEvents: settled > 0.5 ? "auto" : "none",
+            top: 0,
+            opacity: 0,
+            pointerEvents: stage.settled ? "auto" : "none",
           }}
         >
           <VStack gap={3} hAlign="center">
