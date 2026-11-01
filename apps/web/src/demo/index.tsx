@@ -34,6 +34,8 @@ import {
   Wallpaper,
 } from "./desktop.tsx";
 import { CompactPill, Hud, Toast } from "./hud.tsx";
+import { holdTone } from "./voice.ts";
+import type { Tone } from "./voice.ts";
 import { Play, RotateCcw } from "lucide-react";
 import type { HudPhase, Segment } from "./hud.tsx";
 import type { App } from "./icons.tsx";
@@ -377,6 +379,16 @@ function geometry(vw: number, vh: number, env: Env, focus: number) {
   return { card, pill, inside, desktop, settled };
 }
 
+/** Scrolls to where the demo sits settled in its card, as "How it works" does. */
+export function scrollToDemo(): void {
+  const section = document.getElementById("modes");
+  if (!section) return;
+  const top = section.getBoundingClientRect().top + window.scrollY;
+  window.scrollTo({ top: top + window.innerHeight * RUN, behavior: "smooth" });
+}
+
+const TONE_OF: Record<Mode, Tone> = { fix: "Fix", prompt: "Prompt", dictate: "Dictate" };
+
 /**
  * Where the demo is: one hairline for each mode, filled for those already shown and filling with
  * the clock for the one playing. Drawn in the page's own text colour, moved by a transform.
@@ -700,6 +712,12 @@ export function Showcase({
   const nod = playing ? Math.max(0, ...now.keys.map((press) => bump(t, press.at - 60))) : 0;
   const mac = env.os === "mac";
   const open = playing ? now.open : { chrome: true };
+
+  // While the demo plays, its mode colours the pill's light and the navbar.
+  useEffect(() => {
+    holdTone(playing ? TONE_OF[mode] : null);
+    return () => holdTone(null);
+  }, [playing, mode]);
 
   const start = (next: Mode) => {
     setT(0);

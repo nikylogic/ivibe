@@ -20,16 +20,22 @@ export const WORD_MS = 110;
 
 let spokeAt = Number.NEGATIVE_INFINITY;
 let speakMs = 0;
-let tone: Tone = "Fix";
+/** The mode the headline last said, and the one the playing demo holds, if any. */
+let heard: Tone = "Fix";
+let held: Tone | null = null;
 const listeners = new Set<(tone: Tone) => void>();
+
+function tell(): void {
+  for (const listener of listeners) listener(currentTone());
+}
 
 /** Says a line: the waveform speaks for as long as its words take, in the line's mode. */
 export function say(text: string, next: Tone): void {
   spokeAt = performance.now();
   // A little longer than the typing, so the voice is heard as the line settles.
   speakMs = Math.max(900, text.split(/\s+/).length * WORD_MS * 1.6);
-  tone = next;
-  for (const listener of listeners) listener(next);
+  heard = next;
+  tell();
 }
 
 const smooth = (from: number, to: number, value: number) => {
@@ -49,7 +55,13 @@ export function speech(time: number): number {
 }
 
 export function currentTone(): Tone {
-  return tone;
+  return held ?? heard;
+}
+
+/** While the demo plays, its mode sets the colour instead of the headline. Null lets go. */
+export function holdTone(next: Tone | null): void {
+  held = next;
+  tell();
 }
 
 /** Calls `listener` whenever the mode changes; returns the unsubscribe. */

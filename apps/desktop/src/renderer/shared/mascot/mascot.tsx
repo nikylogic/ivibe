@@ -15,11 +15,17 @@ export function Mascot({
   state = "idle",
   onLevel,
   shyHold = 0,
+  gaze,
 }: {
   size: number;
   state?: MascotState;
   /** Extra seconds the shy hello lasts (the website's first hello is longer). */
   shyHold?: number;
+  /**
+   * Where to look, as `lookAt` takes it (beyond ±1 turns further): the website's navbar turns it
+   * towards the link under the pointer. Null looks ahead again; left out, it is not steered.
+   */
+  gaze?: { x: number; y: number } | null;
   /** Voice levels, while recording. */
   onLevel?: (listener: (rms: number) => void) => () => void;
 }) {
@@ -103,6 +109,12 @@ export function Mascot({
 
   useEffect(() => scene.current?.setSize(size), [size]);
   useEffect(() => scene.current?.setShyHold(shyHold), [shyHold]);
+  const steered = gaze !== undefined;
+  const gazeX = gaze?.x ?? 0;
+  const gazeY = gaze?.y ?? 0;
+  useEffect(() => {
+    if (steered) scene.current?.lookAt(gazeX, gazeY);
+  }, [steered, gazeX, gazeY]);
   useEffect(() => scene.current?.setState(state), [state]);
   useEffect(() => {
     if (!onLevel || state !== "recording") return;

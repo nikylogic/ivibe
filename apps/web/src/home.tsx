@@ -21,7 +21,6 @@ import {
   FALLBACK_RELEASE,
   MAC_INSTALL,
   RELEASES_URL,
-  REPO,
   detectPlatform,
   latestRelease,
 } from "./release.ts";
@@ -29,6 +28,7 @@ import type { Download, Platform, Release } from "./release.ts";
 import { Showcase } from "./demo/index.tsx";
 import { say, WORD_MS } from "./demo/voice.ts";
 import { ivibeTheme } from "./theme.ts";
+import { heroMascotSize, Nav } from "./nav.tsx";
 
 /** What the headline says iVibe does, one mode at a time. */
 const LINES = [
@@ -140,12 +140,6 @@ const windowsIcon = (
   </svg>
 );
 
-const githubIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.37-3.87-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.7 5.39-5.27 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z" />
-  </svg>
-);
-
 const linuxIcon = <Monitor size={15} strokeWidth={1.75} aria-hidden="true" />;
 
 const PLATFORM_BUTTONS: Record<
@@ -201,18 +195,28 @@ function TopBar({
   mode: ThemeMode;
   onModeChange: (mode: ThemeMode) => void;
 }) {
+  // The theme switch rests here through the hero and the demo, and leaves below the demo (the
+  // footer has it there).
+  const [below, setBelow] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      const demo = document.getElementById("modes");
+      setBelow(!!demo && demo.getBoundingClientRect().bottom < window.innerHeight - 1);
+    };
+    check();
+    window.addEventListener("scroll", check, { passive: true });
+    return () => window.removeEventListener("scroll", check);
+  }, []);
   return (
-    <header {...stylex.props(styles.bar)}>
+    <header
+      {...stylex.props(styles.bar)}
+      style={{
+        opacity: below ? 0 : 1,
+        pointerEvents: below ? "none" : undefined,
+        transition: "opacity 300ms ease",
+      }}
+    >
       <HStack gap={2} vAlign="center">
-        <Button
-          label="iVibe on GitHub"
-          variant="ghost"
-          isIconOnly
-          icon={githubIcon}
-          href={`https://github.com/${REPO}`}
-          target="_blank"
-          rel="noreferrer"
-        />
         <SegmentedControl
           label="Appearance"
           size="sm"
@@ -330,10 +334,9 @@ function pretendVoice(listener: (rms: number) => void): () => void {
   return () => cancelAnimationFrame(frame);
 }
 
-function Hero() {
+function Hero({ release }: { release: Release }) {
   const mascot = useHello();
   const { index, leaving } = useRotatingLine();
-  const release = useRelease();
   const detected = detectPlatform();
   // The visitor's own platform first and filled; Mac and Windows always show.
   const order: Platform[] =
@@ -351,10 +354,11 @@ function Hero() {
       <Heading level={1} xstyle={styles.headline}>
         <span {...stylex.props(styles.firstLine)}>
           iVibe
-          <span {...stylex.props(styles.mascot)} aria-hidden="true">
+          {/* The navbar borrows this mascot as you scroll (nav.tsx). */}
+          <span id="hero-mascot" {...stylex.props(styles.mascot)} aria-hidden="true">
             {/* A first hello: it blushes and glances away, then smiles back (scene.ts). */}
             <Mascot
-              size={Math.round(Math.min(98, Math.max(60, window.innerWidth * 0.068)))}
+              size={heroMascotSize()}
               state={mascot}
               shyHold={SHY_HOLD}
               onLevel={pretendVoice}
@@ -422,13 +426,23 @@ export function Home({
   onModeChange: (mode: ThemeMode) => void;
 }) {
   const [heroDark, setHeroDark] = useState(true);
+  const release = useRelease();
+  const platform = detectPlatform() ?? "mac";
+  const button = PLATFORM_BUTTONS[platform];
   return (
     <div {...stylex.props(styles.page)}>
       <Theme theme={ivibeTheme} mode={heroDark ? "dark" : mode}>
         <TopBar mode={mode} onModeChange={onModeChange} />
       </Theme>
+      <Nav
+        download={{
+          label: button.label,
+          icon: button.icon,
+          href: button.pick(release).url,
+        }}
+      />
       <main>
-        <Showcase theme={mode} hero={<Hero />} onHeroDark={setHeroDark} />
+        <Showcase theme={mode} hero={<Hero release={release} />} onHeroDark={setHeroDark} />
       </main>
     </div>
   );
