@@ -20,6 +20,7 @@ import { usageRoute } from "./usage.ts";
 import { now } from "./util.ts";
 import { settleStale } from "./wallet.ts";
 import { buyRoute, webMeRoute, webSignOutRoute } from "./web.ts";
+import { sendQueuedEmails } from "./email.ts";
 
 /** iVibe Cloud (docs/architecture.md §6). */
 
@@ -106,6 +107,11 @@ export default {
       env.DB.prepare("DELETE FROM web_sessions WHERE expires_at < ?").bind(now()),
       env.DB.prepare("DELETE FROM webhook_events WHERE received_at < ?").bind(now() - 30 * day),
     ]);
+    const emailed = await sendQueuedEmails(env).catch((error: unknown) => {
+      console.error("email:", error);
+      return 0;
+    });
+    if (emailed > 0) console.log(`sent ${emailed} queued emails`);
     const expired = await expireBackups(env);
     if (expired > 0) console.log(`deleted ${expired} backups 90 days after Pro ended`);
   },

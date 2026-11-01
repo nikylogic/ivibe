@@ -22,6 +22,8 @@ export interface Env {
   DODO_API_KEY?: string;
   /** whsec_…, from the webhook endpoint in Dodo's dashboard. */
   DODO_WEBHOOK_SECRET?: string;
+  /** A send-only Resend key. Unset: emails wait in the outbox and nothing else changes. */
+  RESEND_API_KEY?: string;
 }
 
 export interface Session {

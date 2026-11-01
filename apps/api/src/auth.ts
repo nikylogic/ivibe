@@ -7,6 +7,7 @@ import { apiError } from "./runs.ts";
 import { loadSettings } from "./settings.ts";
 import { now, pkceChallenge, randomToken, sha256, toCredits } from "./util.ts";
 import { finishWebSignIn, startedHere } from "./web.ts";
+import { queueEmail, sendSoon } from "./email.ts";
 import { balanceOf, trialOnly, trialState } from "./wallet.ts";
 
 /**
@@ -78,7 +79,29 @@ async function githubUser(c: Ctx, code: string): Promise<GitHubUser | null> {
       "User-Agent": "iVibe",
     },
   });
-  return userResponse.ok ? ((await userResponse.json()) as GitHubUser) : null;
+  if (!userResponse.ok) return null;
+  const user = (await userResponse.json()) as GitHubUser;
+  // Most people keep their address private on their profile; this is what the user:email scope is for.
+  if (!user.email) user.email = await privateEmail(token.access_token);
+  return user;
+}
+
+async function privateEmail(token: string): Promise<string | null> {
+  const response = await fetch("https://api.github.com/user/emails", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "User-Agent": "iVibe",
+    },
+  });
+  if (!response.ok) return null;
+  const emails = (await response.json()) as {
+    email: string;
+    primary: boolean;
+    verified: boolean;
+  }[];
+  if (!Array.isArray(emails)) return null;
+  return emails.find((item) => item.primary && item.verified)?.email ?? null;
 }
 
 /** Finds or creates the account (with an empty wallet) for a GitHub user. */
@@ -117,6 +140,7 @@ async function upsertUser(db: D1Database, user: GitHubUser): Promise<string> {
     db
       .prepare("INSERT INTO wallets (user_id, balance, held, updated_at) VALUES (?, 0, 0, ?)")
       .bind(id, at),
+    queueEmail(db, id, "welcome"),
   ]);
   return id;
 }
@@ -154,6 +178,7 @@ export async function githubCallback(c: Ctx): Promise<Response> {
     );
 
   const userId = await upsertUser(db, user);
+  sendSoon(c);
   if (web) return finishWebSignIn(c, userId);
   const loginCode = randomToken();
   await db

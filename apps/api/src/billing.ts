@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { queueEmail, sendSoon } from "./email.ts";
 import type { Context } from "hono";
 import { page } from "./auth.ts";
 import type { AppEnv, Env } from "./env.ts";
@@ -351,6 +352,7 @@ export async function applyEvent(
           "INSERT OR IGNORE INTO ledger (id, user_id, kind, amount, ref, idempotency_key, created_at) VALUES (?, ?, 'grant', ?, 'subscription', ?, ?)",
         )
         .bind(crypto.randomUUID(), userId, settings.plan.amount, key, at),
+      queueEmail(db, userId, "pro"),
     ]);
     return "applied";
   }
@@ -394,5 +396,6 @@ export async function webhookRoute(c: Ctx): Promise<Response> {
   );
   if (outcome === "retry") return c.json({ error: "retry" }, 503);
   await db.prepare("UPDATE webhook_events SET processed_at = ? WHERE id = ?").bind(now(), id).run();
+  sendSoon(c);
   return c.json({ ok: true, outcome });
 }
