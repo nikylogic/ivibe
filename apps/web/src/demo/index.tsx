@@ -352,11 +352,12 @@ function geometry(vw: number, vh: number, env: Env, focus: number) {
   const view = narrow ? NARROW_VIEW : W;
   const cardWidth = Math.min(narrow ? vw - 32 : fitWidth, (availableHeight * view) / H);
   const cardHeight = (cardWidth * H) / view;
+  // On whole pixels, so the settled card's edges are crisp.
   const card = {
-    left: (vw - cardWidth) / 2,
-    top: NAV + Math.max(0, (availableHeight - cardHeight) / 2),
-    width: cardWidth,
-    height: cardHeight,
+    left: Math.round((vw - cardWidth) / 2),
+    top: Math.round(NAV + Math.max(0, (availableHeight - cardHeight) / 2)),
+    width: Math.round(cardWidth),
+    height: Math.round(cardHeight),
   };
   const pill = { x: W / 2, y: H - pillBottom(env) - 18 };
   const pan = narrow ? Math.min(W - view, Math.max(0, focus - view / 2)) : 0;
@@ -500,6 +501,7 @@ export function Showcase({
 
   const section = useRef<HTMLElement>(null);
   const shadow = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLDivElement>(null);
   const card = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
   const words = useRef<HTMLDivElement>(null);
@@ -557,8 +559,9 @@ export function Showcase({
     if (card.current) {
       card.current.style.clipPath = `inset(${rect.top}px ${rect.right}px ${rect.bottom}px ${rect.left}px round ${radius}px)`;
     }
-    if (shadow.current) {
-      Object.assign(shadow.current.style, {
+    for (const layer of [shadow.current, frame.current]) {
+      if (!layer) continue;
+      Object.assign(layer.style, {
         left: `${rect.left}px`,
         top: `${rect.top}px`,
         width: `${vw - rect.left - rect.right}px`,
@@ -718,7 +721,9 @@ export function Showcase({
           aria-hidden="true"
           style={{
             position: "absolute",
-            boxShadow: "0 30px 80px rgba(30,20,10,0.22), 0 0 0 1px var(--color-border)",
+            boxShadow: env.dark
+              ? "0 30px 80px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.25)"
+              : "0 30px 80px rgba(60, 40, 20, 0.16), 0 8px 24px rgba(60, 40, 20, 0.08)",
           }}
         />
         <div
@@ -861,6 +866,22 @@ export function Showcase({
             )}
           </div>
         </div>
+
+        {/*
+          The card's edge: one smooth hairline drawn over the rim, so the corners stay clean at
+          every step of the zoom. It fades in with the card.
+        */}
+        <div
+          ref={frame}
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            pointerEvents: "none",
+            boxShadow: env.dark
+              ? "inset 0 0 0 1px rgba(255, 255, 255, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.06)"
+              : "inset 0 0 0 1px rgba(40, 28, 16, 0.10)",
+          }}
+        />
 
         {/* Once the desktop has settled into its card: the invitation to watch. */}
         <div
