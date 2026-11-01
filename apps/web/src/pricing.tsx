@@ -316,7 +316,7 @@ function Receipt({
 /** Pro's pill is the only one awake: the same voice bars the app shows while it listens. */
 const BARS = [980, 720, 1140, 640, 860, 1040, 700];
 
-function Awake() {
+export function Awake() {
   return (
     <span aria-hidden="true" style={{ display: "flex", alignItems: "center", gap: 2 }}>
       {BARS.map((ms, index) => (

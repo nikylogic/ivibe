@@ -21,6 +21,7 @@ import { say, WORD_MS } from "./demo/voice.ts";
 import { ivibeTheme } from "./theme.ts";
 import { heroMascotSize, Nav } from "./nav.tsx";
 import { Features } from "./features.tsx";
+import { Faq } from "./faq.tsx";
 import { Pricing } from "./pricing.tsx";
 
 /** What the headline says iVibe does, one mode at a time. */
@@ -383,6 +384,7 @@ export function Home({
         <Showcase theme={mode} hero={<Hero release={release} />} onHeroDark={setHeroDark} />
         <Features />
         <Pricing />
+        <Faq />
       </main>
     </div>
   );

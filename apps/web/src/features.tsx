@@ -110,7 +110,7 @@ function useClock(total: number, rest = 1800) {
 }
 
 /** Tells the navbar mascot where to look (null: ahead again). */
-function look(target: HTMLElement | null) {
+export function look(target: HTMLElement | null) {
   const box = target?.getBoundingClientRect();
   window.dispatchEvent(
     new CustomEvent("ivibe:look", {
