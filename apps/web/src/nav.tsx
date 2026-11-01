@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import { siGithub } from "simple-icons";
 import { Download as DownloadIcon } from "lucide-react";
 import { Button } from "@astryxdesign/core/Button";
 import { Link } from "@astryxdesign/core/Link";
@@ -73,6 +74,13 @@ function useNarrow(): boolean {
  * as the bar opens, and hops when clicked, back to the top. A short glowing line marks the
  * section you are in, in the colour of the mode on show.
  */
+/** GitHub's official mark (Simple Icons), in the bar's text colour. */
+const githubMark = (
+  <svg viewBox="0 0 24 24" width={17} height={17} fill="currentColor" aria-hidden="true">
+    <path d={siGithub.path} />
+  </svg>
+);
+
 /** Marks where you are: a short glowing line in the colour of the mode on show. */
 function Here({ tone }: { tone: Tone }) {
   return (
@@ -220,12 +228,18 @@ export function Nav({ page }: { page: "home" | "download" }) {
     else window.scrollTo({ top: 0, behavior: reduced() ? "auto" : "smooth" });
   };
 
-  const links: { label: string; href?: string; onClick?: () => void; active?: boolean }[] = [
+  const links: {
+    label: string;
+    href?: string;
+    onClick?: () => void;
+    active?: boolean;
+    icon?: ReactNode;
+  }[] = [
     pinned
       ? { label: "How it works", href: "/#how" }
       : { label: "How it works", onClick: scrollToDemo, active: true },
     { label: "Changelog", href: `https://github.com/${REPO}/releases` },
-    { label: "GitHub", href: `https://github.com/${REPO}` },
+    { label: "iVibe on GitHub", href: `https://github.com/${REPO}`, icon: githubMark },
   ];
 
   return (
@@ -340,6 +354,8 @@ export function Nav({ page }: { page: "home" | "download" }) {
                     target={link.href?.startsWith("http") ? "_blank" : undefined}
                     rel={link.href?.startsWith("http") ? "noreferrer" : undefined}
                     onClick={link.onClick}
+                    icon={link.icon}
+                    isIconOnly={link.icon !== undefined}
                   />
                   {link.active && <Here tone={tone} />}
                 </span>
