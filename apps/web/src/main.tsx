@@ -13,9 +13,16 @@ import "./global.css";
 import { ivibeTheme } from "./theme.ts";
 import { Home } from "./home.tsx";
 import { DownloadPage } from "./download.tsx";
+import { LegalPage } from "./legal.tsx";
+import type { LegalPageName } from "./legal.tsx";
 
-/** The site has two pages; anything else is the home page. */
-const onDownload = window.location.pathname.replace(/\/+$/, "") === "/download";
+/** Anything that isn't one of these pages is the home page. */
+const path = window.location.pathname.replace(/\/+$/, "");
+const onDownload = path === "/download";
+const legalPage: LegalPageName | null =
+  path === "/privacy" || path === "/terms" || path === "/refunds"
+    ? (path.slice(1) as LegalPageName)
+    : null;
 
 const MODE_KEY = "ivibe.theme";
 
@@ -39,7 +46,9 @@ function App() {
   }, [mode]);
   return (
     <Theme theme={ivibeTheme} mode={mode}>
-      {onDownload ? (
+      {legalPage ? (
+        <LegalPage name={legalPage} mode={mode} onModeChange={setMode} />
+      ) : onDownload ? (
         <DownloadPage mode={mode} onModeChange={setMode} />
       ) : (
         <Home mode={mode} onModeChange={setMode} />

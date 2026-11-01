@@ -6,12 +6,11 @@ import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { HStack } from "@astryxdesign/core/HStack";
-import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { Theme } from "@astryxdesign/core/theme";
 import type { ThemeMode } from "@astryxdesign/core/theme";
-import { ChevronRight, Monitor, Moon, Sun } from "lucide-react";
+import { ChevronRight, Monitor } from "lucide-react";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import type { MascotState } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import { FALLBACK_RELEASE, detectPlatform, latestRelease } from "./release.ts";
@@ -24,6 +23,8 @@ import { Features } from "./features.tsx";
 import { Faq } from "./faq.tsx";
 import { Roadmap } from "./roadmap.tsx";
 import { Pricing } from "./pricing.tsx";
+import { Finale, Footer } from "./finale.tsx";
+import { ThemeSwitch } from "./theme-switch.tsx";
 
 /** What the headline says iVibe does, one mode at a time. */
 const LINES = [
@@ -205,26 +206,7 @@ export function TopBar({
       }}
     >
       <HStack gap={2} vAlign="center">
-        <SegmentedControl
-          label="Appearance"
-          size="sm"
-          value={mode}
-          onChange={(value) => onModeChange(value as ThemeMode)}
-        >
-          <SegmentedControlItem
-            value="light"
-            label="Light"
-            isLabelHidden
-            icon={<Sun size={14} />}
-          />
-          <SegmentedControlItem
-            value="system"
-            label="System"
-            isLabelHidden
-            icon={<Monitor size={14} />}
-          />
-          <SegmentedControlItem value="dark" label="Dark" isLabelHidden icon={<Moon size={14} />} />
-        </SegmentedControl>
+        <ThemeSwitch mode={mode} onModeChange={onModeChange} />
       </HStack>
     </header>
   );
@@ -270,9 +252,8 @@ function pretendVoice(listener: (rms: number) => void): () => void {
   return () => cancelAnimationFrame(frame);
 }
 
-function Hero({ release }: { release: Release }) {
-  const mascot = useHello();
-  const { index, leaving } = useRotatingLine();
+/** The downloads, in the hero and again at the end of the page. */
+function DownloadButtons({ release }: { release: Release }) {
   const detected = detectPlatform();
   // The visitor's own platform first and filled; Mac and Windows always show.
   const order: Platform[] =
@@ -281,6 +262,37 @@ function Hero({ release }: { release: Release }) {
       : detected === "windows"
         ? ["windows", "mac"]
         : ["mac", "windows"];
+  return (
+    <VStack gap={3} hAlign="center">
+      <HStack gap={3} hAlign="center" wrap="wrap">
+        {order.map((platform, position) => {
+          const button = PLATFORM_BUTTONS[platform];
+          return (
+            <Button
+              key={platform}
+              label={button.label}
+              size="lg"
+              variant={position === 0 && detected ? "primary" : "secondary"}
+              icon={button.icon}
+              href={button.pick(release).url}
+            />
+          );
+        })}
+      </HStack>
+      <Button
+        label="Other platforms and versions"
+        variant="ghost"
+        size="sm"
+        href="/download"
+        endContent={<ChevronRight size={14} strokeWidth={1.75} />}
+      />
+    </VStack>
+  );
+}
+
+function Hero({ release }: { release: Release }) {
+  const mascot = useHello();
+  const { index, leaving } = useRotatingLine();
   const line = LINES[index]!;
   // Each new line is said aloud by the pill behind the hero while its words type in.
   useEffect(() => say(line.text, line.mode), [line]);
@@ -323,30 +335,7 @@ function Hero({ release }: { release: Release }) {
         </span>
       </Heading>
 
-      <VStack gap={3} hAlign="center">
-        <HStack gap={3} hAlign="center" wrap="wrap">
-          {order.map((platform, position) => {
-            const button = PLATFORM_BUTTONS[platform];
-            return (
-              <Button
-                key={platform}
-                label={button.label}
-                size="lg"
-                variant={position === 0 && detected ? "primary" : "secondary"}
-                icon={button.icon}
-                href={button.pick(release).url}
-              />
-            );
-          })}
-        </HStack>
-        <Button
-          label="Other platforms and versions"
-          variant="ghost"
-          size="sm"
-          href="/download"
-          endContent={<ChevronRight size={14} strokeWidth={1.75} />}
-        />
-      </VStack>
+      <DownloadButtons release={release} />
 
       <VStack gap={1} hAlign="center" xstyle={styles.sub}>
         <Text size="base" weight="medium">
@@ -371,8 +360,12 @@ export function Home({
   const release = useRelease();
   // Arriving from another page's "How it works": glide to the demo once the page is laid out.
   useEffect(() => {
-    if (window.location.hash !== "#how") return;
-    const timer = setTimeout(scrollToDemo, 300);
+    const { hash } = window.location;
+    if (!hash) return;
+    const timer = setTimeout(() => {
+      if (hash === "#how") scrollToDemo();
+      else document.getElementById(hash.slice(1))?.scrollIntoView();
+    }, 300);
     return () => clearTimeout(timer);
   }, []);
   return (
@@ -387,7 +380,11 @@ export function Home({
         <Pricing />
         <Faq />
         <Roadmap />
+        <Finale>
+          <DownloadButtons release={release} />
+        </Finale>
       </main>
+      <Footer mode={mode} onModeChange={onModeChange} home />
     </div>
   );
 }

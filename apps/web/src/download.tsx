@@ -17,6 +17,7 @@ import type { ThemeMode } from "@astryxdesign/core/theme";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import type { MascotState } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import { appleIcon, linuxIcon, TopBar, useRelease, windowsIcon } from "./home.tsx";
+import { Footer } from "./finale.tsx";
 import { Nav } from "./nav.tsx";
 import { detectPlatform, MAC_INSTALL, REPO, RELEASES_URL } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
@@ -256,6 +257,7 @@ export function DownloadPage({
           </VStack>
         </VStack>
       </main>
+      <Footer mode={mode} onModeChange={onModeChange} />
     </div>
   );
 }

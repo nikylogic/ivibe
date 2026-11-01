@@ -107,6 +107,12 @@ export function AsciiWave({
     let raf = 0;
     let last = 0;
     let wiped = false;
+    // Off screen, nothing is drawn.
+    let onScreen = true;
+    const visibility = new IntersectionObserver(([entry]) => {
+      onScreen = !!entry?.isIntersecting;
+    });
+    visibility.observe(element);
     // The cursor, on this canvas; `soft` trails it a little so the words settle rather than snap.
     const cursor = { x: 0, y: 0, on: false };
     const soft = { x: 0, y: 0, amount: 0 };
@@ -127,7 +133,7 @@ export function AsciiWave({
 
     const paint = (time: number) => {
       if (!still) raf = requestAnimationFrame(paint);
-      if (!still && time - last < FRAME_MS) return;
+      if (!still && (!onScreen || time - last < FRAME_MS)) return;
       const dt = Math.min(100, time - last) / 1000;
       last = time;
 
@@ -289,6 +295,7 @@ export function AsciiWave({
       window.addEventListener("scroll", again, { passive: true });
       return () => {
         window.removeEventListener("scroll", again);
+        visibility.disconnect();
         cancelAnimationFrame(raf);
       };
     }
@@ -297,6 +304,7 @@ export function AsciiWave({
     return () => {
       window.removeEventListener("pointermove", onMove);
       document.documentElement.removeEventListener("pointerleave", onLeave);
+      visibility.disconnect();
       cancelAnimationFrame(raf);
     };
   }, [camera, width, height]);

@@ -101,7 +101,7 @@ function Here({ tone }: { tone: Tone }) {
   );
 }
 
-export function Nav({ page }: { page: "home" | "download" }) {
+export function Nav({ page }: { page: "home" | "download" | "legal" }) {
   // Away from the home page there is no headline mascot to borrow: the bar is simply open.
   const pinned = page !== "home";
   const [want, setWant] = useState(() => pinned || window.scrollY > openAt());
