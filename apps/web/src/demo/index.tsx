@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Text } from "@astryxdesign/core/Text";
@@ -33,13 +33,15 @@ import {
   Taskbar,
   Wallpaper,
 } from "./desktop.tsx";
+import { AsciiWave } from "./ascii-wave.tsx";
+import type { Camera } from "./ascii-wave.tsx";
 import { CompactPill, Hud, Toast } from "./hud.tsx";
 import { holdTone } from "./voice.ts";
 import type { Tone } from "./voice.ts";
 import { Play, RotateCcw } from "lucide-react";
 import type { HudPhase, Segment } from "./hud.tsx";
 import type { App } from "./icons.tsx";
-import { between, bump, Cursor, ease, H, Keys, launch, top, W } from "./kit.tsx";
+import { between, bump, Cursor, ease, H, Keys, launch, MONO, top, W } from "./kit.tsx";
 import type { Env, Stop } from "./kit.tsx";
 
 /**
@@ -315,6 +317,8 @@ const CONTROLS = 132;
 const RUN = 1.6;
 /** Where the camera stops pulling out of the pill and starts shrinking the desktop. */
 const PULL_BACK = 0.55;
+/** Prototype: `?waves` shows the hero's old waveform, to compare with the characters. */
+const ASCII_HERO = !new URLSearchParams(window.location.search).has("waves");
 /** The compact pill's waveform, in stage pixels: 13 bars of 2.5 with gaps of 2.5. */
 const WAVE = { width: 62.5, height: 36 };
 
@@ -441,6 +445,72 @@ const GRAIN = `url("data:image/svg+xml;utf8,${encodeURIComponent(
 )}")`;
 
 /**
+ * The hint at the foot of the hero: the same dots and characters as the waveform, falling in turn
+ * into an arrow. The camera fades it out as soon as the page moves.
+ */
+function ScrollHint({ hint }: { hint: RefObject<HTMLDivElement | null> }) {
+  const marks = useRef<(HTMLSpanElement | null)[]>([]);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animations = marks.current.map((mark, index) =>
+      mark?.animate(
+        [
+          { opacity: 0.32, transform: "translateY(-2px)" },
+          { opacity: 1, transform: "none", offset: 0.28 },
+          { opacity: 0.32, transform: "translateY(2px)", offset: 0.62 },
+          { opacity: 0.32, transform: "translateY(2px)" },
+        ],
+        { duration: 1700, delay: index * 170, iterations: Infinity, easing: "ease-in-out" },
+      ),
+    );
+    return () => animations.forEach((animation) => animation?.cancel());
+  }, []);
+  return (
+    <div
+      ref={hint}
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 20,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 6,
+        pointerEvents: "none",
+        color: "rgba(244, 241, 234, 0.62)",
+        fontSize: 12,
+        letterSpacing: "0.02em",
+      }}
+    >
+      Scroll
+      <span
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          fontFamily: MONO,
+          fontSize: 12,
+          lineHeight: "10px",
+        }}
+      >
+        {[".", ":", "v"].map((mark, index) => (
+          <span
+            key={mark}
+            ref={(element) => {
+              marks.current[index] = element;
+            }}
+          >
+            {mark}
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/**
  * Plays one entrance when its children first appear: from `from` (a transform) to rest, with an
  * overshoot-free ease. It runs on the graphics card and is skipped for reduced motion.
  */
@@ -518,9 +588,11 @@ export function Showcase({
   const world = useRef<HTMLDivElement>(null);
   const words = useRef<HTMLDivElement>(null);
   const invitation = useRef<HTMLDivElement>(null);
+  const hint = useRef<HTMLDivElement>(null);
   const controls = useRef<HTMLDivElement>(null);
   /** The eased scroll progress the camera is drawn at. */
   const shown = useRef(0);
+  const camera = useRef<Camera>({ x: 0, y: 0, k: 1, p: 0 });
   const heroDark = useRef<boolean | null>(null);
 
   // What the camera loop reads; refreshed on every render.
@@ -566,7 +638,12 @@ export function Showcase({
 
     if (world.current) {
       world.current.style.transform = `translate(${x - g.pill.x * k}px, ${y - g.pill.y * k}px) scale(${k})`;
-      world.current.style.setProperty("--wave", String(0.14 + 0.86 * smooth(p, 0.05, 0.4)));
+      // With the characters, the real bars only appear as the characters leave.
+      const wave = ASCII_HERO ? smooth(p, 0.16, 0.34) : 0.14 + 0.86 * smooth(p, 0.05, 0.4);
+      world.current.style.setProperty("--wave", String(wave));
+      // Inside the pill the colour lives in the characters, so there's no glare behind them.
+      if (ASCII_HERO) world.current.style.setProperty("--wave-light", String(smooth(p, 0.1, 0.34)));
+      camera.current = { x, y, k, p };
     }
     if (card.current) {
       card.current.style.clipPath = `inset(${rect.top}px ${rect.right}px ${rect.bottom}px ${rect.left}px round ${radius}px)`;
@@ -588,6 +665,11 @@ export function Showcase({
       words.current.style.transform = `translateY(${-p * 140}px) scale(${1 - 0.06 * clamp01(p * 4)})`;
       words.current.style.visibility = heroShown <= 0 ? "hidden" : "visible";
       words.current.style.pointerEvents = heroShown > 0.5 ? "auto" : "none";
+    }
+    if (hint.current) {
+      const left = 1 - smooth(p, 0, 0.025);
+      hint.current.style.opacity = String(left);
+      hint.current.style.visibility = left <= 0 ? "hidden" : "visible";
     }
     const settled = smooth(p, 0.86, 1);
     if (invitation.current) {
@@ -937,6 +1019,8 @@ export function Showcase({
           />
         </div>
 
+        {ASCII_HERO && <AsciiWave camera={camera} width={vw} height={vh} />}
+
         {/* The hero's words, over the inside of the pill; they leave as the camera pulls back. */}
         <div
           ref={words}
@@ -971,6 +1055,8 @@ export function Showcase({
               {hero}
             </Theme>
           </div>
+          {/* Left out where the hero's words already reach the bottom of the screen. */}
+          {vh >= 620 && <ScrollHint hint={hint} />}
         </div>
 
         {/* The modes, under the card. */}

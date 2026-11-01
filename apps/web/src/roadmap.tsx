@@ -9,6 +9,7 @@ import { Link } from "@astryxdesign/core/Link";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { Lock } from "lucide-react";
+import { githubMark } from "./nav.tsx";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import { bump, ease, glide, MONO } from "./demo/kit.tsx";
 import { TONES } from "./demo/voice.ts";
@@ -1040,7 +1041,12 @@ export function Roadmap() {
         </div>
 
         <div {...stylex.props(styles.after)}>
-          <Button label="View on GitHub" variant="primary" href={`https://github.com/${REPO}`} />
+          <Button
+            label="View on GitHub"
+            variant="primary"
+            icon={githubMark}
+            href={`https://github.com/${REPO}`}
+          />
           <Link href={`https://github.com/${REPO}/discussions`}>Suggest a feature</Link>
           <Text size="sm" color="secondary">
             AGPL-3.0

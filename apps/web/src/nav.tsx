@@ -75,7 +75,7 @@ function useNarrow(): boolean {
  * section you are in, in the colour of the mode on show.
  */
 /** GitHub's official mark (Simple Icons), in the bar's text colour. */
-const githubMark = (
+export const githubMark = (
   <svg viewBox="0 0 24 24" width={17} height={17} fill="currentColor" aria-hidden="true">
     <path d={siGithub.path} />
   </svg>

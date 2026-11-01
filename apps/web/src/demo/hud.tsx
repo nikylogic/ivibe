@@ -342,7 +342,7 @@ export function Toast({ t, at, children }: { t: number; at: number; children: Re
 }
 
 /** The bars' shape in the compact pill: tallest in the middle (shared/voice-wave.tsx). */
-const envelope = (index: number, count: number) => {
+export const envelope = (index: number, count: number) => {
   const x = (index - (count - 1) / 2) / ((count - 1) / 2);
   return 0.5 + 0.5 * Math.cos((x * Math.PI) / 2) ** 1.4;
 };
@@ -351,7 +351,7 @@ const envelope = (index: number, count: number) => {
  * A calm, continuous voice level: a few slow waves layered like the rise and fall of speech.
  * No hard pauses or jagged syllables, since the hero shows these bars many times their size.
  */
-function talking(t: number): number {
+export function talking(t: number): number {
   const s = t / 1000;
   const voice =
     0.5 +
@@ -363,10 +363,10 @@ function talking(t: number): number {
   return voice * breath;
 }
 
-const BARS = 13;
+export const BARS = 13;
 
-const BAR = 2.5;
-const TALLEST = 18;
+export const BAR = 2.5;
+export const TALLEST = 18;
 /** The bar's pieces are drawn this many times larger and scaled down, so they stay crisp when the hero zooms in on them. */
 const DETAIL = 16;
 
@@ -438,7 +438,7 @@ export function CompactPill() {
         paddingInline: 14,
         borderRadius: 999,
         background:
-          "radial-gradient(120% 140% at 50% 30%, rgba(255, 244, 228, 0.07), transparent 60%), rgba(15, 14, 13, 0.96)",
+          "radial-gradient(120% 140% at 50% 30%, rgba(255, 244, 228, 0.07), transparent 60%), rgb(15, 14, 13)",
         border: "1px solid rgba(255, 255, 255, 0.08)",
         boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2)",
       }}
@@ -453,7 +453,7 @@ export function CompactPill() {
           position: "absolute",
           inset: "-2px -4px",
           // The light stays even where the hero dims the bars.
-          opacity: "calc(0.5 + 0.5 * var(--wave, 1))",
+          opacity: "var(--wave-light, calc(0.5 + 0.5 * var(--wave, 1)))",
         }}
       >
         <span ref={glow} style={{ position: "absolute", inset: 0, opacity: 0.55 }}>
