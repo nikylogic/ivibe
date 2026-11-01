@@ -328,9 +328,19 @@ function useViewport(): { vw: number; vh: number } {
   const read = () => ({ vw: document.documentElement.clientWidth, vh: window.innerHeight });
   const [size, setSize] = useState(read);
   useEffect(() => {
-    const update = () => setSize(read());
+    const update = () =>
+      setSize((was) => {
+        const next = read();
+        return next.vw === was.vw && next.vh === was.vh ? was : next;
+      });
+    // The page's width also changes without a resize, when the scrollbar appears after load.
+    const observer = new ResizeObserver(update);
+    observer.observe(document.documentElement);
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
   }, []);
   return size;
 }
