@@ -8,8 +8,7 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { ArrowUp, Check, SendHorizontal } from "lucide-react";
-import { ProofPage } from "./demo/apps.tsx";
+import { ArrowUp, Check, Lock, SendHorizontal } from "lucide-react";
 import { APP_NAME, AppIcon } from "./demo/icons.tsx";
 import type { App } from "./demo/icons.tsx";
 import { Hud, Toast } from "./demo/hud.tsx";
@@ -1176,88 +1175,258 @@ function ProofScene() {
 }
 
 // 3. Your secrets stay yours. ------------------------------------------------------------------
+//
+// A line down the middle is the edge of your device. A screenshot slides across it: whatever has
+// crossed shows solid black boxes over the secrets, whatever hasn't is untouched. The bug itself
+// stays readable.
 
-/** The screenshot, shown this many times its size in the pill. */
-const ZOOM = 2.3;
-const SECRETS_MS = 6400;
+type Run = { text: string; secret?: true; error?: true };
+
+const TERMINAL: Run[][] = [
+  [{ text: "$ export GITHUB_TOKEN=" }, { text: "ghp_8fK2xQ9mW", secret: true }],
+  [{ text: "$ psql postgres://asha:" }, { text: "hunter2", secret: true }, { text: "@db" }],
+  [{ text: "✗ Error: connection refused", error: true }],
+];
+
+const GATE = 280;
+const CARD = { width: 260, height: 120, top: 84 };
+const FROM_X = GATE - 16 - CARD.width;
+const TO_X = GATE + 16;
+const S_IN = 0;
+const S_SCAN = 500;
+const S_SCAN_MS = 900;
+const S_FOUND = 1250;
+const S_CROSS = 1900;
+const S_CROSS_MS = 2600;
+const S_SETTLE = S_CROSS + S_CROSS_MS;
+const S_OUT = S_SETTLE + 2500;
+const SECRETS_MS = S_OUT + 450;
+const SECRETS_STILL = S_SETTLE + 900;
+
+/** The terminal as captured: clear, or with its secrets under solid black boxes. */
+function Shot({ redacted, found }: { redacted: boolean; found: number }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        borderRadius: 12,
+        overflow: "hidden",
+        background: "#262422",
+        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
+        fontFamily: MONO,
+        fontSize: 11,
+        lineHeight: "22px",
+        color: "rgba(255,255,255,0.78)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          height: 26,
+          paddingInline: 10,
+          borderBottom: "1px solid rgba(255,255,255,0.07)",
+        }}
+      >
+        {[0, 1, 2].map((dot) => (
+          <span
+            key={dot}
+            style={{ width: 7, height: 7, borderRadius: 4, background: "rgba(255,255,255,0.16)" }}
+          />
+        ))}
+        <span style={{ marginLeft: 6, fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+          Terminal
+        </span>
+      </div>
+      <div style={{ padding: "8px 12px", whiteSpace: "pre" }}>
+        {TERMINAL.map((line, row) => (
+          <div key={row}>
+            {line.map((run, index) => (
+              <span
+                key={index}
+                style={{
+                  borderRadius: 2,
+                  color: run.error ? "#ff8f84" : undefined,
+                  ...(run.secret && redacted
+                    ? {
+                        background: "#000",
+                        color: "transparent",
+                        boxShadow: "0 0 0 2px #000, inset 0 0 0 1px rgba(255,255,255,0.06)",
+                      }
+                    : {}),
+                  ...(run.secret && !redacted
+                    ? {
+                        outline: `1px dashed ${tone("Fix", found)}`,
+                        outlineOffset: 2,
+                        background: tone("Fix", 0.12 * found),
+                      }
+                    : {}),
+                }}
+              >
+                {run.text}
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function SecretsScene() {
-  const clock = useClock(SECRETS_MS);
-  const { t } = clock;
-  const phase: HudPhase =
-    t < 1400
-      ? { kind: "working", label: "Reading your screenshots…" }
-      : t < 3600
-        ? { kind: "working", label: "Hiding secrets on this device…" }
-        : { kind: "pasted", label: "Pasted into Claude Code · 2 screenshots" };
-  // The scan runs down the screenshot; the token is covered as it passes.
-  const scan = Math.min(1, Math.max(0, (t - 500) / 1100));
-  const covered = ease(t, 1150, 220);
+  const clock = useClock(SECRETS_MS, 400);
+  const t = still() ? SECRETS_STILL : clock.t;
+  const x = mix(FROM_X, TO_X, glide(t, S_CROSS, S_CROSS_MS));
+  // Where the edge of the device falls across the screenshot, in its own pixels.
+  const edge = Math.max(0, Math.min(CARD.width, GATE - x));
+  const crossing = edge > 0 && edge < CARD.width ? 1 : 0;
+  const glow = Math.min(1, ease(t, S_CROSS + 150, 300) * (1 - ease(t, S_SETTLE - 250, 300)));
+  const shown = ease(t, S_IN, 360) * (1 - ease(t, S_OUT, 420));
+  const scan = (t - S_SCAN) / S_SCAN_MS;
+  const found = ease(t, S_FOUND, 320);
   return (
-    <Scene clock={clock} width={560} height={420} hue="Fix">
+    <Scene clock={clock} width={560} height={320}>
+      {/* The edge of your device: always here. */}
+      <span
+        style={{
+          position: "absolute",
+          left: 0,
+          width: GATE - 18,
+          top: 6,
+          textAlign: "right",
+          fontSize: 12,
+          fontWeight: 500,
+          color: "var(--color-text-secondary)",
+        }}
+      >
+        Your computer
+      </span>
+      <span
+        style={{
+          position: "absolute",
+          left: GATE + 18,
+          top: 6,
+          fontSize: 12,
+          fontWeight: 500,
+          color: "var(--color-text-secondary)",
+        }}
+      >
+        Leaves your device
+      </span>
+      <span
+        style={{
+          position: "absolute",
+          left: GATE - 0.5,
+          top: 34,
+          width: 1,
+          height: 222,
+          background: `linear-gradient(180deg, transparent, color-mix(in srgb, ${tone("Fix")} ${glow * 100}%, var(--color-border)) 15%, color-mix(in srgb, ${tone("Fix")} ${glow * 100}%, var(--color-border)) 85%, transparent)`,
+          boxShadow: `0 0 ${(14 * glow).toFixed(1)}px ${(1.5 * glow).toFixed(1)}px ${tone("Fix", 0.45 * glow)}`,
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          left: GATE - 13,
+          top: 4,
+          width: 26,
+          height: 26,
+          borderRadius: 13,
+          display: "grid",
+          placeItems: "center",
+          background: "var(--color-background-card)",
+          boxShadow: "inset 0 0 0 1px var(--color-border)",
+          color: glow > 0.5 ? tone("Fix") : "var(--color-text-secondary)",
+          transition: "color 200ms ease",
+        }}
+      >
+        <Lock size={12} strokeWidth={2.4} />
+      </span>
+      {/* The screenshot: clear on your side of the line, covered past it. */}
       <div
         style={{
           position: "absolute",
-          left: (560 - 156 * ZOOM) / 2,
-          top: 8,
-          width: 156,
-          height: 98,
-          transform: `scale(${ZOOM})`,
-          transformOrigin: "0 0",
-          borderRadius: 10,
-          boxShadow: "0 10px 24px -14px rgba(0,0,0,0.35)",
-          outline: "0.5px solid var(--color-border)",
+          left: 0,
+          top: CARD.top,
+          width: CARD.width,
+          height: CARD.height,
+          transform: `translate3d(${x.toFixed(2)}px, ${((1 - shown) * 6).toFixed(2)}px, 0)`,
+          opacity: shown,
+          filter: "drop-shadow(0 16px 22px rgba(0,0,0,0.28))",
         }}
       >
-        <ProofPage dark={false} />
-        {/* The token as it was on screen, until it's covered. */}
-        <span
+        <div
           style={{
             position: "absolute",
-            left: 12,
-            top: 67,
-            width: 126,
-            height: 10,
-            background: "#fff",
-            display: "flex",
-            alignItems: "center",
-            paddingLeft: 3,
-            fontFamily: MONO,
-            fontSize: 6.2,
-            color: "#18181b",
-            opacity: 1 - covered,
+            inset: 0,
+            clipPath: `inset(-4px ${(CARD.width - edge).toFixed(2)}px -4px -4px)`,
           }}
         >
-          ghp_8fK2xQ9mWv3LtR7cY1nB
-        </span>
+          <Shot redacted={false} found={found} />
+          {/* Read on this device first. */}
+          <span
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 26 + Math.max(0, Math.min(1, scan)) * (CARD.height - 28),
+              height: 1,
+              background: tone("Fix", 0.9),
+              boxShadow: `0 0 8px 1px ${tone("Fix", 0.5)}`,
+              opacity: scan > 0 && scan < 1 ? 1 : 0,
+            }}
+          />
+        </div>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            clipPath: `inset(-4px -4px -4px ${edge.toFixed(2)}px)`,
+          }}
+        >
+          <Shot redacted found={0} />
+        </div>
+        {/* The light where it crosses. */}
         <span
           style={{
             position: "absolute",
-            left: 0,
-            right: 0,
-            top: scan * 96,
-            height: 1,
+            left: edge - 1,
+            top: -4,
+            width: 2,
+            height: CARD.height + 8,
             background: tone("Fix"),
-            boxShadow: `0 0 6px 1px ${tone("Fix", 0.5)}`,
-            opacity: scan > 0 && scan < 1 ? 1 : 0,
+            boxShadow: `0 0 12px 2px ${tone("Fix", 0.6)}`,
+            opacity: crossing,
           }}
         />
       </div>
       <div
         style={{
           position: "absolute",
-          left: 0,
+          left: GATE,
           right: 0,
-          top: 262,
+          top: CARD.top + CARD.height + 18,
           display: "flex",
           justifyContent: "center",
+          opacity: shown,
         }}
       >
-        <Toast t={t} at={1300}>
-          Hid a GitHub token on this device
+        <Toast t={t} at={S_SETTLE + 100}>
+          Hid a GitHub token and a password
         </Toast>
       </div>
-      <PillAt phase={phase} t={t} />
+      <TinyPill
+        t={t}
+        top={268}
+        rise={10}
+        appearAt={S_CROSS - 300}
+        speaking={[0, 0]}
+        stopAt={S_CROSS - 300}
+        goneAt={S_SETTLE + 100}
+        hue="Fix"
+      />
     </Scene>
   );
 }
@@ -1411,7 +1580,7 @@ export function Features() {
       </Band>
       <Band
         title="Your secrets stay yours."
-        line="Keys and passwords are blacked out on your device, before anything leaves it."
+        line="Keys and passwords are blacked out before anything leaves your device."
         sceneLeft
       >
         <SecretsScene />
