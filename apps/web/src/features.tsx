@@ -3,16 +3,13 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
-import { Badge } from "@astryxdesign/core/Badge";
 import { Heading } from "@astryxdesign/core/Heading";
-import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { ArrowUp, Check, Cloud, Laptop, Lock, SendHorizontal } from "lucide-react";
+import { ArrowUp, Check, Cloud, Laptop, Lock, LockOpen, SendHorizontal } from "lucide-react";
 import { AppIcon } from "./demo/icons.tsx";
 import type { App } from "./demo/icons.tsx";
-import { Hud, Toast } from "./demo/hud.tsx";
-import type { HudPhase, Segment } from "./demo/hud.tsx";
+import { Toast } from "./demo/hud.tsx";
 import { bump, ease, glide, MONO } from "./demo/kit.tsx";
 import { TONES } from "./demo/voice.ts";
 import type { Tone } from "./demo/voice.ts";
@@ -174,37 +171,6 @@ function Scene({
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-/**
- * The pill: anchored at the bottom so it grows upwards as the app's does, or, alone in its scene,
- * centred so it opens out both ways.
- */
-function PillAt({
-  phase,
-  t,
-  pressed,
-  centred,
-}: {
-  phase: HudPhase | null;
-  t: number;
-  pressed?: boolean;
-  centred?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        ...(centred ? { top: 0, bottom: 0, alignItems: "center" } : { bottom: 16 }),
-        display: "flex",
-        justifyContent: "center",
-      }}
-    >
-      {phase && <Hud t={t} phase={phase} pressed={pressed} />}
     </div>
   );
 }
@@ -2138,67 +2104,296 @@ function LanguageRow({ t, active, shown }: { t: number; active: number; shown: n
 }
 
 // 6. Meta's AI. Free with your key. ------------------------------------------------------------
+//
+// Your key goes into the lock on your computer. Each run then goes along one straight line, from
+// your computer to Meta's models. iVibe sits off to the side: the light never reaches it, and its
+// bill stays at $0.
 
-const MODELS = [
-  { name: "Muse Voice", label: "Transcribing with Muse Voice…", from: 1600, to: 2700 },
-  { name: "Muse Spark", label: "Finding the cause with Muse Spark…", from: 2700, to: 3900 },
-  { name: "SAM 3.1", label: "Marking the proof with SAM 3.1…", from: 3900, to: 5000 },
-];
-const ASK: Segment[] = [{ text: "Why does Save do nothing?", at: 300, final: 1300 }];
-const META_MS = 7800;
+/** The story, in ms. */
+const K_TYPE = 300;
+const K_CHAR_MS = 55;
+const KEY_TEXT = "•••• •••• 7f3a";
+const K_TYPED = K_TYPE + KEY_TEXT.length * K_CHAR_MS;
+const K_LOCK = K_TYPED + 350;
+const K_LOCK_MS = 520;
+const K_CLOSED = K_LOCK + K_LOCK_MS - 60;
+const K_PILL = K_CLOSED + 250;
+const K_STOP = K_PILL + 1100;
+/** When each model is reached, and how long the light takes to get there. */
+const K_TRIP_MS = 520;
+const K_WORK_MS = 760;
+const META_MODELS = ["Muse Voice", "Muse Spark", "SAM 3.1"].map((name, index) => {
+  const sent = K_PILL + 320 + index * (K_TRIP_MS + K_WORK_MS - 120);
+  return { name, sent, reached: sent + K_TRIP_MS, done: sent + K_TRIP_MS + K_WORK_MS };
+});
+const K_DONE = META_MODELS[META_MODELS.length - 1]!.done;
+const K_OUT = K_DONE + 1700;
+const META_MS = K_OUT + 450;
+
+/** The picture, in the scene's pixels. */
+const DEVICE = { x: 96, y: 138, size: 68 };
+const STACK = { left: 392, width: 128, chip: 32, gap: 12 };
+const JUNCTION = { x: 336, y: DEVICE.y };
+const chipY = (index: number) => DEVICE.y + (index - 1) * (STACK.chip + STACK.gap);
+const OUR_NODE = { x: 220, y: 54 };
+
+/** Where the light is at a moment of its trip: along the line, then up or down to the chip. */
+function along(index: number, amount: number) {
+  const start = DEVICE.x + DEVICE.size / 2 + 6;
+  const first = JUNCTION.x - start;
+  const second = Math.hypot(STACK.left - JUNCTION.x, chipY(index) - JUNCTION.y);
+  const travelled = amount * (first + second);
+  if (travelled <= first) return { x: start + travelled, y: DEVICE.y };
+  const part = (travelled - first) / second;
+  return {
+    x: mix(JUNCTION.x, STACK.left, part),
+    y: mix(JUNCTION.y, chipY(index), part),
+  };
+}
 
 function MetaScene() {
-  const clock = useClock(META_MS);
-  const { t } = clock;
-  const running = MODELS.find((model) => t >= model.from && t < model.to);
-  const phase: HudPhase =
-    t < 1600
-      ? {
-          kind: "listening",
-          since: 0,
-          hint: "Listening. Describe the bug as you show it.",
-          segments: ASK,
-        }
-      : running
-        ? { kind: "working", label: running.label }
-        : { kind: "pasted", label: "Done, on your own Meta key" };
+  const clock = useClock(META_MS, 300);
+  const t = still() ? K_DONE + 600 : clock.t;
+  const shown = ease(t, 0, 380) * (1 - ease(t, K_OUT, 420));
+  const typed = Math.max(0, Math.min(KEY_TEXT.length, Math.floor((t - K_TYPE) / K_CHAR_MS)));
+  const tuck = glide(t, K_LOCK, K_LOCK_MS);
+  const closed = t >= K_CLOSED;
+  const click = bump(t, K_CLOSED, 260);
+  const lockIn = ease(t, K_LOCK + 120, 260);
+  const line = "var(--color-border)";
+  // The key's way into the lock, on the computer's corner.
+  const lockAt = { x: DEVICE.x + DEVICE.size / 2 - 6, y: DEVICE.y + DEVICE.size / 2 - 6 };
+  const keyFrom = { x: DEVICE.x, y: DEVICE.y + DEVICE.size / 2 + 34 };
   return (
-    <Scene clock={clock} width={560} height={240} hue="Prompt">
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: 30,
-          display: "flex",
-          justifyContent: "center",
-          gap: 10,
-        }}
-      >
-        {MODELS.map((model) => {
-          const done = t >= model.to;
-          const now = t >= model.from && !done;
+    <Scene clock={clock} width={560} height={300}>
+      <div style={{ position: "absolute", inset: 0, opacity: shown }}>
+        {/* The one line: your computer to Meta, branching to each model. */}
+        <svg
+          width={560}
+          height={300}
+          style={{ position: "absolute", inset: 0, overflow: "visible" }}
+          aria-hidden="true"
+        >
+          <path
+            d={[
+              `M ${DEVICE.x + DEVICE.size / 2 + 6} ${DEVICE.y} H ${JUNCTION.x}`,
+              ...META_MODELS.map(
+                (_, index) => `M ${JUNCTION.x} ${DEVICE.y} L ${STACK.left} ${chipY(index)}`,
+              ),
+            ].join(" ")}
+            fill="none"
+            stroke={line}
+            strokeWidth={1.25}
+            strokeLinecap="round"
+          />
+          {/* Where iVibe would be, if it were in the middle. It isn't. */}
+          <path
+            d={`M ${OUR_NODE.x} ${OUR_NODE.y + 16} V ${DEVICE.y - 14}`}
+            fill="none"
+            stroke={line}
+            strokeWidth={1}
+            strokeDasharray="2 4"
+            opacity={0.8}
+          />
+          <circle
+            cx={OUR_NODE.x}
+            cy={DEVICE.y}
+            r={3}
+            fill="none"
+            stroke={line}
+            strokeDasharray="1.5 2.5"
+          />
+        </svg>
+        {/* Your computer, and the lock your key goes into. */}
+        <span
+          style={{
+            position: "absolute",
+            left: DEVICE.x - DEVICE.size / 2,
+            top: DEVICE.y - DEVICE.size / 2,
+            width: DEVICE.size,
+            height: DEVICE.size,
+            borderRadius: 18,
+            display: "grid",
+            placeItems: "center",
+            background: "var(--color-background-card)",
+            boxShadow: "inset 0 0 0 1px var(--color-border), 0 14px 30px -22px rgba(0,0,0,0.5)",
+            color: "var(--color-text-primary)",
+          }}
+        >
+          <Laptop size={28} strokeWidth={1.6} />
+        </span>
+        <span
+          style={{
+            position: "absolute",
+            left: lockAt.x - 4,
+            top: lockAt.y - 4,
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            display: "grid",
+            placeItems: "center",
+            background: closed
+              ? tone("Fix")
+              : "color-mix(in srgb, var(--color-background-card) 100%, transparent)",
+            boxShadow: closed
+              ? `0 0 14px ${tone("Fix", 0.45)}`
+              : "inset 0 0 0 1px var(--color-border)",
+            color: closed ? "#fff" : "var(--color-text-secondary)",
+            opacity: lockIn,
+            transform: `scale(${(0.7 + 0.3 * lockIn + 0.12 * click).toFixed(3)})`,
+            transition: "background 160ms ease, color 160ms ease",
+          }}
+        >
+          {closed ? <Lock size={13} strokeWidth={2.4} /> : <LockOpen size={13} strokeWidth={2.4} />}
+        </span>
+        {/* Your Meta key, typed in, then tucked into the lock. */}
+        {tuck < 1 && (
+          <span
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              height: 30,
+              padding: "0 11px",
+              borderRadius: 9,
+              whiteSpace: "nowrap",
+              background: "var(--color-background-card)",
+              boxShadow: "inset 0 0 0 1px var(--color-border)",
+              fontFamily: MONO,
+              fontSize: 12.5,
+              color: "var(--color-text-primary)",
+              opacity: ease(t, K_TYPE - 200, 240) * (1 - ease(tuck, 0.55, 0.45)),
+              transform: `translate3d(${mix(keyFrom.x, lockAt.x + 9, tuck).toFixed(2)}px, ${mix(keyFrom.y, lockAt.y + 9, tuck).toFixed(2)}px, 0) translate(-50%, -50%) scale(${mix(1, 0.2, tuck).toFixed(3)})`,
+            }}
+          >
+            <span style={{ fontFamily: "inherit", color: "var(--color-text-secondary)" }}>key</span>
+            <span style={{ minWidth: KEY_TEXT.length * 7.6 }}>
+              {KEY_TEXT.slice(0, typed)}
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 1.5,
+                  height: 14,
+                  marginLeft: 1,
+                  verticalAlign: -2,
+                  background: "var(--color-text-primary)",
+                  opacity: t < K_TYPED + 200 ? 1 : 0,
+                }}
+              />
+            </span>
+          </span>
+        )}
+        {/* iVibe, off to the side: no key, no recording, and nothing to pay. */}
+        <span
+          style={{
+            position: "absolute",
+            left: OUR_NODE.x,
+            top: OUR_NODE.y,
+            transform: "translate(-50%, -50%)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            height: 30,
+            padding: "0 12px",
+            borderRadius: 999,
+            border: "1px dashed var(--color-border)",
+            fontSize: 12.5,
+            fontWeight: 500,
+            color: "var(--color-text-secondary)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          iVibe
+          <span style={{ fontFamily: MONO, color: "var(--color-text-primary)" }}>$0</span>
+        </span>
+        {/* Meta's side. */}
+        <span
+          style={{
+            position: "absolute",
+            left: STACK.left,
+            top: chipY(0) - STACK.chip / 2 - 30,
+            fontFamily: MONO,
+            fontSize: 12,
+            color: "var(--color-text-secondary)",
+          }}
+        >
+          api.meta.ai
+        </span>
+        {META_MODELS.map((model, index) => {
+          const lit = ease(t, model.reached - 40, 200) * (1 - ease(t, model.done, 320));
+          const done = t >= model.done;
           return (
             <span
               key={model.name}
-              style={{ opacity: done || now ? 1 : 0.4, transition: "opacity 300ms ease" }}
+              style={{
+                position: "absolute",
+                left: STACK.left,
+                top: chipY(index) - STACK.chip / 2,
+                width: STACK.width,
+                height: STACK.chip,
+                borderRadius: 9,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0 11px",
+                boxSizing: "border-box",
+                fontSize: 13,
+                fontWeight: 500,
+                background: `color-mix(in srgb, ${tone("Fix")} ${(10 * lit).toFixed(1)}%, var(--color-background-card))`,
+                boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${tone("Fix")} ${(70 * lit).toFixed(1)}%, var(--color-border)), 0 0 ${(18 * lit).toFixed(1)}px ${tone("Fix", 0.28 * lit)}`,
+                color:
+                  done || lit > 0.05 ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                transition: "color 200ms ease",
+              }}
             >
-              <Badge
-                label={model.name}
-                variant="neutral"
-                icon={
-                  done ? (
-                    <Check size={12} strokeWidth={3} aria-hidden="true" />
-                  ) : now ? (
-                    <Spinner size="sm" />
-                  ) : undefined
-                }
+              {model.name}
+              <Check
+                size={13}
+                strokeWidth={2.6}
+                color="var(--color-text-secondary)"
+                style={{ opacity: ease(t, model.done, 260) }}
               />
             </span>
           );
         })}
+        {/* The light, from your computer straight to the model. */}
+        {META_MODELS.map((model, index) => {
+          const trip = (t - model.sent) / K_TRIP_MS;
+          if (trip <= 0 || trip >= 1.15) return null;
+          const at = along(index, Math.min(1, glide(trip, 0, 1)));
+          const fade = trip > 1 ? 1 - (trip - 1) / 0.15 : Math.min(1, trip * 6);
+          return (
+            <span
+              key={model.name}
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                background: tone("Fix"),
+                boxShadow: `0 0 10px 3px ${tone("Fix", 0.55)}`,
+                opacity: fade,
+                transform: `translate3d(${(at.x - 4).toFixed(2)}px, ${(at.y - 4).toFixed(2)}px, 0)`,
+              }}
+            />
+          );
+        })}
       </div>
-      <PillAt phase={phase} t={t} />
+      <TinyPill
+        t={t}
+        top={252}
+        rise={10}
+        appearAt={K_PILL}
+        speaking={[K_PILL + 150, K_STOP - 150]}
+        stopAt={K_STOP}
+        goneAt={K_DONE + 200}
+        hue="Fix"
+      />
     </Scene>
   );
 }
