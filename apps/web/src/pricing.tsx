@@ -8,7 +8,6 @@ import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { Theme } from "@astryxdesign/core/theme";
 import { glide, MONO } from "./demo/kit.tsx";
-import { TONES } from "./demo/voice.ts";
 import { ivibeTheme } from "./theme.ts";
 
 /**
@@ -24,7 +23,27 @@ const SERIF = '"Instrument Serif", Georgia, serif';
 const TEETH = 28;
 const TOOTH_DEPTH = 5;
 
+const voice = stylex.keyframes({
+  from: { transform: "scaleY(0.22)" },
+  to: { transform: "scaleY(1)" },
+});
+
 const styles = stylex.create({
+  plan: { position: "relative", paddingTop: 22 },
+  // Pro stands a little forward of the other two; stacked on a phone they line up.
+  forward: { transform: { default: "translateY(-14px)", "@media (max-width: 960px)": "none" } },
+  bar: {
+    width: 2,
+    height: 16,
+    borderRadius: 1,
+    backgroundColor: "#f4f1ea",
+    transform: "scaleY(0.55)",
+    animationName: { default: voice, "@media (prefers-reduced-motion: reduce)": "none" },
+    animationDirection: "alternate",
+    animationIterationCount: "infinite",
+    animationTimingFunction: "ease-in-out",
+    willChange: "transform",
+  },
   section: {
     paddingBlock: { default: 120, "@media (max-width: 900px)": 72 },
     paddingInline: { default: 32, "@media (max-width: 640px)": 16 },
@@ -194,7 +213,7 @@ function Receipt({
 }: (typeof PLANS)[number] & { t: number }) {
   const fed = t === Infinity ? 1 : fedAt(t);
   return (
-    <article style={{ position: "relative", paddingTop: 22 }}>
+    <article {...stylex.props(styles.plan, featured && styles.forward)}>
       {/* The pill the paper comes out of: the plan, and what to do about it. */}
       <div
         style={{
@@ -213,15 +232,14 @@ function Receipt({
           fontSize: 14,
           fontWeight: 500,
           background: "#0f0e0d",
-          border: featured
-            ? `1px solid rgba(${TONES.Prompt}, 0.85)`
-            : "1px solid rgba(255, 255, 255, 0.08)",
-          boxShadow: featured
-            ? `0 0 22px rgba(${TONES.Prompt}, 0.28), 0 10px 30px rgba(0, 0, 0, 0.26)`
-            : "0 10px 30px rgba(0, 0, 0, 0.26), 0 2px 6px rgba(0, 0, 0, 0.18)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          boxShadow: "0 10px 30px rgba(0, 0, 0, 0.26), 0 2px 6px rgba(0, 0, 0, 0.18)",
         }}
       >
-        <h3 style={{ margin: 0, font: "inherit", color: "inherit" }}>{name}</h3>
+        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <h3 style={{ margin: 0, font: "inherit", color: "inherit" }}>{name}</h3>
+          {featured && <Awake />}
+        </span>
         <Theme theme={ivibeTheme} mode="dark">
           <Button label={action} variant="primary" size="sm" href={href} />
         </Theme>
@@ -292,6 +310,23 @@ function Receipt({
         </div>
       </div>
     </article>
+  );
+}
+
+/** Pro's pill is the only one awake: the same voice bars the app shows while it listens. */
+const BARS = [980, 720, 1140, 640, 860, 1040, 700];
+
+function Awake() {
+  return (
+    <span aria-hidden="true" style={{ display: "flex", alignItems: "center", gap: 2 }}>
+      {BARS.map((ms, index) => (
+        <span
+          key={index}
+          {...stylex.props(styles.bar)}
+          style={{ animationDuration: `${ms}ms`, animationDelay: `${-index * 230}ms` }}
+        />
+      ))}
+    </span>
   );
 }
 
