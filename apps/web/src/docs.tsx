@@ -36,6 +36,8 @@ import { ivibeTheme } from "./theme.ts";
  * the two can't disagree. Anything for contributors stays on GitHub.
  */
 
+/** StyleX can only read constants defined in this file. */
+const MONO = '"Cascadia Code", "SF Mono", Menlo, Consolas, monospace';
 const OS_KEY = "ivibe.docs.os";
 const OS_ELECTRON: Record<Platform, string> = { windows: "win32", mac: "darwin", linux: "linux" };
 
@@ -69,6 +71,7 @@ const styles = stylex.create({
     top: 88,
     maxHeight: "calc(100vh - 104px)",
     overflowY: "auto",
+    scrollbarWidth: "thin",
     display: { default: "flex", "@media (max-width: 900px)": "none" },
     flexDirection: "column",
     gap: 20,
@@ -80,13 +83,28 @@ const styles = stylex.create({
     gap: 12,
     marginBottom: 28,
   },
-  group: { display: "flex", flexDirection: "column", gap: 2 },
+  groups: { display: "flex", flexDirection: "column" },
+  group: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 1,
+    paddingBlock: 16,
+    borderTopWidth: 1,
+    borderTopStyle: "solid",
+    borderTopColor: "color-mix(in srgb, var(--color-text-primary) 9%, transparent)",
+  },
+  // A label, not a link: small capitals, with no hover or padding like the pages under it.
   groupName: {
-    fontSize: 12,
+    fontFamily: MONO,
+    fontSize: 11,
     fontWeight: 500,
-    color: "var(--color-text-secondary)",
+    letterSpacing: "0.09em",
+    textTransform: "uppercase",
+    color: "color-mix(in srgb, var(--color-text-primary) 48%, transparent)",
     paddingInline: 10,
-    paddingBottom: 6,
+    paddingBottom: 8,
+    cursor: "default",
+    userSelect: "none",
   },
   pageLink: {
     display: "block",
@@ -1172,7 +1190,7 @@ export function DocsPage({
             <aside {...stylex.props(styles.side)}>
               {searchButton}
               <OsSwitch os={os} onChange={pickOs} />
-              <nav aria-label="Docs" {...stylex.props(styles.blocks)}>
+              <nav aria-label="Docs" {...stylex.props(styles.groups)}>
                 {GROUPS.map((group) => (
                   <div key={group} {...stylex.props(styles.group)}>
                     <span {...stylex.props(styles.groupName)}>{group}</span>

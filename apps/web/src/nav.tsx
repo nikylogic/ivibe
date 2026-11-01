@@ -101,7 +101,7 @@ function Here({ tone }: { tone: Tone }) {
   );
 }
 
-export function Nav({ page }: { page: "home" | "download" | "legal" | "docs" }) {
+export function Nav({ page }: { page: "home" | "download" | "legal" | "docs" | "blog" }) {
   // Away from the home page there is no headline mascot to borrow: the bar is simply open.
   const pinned = page !== "home";
   const [want, setWant] = useState(() => pinned || window.scrollY > openAt());
@@ -269,8 +269,7 @@ export function Nav({ page }: { page: "home" | "download" | "legal" | "docs" }) 
               ?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth" }),
         },
     { label: "Docs", href: "/docs" },
-    // Until the site has its own blog, the release notes are where the news is.
-    { label: "Blog", href: `https://github.com/${REPO}/releases` },
+    { label: "Blog", href: "/blog" },
     { label: "iVibe on GitHub", href: `https://github.com/${REPO}`, icon: githubMark },
   ];
 

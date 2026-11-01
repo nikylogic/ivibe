@@ -303,6 +303,9 @@ export function Footer({
           <Link href="/docs" size="sm">
             Docs
           </Link>
+          <Link href="/blog" size="sm">
+            Blog
+          </Link>
           <Link href={`${github}/releases`} size="sm">
             Changelog
           </Link>
