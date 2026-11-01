@@ -337,3 +337,50 @@ export function Toast({ t, at, children }: { t: number; at: number; children: Re
     </div>
   );
 }
+
+/** The bars' shape in the compact pill: tallest in the middle (shared/voice-wave.tsx). */
+const envelope = (index: number, count: number) => {
+  const x = (index - (count - 1) / 2) / ((count - 1) / 2);
+  return 0.32 + 0.68 * Math.cos((x * Math.PI) / 2) ** 1.4;
+};
+
+/** A voice that keeps talking: phrases of about two seconds with short pauses between. */
+function talking(t: number): number {
+  const phrase = t % 2600;
+  if (phrase > 2100) return 0.06;
+  const syllable = Math.abs(Math.sin(t / 85) * Math.sin(t / 31 + 1.3));
+  return 0.25 + syllable * 0.75 * (0.6 + 0.4 * Math.sin((phrase / 2100) * Math.PI));
+}
+
+/**
+ * The app's default, compact pill while you talk: a small capsule holding only a waveform of 13
+ * bars that sway around the voice level (hud/compact.tsx).
+ */
+export function CompactPill({ t }: { t: number }) {
+  const bars = 13;
+  const level = talking(t);
+  return (
+    <div
+      style={{
+        height: 36,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 2.5,
+        paddingInline: 14,
+        borderRadius: 999,
+        background: "rgba(15, 14, 13, 0.94)",
+        border: "1px solid rgba(255, 255, 255, 0.08)",
+        boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2)",
+      }}
+    >
+      {Array.from({ length: bars }, (_, index) => {
+        const sway =
+          0.72 + 0.28 * Math.sin((t / 1000) * (2.1 + ((index * 7) % 5) * 0.37) + index * 1.3);
+        const height = Math.max(2.5, level * envelope(index, bars) * sway * 18);
+        return (
+          <span key={index} style={{ width: 2.5, height, borderRadius: 999, background: ink }} />
+        );
+      })}
+    </div>
+  );
+}

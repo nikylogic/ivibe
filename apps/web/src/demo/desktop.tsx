@@ -10,7 +10,7 @@ import type { Env } from "./kit.tsx";
 
 export function Wallpaper({ env }: { env: Env }) {
   const background = env.dark
-    ? "radial-gradient(70% 60% at 18% 12%, #6a3b26 0%, transparent 70%), radial-gradient(60% 70% at 88% 25%, #3d2b55 0%, transparent 70%), radial-gradient(90% 70% at 55% 105%, #7a4320 0%, transparent 70%), #17130f"
+    ? "radial-gradient(60% 55% at 16% 14%, #8a4a2a 0%, transparent 72%), radial-gradient(55% 65% at 86% 22%, #4f3478 0%, transparent 72%), radial-gradient(85% 60% at 52% 108%, #a3582a 0%, transparent 72%), radial-gradient(50% 40% at 50% 55%, #2a1f2e 0%, transparent 80%), #1a1411"
     : "radial-gradient(70% 60% at 15% 10%, #fbd7bb 0%, transparent 70%), radial-gradient(60% 70% at 90% 22%, #e7cfe6 0%, transparent 70%), radial-gradient(90% 70% at 50% 108%, #f5bf93 0%, transparent 70%), #f7ede2";
   return <div style={{ position: "absolute", inset: 0, background }} />;
 }

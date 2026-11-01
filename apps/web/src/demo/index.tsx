@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
+import { Button } from "@astryxdesign/core/Button";
 import { ProgressBar } from "@astryxdesign/core/ProgressBar";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Text } from "@astryxdesign/core/Text";
@@ -31,7 +32,8 @@ import {
   Taskbar,
   Wallpaper,
 } from "./desktop.tsx";
-import { Hud, Toast } from "./hud.tsx";
+import { CompactPill, Hud, Toast } from "./hud.tsx";
+import { Play } from "lucide-react";
 import type { HudPhase, Segment } from "./hud.tsx";
 import type { App } from "./icons.tsx";
 import { between, bump, Cursor, ease, H, Keys, launch, top, W } from "./kit.tsx";
@@ -303,34 +305,100 @@ const MASCOT = 92;
 
 /** On a phone the whole desktop is too small to read, so it shows a part of it this wide. */
 const NARROW_VIEW = 600;
+/** Room for the site's top bar above the card, and for the mode controls under it. */
+const NAV = 76;
+const CONTROLS = 132;
+/** How far you scroll, in viewport heights, for the hero to settle into the card. */
+const ZOOM_RUN = 0.9;
 
-export function Demo({ theme }: { theme: ThemeMode }) {
+const smooth = (value: number, from: number, to: number) => {
+  const p = Math.min(1, Math.max(0, (value - from) / (to - from)));
+  return p * p * (3 - 2 * p);
+};
+
+function useViewport(): { vw: number; vh: number } {
+  const read = () => ({ vw: document.documentElement.clientWidth, vh: window.innerHeight });
+  const [size, setSize] = useState(read);
+  useEffect(() => {
+    const update = () => setSize(read());
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return size;
+}
+
+/** 0 at the top of the page, 1 once the hero has shrunk into the demo card. */
+function useZoomProgress(section: RefObject<HTMLElement | null>, vh: number): number {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const element = section.current;
+      if (!element) return;
+      const top = element.getBoundingClientRect().top;
+      setProgress(Math.min(1, Math.max(0, -top / (vh * ZOOM_RUN))));
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", schedule, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      cancelAnimationFrame(raf);
+    };
+  }, [section, vh]);
+  return progress;
+}
+
+/**
+ * The hero and the demo as one piece, the way Superwhisper does it: the hero's backdrop is a
+ * desktop, close up, with iVibe's pill listening. Scrolling zooms out (the backdrop shrinks into a
+ * card and the menu bar, dock and mascot come into view) and the demo plays on that desktop.
+ */
+export function Showcase({ theme, hero }: { theme: ThemeMode; hero: ReactNode }) {
   const systemDark = usePrefersDark();
   const [os] = useState(demoOs);
   const env: Env = { os, dark: theme === "dark" || (theme === "system" && systemDark) };
   const [frozen] = useState(frozenFrame);
   const [mode, setMode] = useState<Mode>(frozen?.mode ?? "fix");
+  const [playing, setPlaying] = useState(frozen !== null);
   const [t, setT] = useState(0);
-  const [width, setWidth] = useState(W);
-  const frame = useRef<HTMLDivElement>(null);
+  const [idle, setIdle] = useState(0);
+  const section = useRef<HTMLElement>(null);
+  const card = useRef<HTMLDivElement>(null);
   const still = useRef(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const { vw, vh } = useViewport();
+  const progress = useZoomProgress(section, vh);
   const now = script(mode, env);
   const duration = now.ms;
 
+  // Scrolling back up to the hero puts the demo away; it starts over from Play.
   useEffect(() => {
-    const element = frame.current;
-    if (!element) return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) setWidth(entry.contentRect.width);
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+    if (progress < 0.5 && playing && !frozen) {
+      setPlaying(false);
+      setMode("fix");
+      setT(0);
+    }
+  }, [progress, playing, frozen]);
 
-  // One clock: plays while on screen, moves to the next mode at the end of each.
+  // The hero's pill keeps listening while the demo isn't playing.
   useEffect(() => {
-    const element = frame.current;
-    if (!element) return;
+    if (playing || still.current) return;
+    let raf = 0;
+    const tick = (time: number) => {
+      setIdle(time);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [playing]);
+
+  // The demo's clock: plays while on screen, moves to the next mode at the end of each.
+  useEffect(() => {
+    const element = card.current;
+    if (!element || !playing) return;
     if (frozen && frozen.mode === mode) {
       setT(frozen.t);
       return;
@@ -363,145 +431,335 @@ export function Demo({ theme }: { theme: ThemeMode }) {
       cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, [mode, duration, frozen]);
+  }, [mode, duration, frozen, playing]);
 
-  const narrow = width < 640;
+  // The card where the hero settles: as wide as fits, leaving room for the bar and controls.
+  const availableHeight = Math.max(240, vh - NAV - CONTROLS);
+  const fitWidth = Math.min(W, vw - 32, (availableHeight * W) / H);
+  const narrow = fitWidth < 640;
   const view = narrow ? NARROW_VIEW : W;
-  const pan = narrow ? Math.min(W - view, Math.max(0, now.focus(t) - view / 2)) : 0;
-  const fade = ease(t, 0, 350) * (1 - ease(t, duration - 450, 400));
-  const phase = now.hud(t);
-  const nod = Math.max(0, ...now.keys.map((press) => bump(t, press.at - 60)));
+  const cardWidth = Math.min(narrow ? vw - 32 : fitWidth, (availableHeight * view) / H);
+  const cardHeight = (cardWidth * H) / view;
+  const cardLeft = (vw - cardWidth) / 2;
+  const cardTop = NAV + Math.max(0, (availableHeight - cardHeight) / 2);
+
+  const e = smooth(progress, 0, 1);
+  const rect = {
+    left: cardLeft * e,
+    top: cardTop * e,
+    width: vw + (cardWidth - vw) * e,
+    height: vh + (cardHeight - vh) * e,
+  };
+
+  // The pill is the point both ends of the zoom agree on: near the bottom of the hero, and in
+  // its place above the dock once the whole desktop shows.
+  const pill = { x: W / 2, y: H - pillBottom(env) - 18 };
+  const focus = playing ? now.focus(t) : W / 2;
+  const pan = narrow ? Math.min(W - view, Math.max(0, focus - view / 2)) : 0;
+  const k0 = Math.max(vw / W, vh / H) * 1.12;
+  const k1 = cardWidth / view;
+  const k = k0 * (k1 / k0) ** e;
+  const at = {
+    x: vw / 2 + ((pill.x - pan) * k1 - vw / 2) * e,
+    y: vh * 0.89 + (pill.y * k1 - vh * 0.89) * e,
+  };
+
+  const heroShown = 1 - smooth(progress, 0.04, 0.38);
+  const desktopShown = smooth(progress, 0.35, 0.85);
+  const settled = smooth(progress, 0.82, 1);
+  const fade = playing ? ease(t, 0, 350) * (1 - ease(t, duration - 450, 400)) : 0;
+  const phase = playing ? now.hud(t) : null;
+  const nod = playing ? Math.max(0, ...now.keys.map((press) => bump(t, press.at - 60))) : 0;
   const mac = env.os === "mac";
 
+  const start = (next: Mode) => {
+    setT(0);
+    setMode(next);
+    setPlaying(true);
+  };
+
   return (
-    <VStack gap={4} hAlign="center" width="100%">
-      <div
-        ref={frame}
-        role="img"
-        aria-label={`${LABELS[mode]}: ${SUMMARY[mode]}`}
-        style={{
-          width: "100%",
-          maxWidth: W,
-          aspectRatio: `${view} / ${H}`,
-          borderRadius: 20,
-          overflow: "hidden",
-          position: "relative",
-          boxShadow: "0 30px 80px rgba(30,20,10,0.22), 0 0 0 1px var(--color-border)",
-        }}
-      >
-        {/* Laid out at W × H and zoomed, which keeps text sharp at any size. */}
+    <section
+      ref={section}
+      id="modes"
+      aria-label="iVibe"
+      style={{ position: "relative", height: vh * (1 + ZOOM_RUN) }}
+    >
+      <div style={{ position: "sticky", top: 0, height: vh, overflow: "hidden" }}>
         <div
-          aria-hidden="true"
+          ref={card}
+          role="img"
+          aria-label={
+            playing ? `${LABELS[mode]}: ${SUMMARY[mode]}` : "A desktop with iVibe's pill listening"
+          }
           style={{
             position: "absolute",
-            left: 0,
-            top: 0,
-            width: W,
-            height: H,
-            zoom: width / view,
-            transform: `translateX(${-pan}px)`,
+            ...rect,
+            borderRadius: 22 * e,
+            overflow: "hidden",
+            boxShadow: `0 30px 80px rgba(30,20,10,${0.22 * e}), 0 0 0 ${e}px var(--color-border)`,
           }}
         >
-          <Wallpaper env={env} />
-          <div style={{ position: "absolute", inset: 0, opacity: fade }}>{now.windows(t)}</div>
-          {mac ? (
-            <>
-              <MenuBar env={env} app={now.active(t)} />
-              <Dock env={env} open={now.open} pressed={now.dockPressed?.(t)} />
-            </>
-          ) : (
-            <Taskbar
-              env={env}
-              open={now.open}
-              active={now.active(t)}
-              pressed={now.dockPressed?.(t)}
-            />
-          )}
-
-          {/* The pill, above the dock or taskbar where the app puts it. */}
           <div
+            aria-hidden="true"
             style={{
               position: "absolute",
               left: 0,
-              right: 0,
-              bottom: pillBottom(env),
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 8,
-              opacity: fade,
+              top: 0,
+              width: W,
+              height: H,
+              transformOrigin: "0 0",
+              transform: `translate(${at.x - pill.x * k}px, ${at.y - pill.y * k}px) scale(${k})`,
             }}
           >
-            {now.toast && (
-              <Toast t={t} at={now.toast.at}>
-                {now.toast.text}
-              </Toast>
+            <Wallpaper env={env} />
+            {playing ? (
+              <div style={{ position: "absolute", inset: 0, opacity: fade }}>{now.windows(t)}</div>
+            ) : (
+              // Before the demo: the bug on one side, the prompt it became on the other. In the
+              // hero they sit at the edges, out of focus; zooming out slides them into place.
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  filter: `blur(${(1 - e) * 2.5}px)`,
+                  opacity: 0.55 + 0.45 * e,
+                }}
+              >
+                <ChromeWindow
+                  env={env}
+                  t={10_000}
+                  clicks={[0]}
+                  style={{
+                    left: -170 + 186 * e,
+                    top: top(env, 170),
+                    ...CHROME,
+                    transform: "scale(0.52)",
+                    transformOrigin: "0 0",
+                  }}
+                />
+                <ClaudeCodeWindow
+                  env={env}
+                  t={10_000}
+                  pasteAt={0}
+                  style={{
+                    left: 880 - 180 * e,
+                    top: top(env, 205),
+                    width: 590,
+                    height: 340,
+                    transform: "scale(0.52)",
+                    transformOrigin: "0 0",
+                  }}
+                />
+              </div>
             )}
-            {phase && <Hud t={t} phase={phase} pressed={now.viewPressed?.(t)} />}
-          </div>
+            <div style={{ opacity: desktopShown }}>
+              {mac ? (
+                <>
+                  <MenuBar env={env} app={playing ? now.active(t) : "chrome"} />
+                  <Dock
+                    env={env}
+                    open={playing ? now.open : { chrome: true, terminal: true }}
+                    pressed={playing ? now.dockPressed?.(t) : undefined}
+                  />
+                </>
+              ) : (
+                <Taskbar
+                  env={env}
+                  open={playing ? now.open : { chrome: true, terminal: true }}
+                  active={playing ? now.active(t) : "chrome"}
+                  pressed={playing ? now.dockPressed?.(t) : undefined}
+                />
+              )}
+            </div>
 
-          {/*
-            The mascot sits still in the corner and nods with each key press; the shortcut floats
-            above it on its own layer, so showing it never moves the mascot.
-          */}
-          <div
-            style={{
-              position: "absolute",
-              right: 16,
-              bottom: mascotBottom(env),
-              width: MASCOT,
-              height: MASCOT,
-            }}
-          >
+            {/* The pill, above the dock or taskbar where the app puts it. */}
             <div
               style={{
-                transform: `translateY(${nod * 3}px) scale(${1 + nod * 0.04}, ${1 - nod * 0.06})`,
-                transformOrigin: "50% 100%",
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: pillBottom(env),
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 8,
               }}
             >
-              <Mascot size={MASCOT} state={mascotState(phase)} />
+              {playing ? (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 8,
+                    opacity: fade,
+                  }}
+                >
+                  {now.toast && (
+                    <Toast t={t} at={now.toast.at}>
+                      {now.toast.text}
+                    </Toast>
+                  )}
+                  {phase && <Hud t={t} phase={phase} pressed={now.viewPressed?.(t)} />}
+                </div>
+              ) : (
+                <CompactPill t={idle} />
+              )}
             </div>
+
+            {/*
+              The mascot sits still in the corner and nods with each key press; the shortcut
+              floats above it on its own layer, so showing it never moves the mascot.
+            */}
+            <div
+              style={{
+                position: "absolute",
+                right: 16,
+                bottom: mascotBottom(env),
+                width: MASCOT,
+                height: MASCOT,
+                opacity: desktopShown,
+              }}
+            >
+              <div
+                style={{
+                  transform: `translateY(${nod * 3}px) scale(${1 + nod * 0.04}, ${1 - nod * 0.06})`,
+                  transformOrigin: "50% 100%",
+                }}
+              >
+                <Mascot size={MASCOT} state={mascotState(phase)} />
+              </div>
+            </div>
+            {playing && (
+              <>
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 12,
+                    bottom: mascotBottom(env) + MASCOT + 6,
+                  }}
+                >
+                  {now.keys.map((press) => (
+                    <Keys
+                      key={press.at}
+                      combo={press.combo}
+                      t={t}
+                      at={press.at}
+                      tail={16 + MASCOT / 2 - 12}
+                    />
+                  ))}
+                </div>
+                <div
+                  style={{ position: "absolute", inset: 0, opacity: fade, pointerEvents: "none" }}
+                >
+                  <Cursor t={t} path={now.pointer} clicks={now.clicks} />
+                </div>
+              </>
+            )}
           </div>
-          <div style={{ position: "absolute", right: 12, bottom: mascotBottom(env) + MASCOT + 6 }}>
-            {now.keys.map((press) => (
-              <Keys
-                key={press.at}
-                combo={press.combo}
-                t={t}
-                at={press.at}
-                tail={16 + MASCOT / 2 - 12}
+
+          {/* Once the desktop has settled into its card: the invitation to watch. */}
+          {!playing && settled > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 16,
+                paddingBottom: cardHeight * 0.12,
+                opacity: settled,
+                transform: `translateY(${(1 - settled) * 12}px)`,
+                pointerEvents: settled > 0.5 ? "auto" : "none",
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: Math.min(560, cardWidth * 0.8),
+                  height: 260,
+                  transform: `translate(-50%, calc(-50% - ${cardHeight * 0.06}px))`,
+                  background:
+                    "radial-gradient(closest-side, color-mix(in srgb, var(--color-background-surface) 82%, transparent), transparent)",
+                }}
               />
-            ))}
-          </div>
-
-          <div style={{ position: "absolute", inset: 0, opacity: fade, pointerEvents: "none" }}>
-            <Cursor t={t} path={now.pointer} clicks={now.clicks} />
-          </div>
+              <span style={{ position: "relative" }}>
+                <Text size="xl" weight="semibold">
+                  Ready to see how it works?
+                </Text>
+              </span>
+              <Button
+                label="Play demo"
+                variant="primary"
+                icon={<Play size={14} strokeWidth={0} fill="currentColor" />}
+                onClick={() => start(mode)}
+              />
+            </div>
+          )}
         </div>
-      </div>
 
-      <VStack gap={2} hAlign="center">
-        <SegmentedControl
-          label="Mode"
-          value={mode}
-          onChange={(value) => {
-            setT(0);
-            setMode(value as Mode);
+        {/* The hero's words, over the close-up desktop; they leave as the zoom starts. */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            paddingTop: NAV - 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: heroShown,
+            transform: `translateY(${-progress * 70}px) scale(${1 - 0.05 * Math.min(1, progress * 3)})`,
+            pointerEvents: heroShown > 0.5 ? "auto" : "none",
+            visibility: heroShown <= 0 ? "hidden" : "visible",
           }}
         >
-          {ORDER.map((item) => (
-            <SegmentedControlItem key={item} value={item} label={LABELS[item]} />
-          ))}
-        </SegmentedControl>
-        <div style={{ width: 200 }}>
-          <ProgressBar label={`${LABELS[mode]} demo`} isLabelHidden value={(t / duration) * 100} />
+          {hero}
         </div>
-      </VStack>
-      <div style={{ maxWidth: 560, textAlign: "center" }}>
-        <Text color="secondary" size="sm">
-          {SUMMARY[mode]}
-        </Text>
+
+        {/* The modes, under the card. */}
+        <div
+          style={{
+            position: "absolute",
+            left: 16,
+            right: 16,
+            top: rect.top + rect.height + 18,
+            opacity: settled,
+            pointerEvents: settled > 0.5 ? "auto" : "none",
+          }}
+        >
+          <VStack gap={3} hAlign="center">
+            <VStack gap={2} hAlign="center">
+              <SegmentedControl
+                label="Mode"
+                value={mode}
+                onChange={(value) => start(value as Mode)}
+              >
+                {ORDER.map((item) => (
+                  <SegmentedControlItem key={item} value={item} label={LABELS[item]} />
+                ))}
+              </SegmentedControl>
+              <div style={{ width: 200, visibility: playing ? "visible" : "hidden" }}>
+                <ProgressBar
+                  label={`${LABELS[mode]} demo`}
+                  isLabelHidden
+                  value={(t / duration) * 100}
+                />
+              </div>
+            </VStack>
+            <div style={{ maxWidth: 560, textAlign: "center" }}>
+              <Text color="secondary" size="sm">
+                {SUMMARY[mode]}
+              </Text>
+            </div>
+          </VStack>
+        </div>
       </div>
-    </VStack>
+    </section>
   );
 }

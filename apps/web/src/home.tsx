@@ -13,7 +13,7 @@ import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/Segme
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { ThemeMode } from "@astryxdesign/core/theme";
-import { ArrowDown, ChevronRight, Monitor, Moon, Sun } from "lucide-react";
+import { ChevronRight, Monitor, Moon, Sun } from "lucide-react";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import {
   FALLBACK_RELEASE,
@@ -24,7 +24,7 @@ import {
   latestRelease,
 } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
-import { Demo } from "./demo/index.tsx";
+import { Showcase } from "./demo/index.tsx";
 
 /** What the headline says iVibe does, one mode at a time. */
 const LINES = [
@@ -44,16 +44,18 @@ const styles = stylex.create({
     backgroundColor: "var(--color-background-surface)",
     color: "var(--color-text-primary)",
   },
+  // Floats over the hero's desktop and the demo card.
   bar: {
-    position: "sticky",
+    position: "fixed",
     top: 0,
+    left: 0,
+    right: 0,
     zIndex: 10,
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     paddingBlock: 14,
     paddingInline: { default: 32, "@media (max-width: 640px)": 16 },
-    backgroundColor: "var(--color-background-surface)",
   },
   brand: {
     display: "flex",
@@ -70,16 +72,13 @@ const styles = stylex.create({
     letterSpacing: "-0.01em",
   },
   hero: {
-    flex: 1,
-    // Leaves room for "See it work" at the bottom of the first screen.
-    minHeight: "calc(100vh - 62px - 64px)",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
     gap: 36,
     paddingInline: 16,
-    paddingBottom: 40,
+    paddingBottom: 72,
     textAlign: "center",
   },
   headline: {
@@ -133,15 +132,6 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-  },
-  seeIt: { paddingBottom: 28, display: "flex", justifyContent: "center" },
-  modes: {
-    paddingInline: 24,
-    paddingTop: 48,
-    paddingBottom: 96,
-    scrollMarginTop: 24,
-    display: "flex",
-    justifyContent: "center",
   },
 });
 
@@ -391,19 +381,7 @@ export function Home({
     <div {...stylex.props(styles.page)}>
       <TopBar mode={mode} onModeChange={onModeChange} />
       <main>
-        <Hero />
-        <div {...stylex.props(styles.seeIt)}>
-          <Button
-            label="See it work"
-            variant="secondary"
-            size="sm"
-            endContent={<ArrowDown size={14} strokeWidth={1.75} />}
-            href="#modes"
-          />
-        </div>
-        <section id="modes" {...stylex.props(styles.modes)}>
-          <Demo theme={mode} />
-        </section>
+        <Showcase theme={mode} hero={<Hero />} />
       </main>
     </div>
   );
