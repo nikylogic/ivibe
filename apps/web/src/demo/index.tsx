@@ -65,7 +65,7 @@ const HINT: Record<Mode, string> = {
 };
 
 const SUMMARY: Record<Mode, string> = {
-  fix: "Show the bug and say what's wrong. Get a clear fix prompt.",
+  fix: "Show the bug and say what's wrong. Get a clear fix prompt, with marked-up screenshots as proof.",
   prompt: "Say your idea in your own words. Get a clear prompt.",
   dictate: "Just talk. Get clean text where you type.",
 };
