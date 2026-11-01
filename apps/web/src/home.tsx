@@ -56,23 +56,10 @@ const styles = stylex.create({
     zIndex: 10,
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
+    // No brand on the left: the hero names iVibe. Just GitHub and the theme, on the right.
+    justifyContent: "flex-end",
     paddingBlock: 14,
     paddingInline: { default: 32, "@media (max-width: 640px)": 16 },
-  },
-  brand: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    textDecoration: "none",
-    color: "inherit",
-  },
-  brandIcon: { width: 30, height: 30, display: "block" },
-  wordmark: {
-    fontFamily: '"Instrument Serif", Georgia, serif',
-    fontSize: 28,
-    lineHeight: 1,
-    letterSpacing: "-0.01em",
   },
   hero: {
     display: "flex",
@@ -213,10 +200,6 @@ function TopBar({
 }) {
   return (
     <header {...stylex.props(styles.bar)}>
-      <a href="/" {...stylex.props(styles.brand)} aria-label="iVibe home">
-        <img src="/favicon.svg" alt="" {...stylex.props(styles.brandIcon)} />
-        <span {...stylex.props(styles.wordmark)}>iVibe</span>
-      </a>
       <HStack gap={2} vAlign="center">
         <Button
           label="iVibe on GitHub"

@@ -416,6 +416,7 @@ export function Showcase({
   const words = useRef<HTMLDivElement>(null);
   const desktopLayer = useRef<HTMLDivElement>(null);
   const invitation = useRef<HTMLDivElement>(null);
+  const veil = useRef<HTMLDivElement>(null);
   const controls = useRef<HTMLDivElement>(null);
   /** The eased scroll progress the camera is drawn at. */
   const shown = useRef(0);
@@ -488,6 +489,7 @@ export function Showcase({
     }
     if (desktopLayer.current) desktopLayer.current.style.opacity = String(smooth(p, 0.3, 0.6));
     const settled = smooth(p, 0.86, 1);
+    if (veil.current) veil.current.style.opacity = String(settled);
     if (invitation.current) {
       invitation.current.style.opacity = String(settled);
       invitation.current.style.transform = `translate(${g.card.left + g.card.width / 2}px, ${
@@ -692,6 +694,24 @@ export function Showcase({
                 </div>
               )}
             </div>
+
+            {/*
+              Before the demo plays, the desktop goes soft behind a frosted veil, so only the
+              pill and the invitation to play stay sharp. The veil fades in as the card settles.
+            */}
+            {!playing && (
+              <div
+                ref={veil}
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  opacity: 0,
+                  backdropFilter: "blur(6px)",
+                  WebkitBackdropFilter: "blur(6px)",
+                }}
+              />
+            )}
 
             {/* The pill, above the dock or taskbar where the app puts it. */}
             <div
