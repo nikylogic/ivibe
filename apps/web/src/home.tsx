@@ -4,11 +4,8 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
-import { CodeBlock } from "@astryxdesign/core/CodeBlock";
 import { Heading } from "@astryxdesign/core/Heading";
 import { HStack } from "@astryxdesign/core/HStack";
-import { Link } from "@astryxdesign/core/Link";
-import { Popover } from "@astryxdesign/core/Popover";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
@@ -19,13 +16,11 @@ import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import type { MascotState } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import {
   FALLBACK_RELEASE,
-  MAC_INSTALL,
-  RELEASES_URL,
   detectPlatform,
   latestRelease,
 } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
-import { Showcase } from "./demo/index.tsx";
+import { scrollToDemo, Showcase } from "./demo/index.tsx";
 import { say, WORD_MS } from "./demo/voice.ts";
 import { ivibeTheme } from "./theme.ts";
 import { heroMascotSize, Nav } from "./nav.tsx";
@@ -119,28 +114,21 @@ const styles = stylex.create({
     animationFillMode: "both",
   },
   sub: { maxWidth: 640, textWrap: "balance" },
-  popover: { width: 340, textAlign: "start" },
-  downloadRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
 });
 
-const appleIcon = (
+export const appleIcon = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M16.37 12.6c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.47.83-.72 0-1.82-.81-2.99-.79-1.54.02-2.96.9-3.75 2.27-1.6 2.78-.41 6.89 1.15 9.14.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.77.74 2.98.72 1.23-.02 2.02-1.12 2.77-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.39-.92-2.41-3.66zM14.1 5.86c.63-.77 1.06-1.83.94-2.89-.91.04-2.02.61-2.67 1.37-.58.67-1.1 1.76-.96 2.8 1.02.08 2.06-.52 2.69-1.28z" />
   </svg>
 );
 
-const windowsIcon = (
+export const windowsIcon = (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M2 4.4 10 3.3v8.1H2zm9-1.2L22 1.6v9.8H11zM2 12.6h8v8.1l-8-1.1zm9 0h11v9.8l-11-1.5z" />
   </svg>
 );
 
-const linuxIcon = <Monitor size={15} strokeWidth={1.75} aria-hidden="true" />;
+export const linuxIcon = <Monitor size={15} strokeWidth={1.75} aria-hidden="true" />;
 
 const PLATFORM_BUTTONS: Record<
   Platform,
@@ -180,7 +168,7 @@ function useRotatingLine(): { index: number; leaving: boolean } {
   return { index, leaving };
 }
 
-function useRelease(): Release {
+export function useRelease(): Release {
   const [release, setRelease] = useState<Release>(FALLBACK_RELEASE);
   useEffect(() => {
     latestRelease().then(setRelease, () => undefined);
@@ -188,7 +176,7 @@ function useRelease(): Release {
   return release;
 }
 
-function TopBar({
+export function TopBar({
   mode,
   onModeChange,
 }: {
@@ -239,58 +227,6 @@ function TopBar({
         </SegmentedControl>
       </HStack>
     </header>
-  );
-}
-
-function DownloadLink({ download }: { download: Download }) {
-  return (
-    <div {...stylex.props(styles.downloadRow)}>
-      <Link href={download.url}>{download.label}</Link>
-      {download.size && (
-        <Text size="sm" color="secondary">
-          {download.size}
-        </Text>
-      )}
-    </div>
-  );
-}
-
-function OtherPlatforms({ release }: { release: Release }) {
-  return (
-    <Popover
-      label="Other platforms"
-      placement="below"
-      content={
-        <VStack gap={3} xstyle={styles.popover}>
-          <VStack gap={2}>
-            <Text weight="semibold">
-              iVibe {release.version ? `${release.version} ` : ""}downloads
-            </Text>
-            <DownloadLink download={release.macArm} />
-            <DownloadLink download={release.macIntel} />
-            <DownloadLink download={release.windows} />
-            <DownloadLink download={release.linuxAppImage} />
-            <DownloadLink download={release.linuxDeb} />
-          </VStack>
-          <VStack gap={1}>
-            <Text size="sm" color="secondary">
-              On a Mac, one line in Terminal installs it with no security prompt:
-            </Text>
-            <CodeBlock code={MAC_INSTALL} language="bash" hasCopyButton isWrapped size="sm" />
-          </VStack>
-          <Link href={RELEASES_URL} size="sm">
-            All releases and release notes
-          </Link>
-        </VStack>
-      }
-    >
-      <Button
-        label="Other platforms and versions"
-        variant="ghost"
-        size="sm"
-        endContent={<ChevronRight size={14} strokeWidth={1.75} />}
-      />
-    </Popover>
   );
 }
 
@@ -403,7 +339,13 @@ function Hero({ release }: { release: Release }) {
             );
           })}
         </HStack>
-        <OtherPlatforms release={release} />
+        <Button
+          label="Other platforms and versions"
+          variant="ghost"
+          size="sm"
+          href="/download"
+          endContent={<ChevronRight size={14} strokeWidth={1.75} />}
+        />
       </VStack>
 
       <VStack gap={1} hAlign="center" xstyle={styles.sub}>
@@ -427,20 +369,18 @@ export function Home({
 }) {
   const [heroDark, setHeroDark] = useState(true);
   const release = useRelease();
-  const platform = detectPlatform() ?? "mac";
-  const button = PLATFORM_BUTTONS[platform];
+  // Arriving from another page's "How it works": glide to the demo once the page is laid out.
+  useEffect(() => {
+    if (window.location.hash !== "#how") return;
+    const timer = setTimeout(scrollToDemo, 300);
+    return () => clearTimeout(timer);
+  }, []);
   return (
     <div {...stylex.props(styles.page)}>
       <Theme theme={ivibeTheme} mode={heroDark ? "dark" : mode}>
         <TopBar mode={mode} onModeChange={onModeChange} />
       </Theme>
-      <Nav
-        download={{
-          label: button.label,
-          icon: button.icon,
-          href: button.pick(release).url,
-        }}
-      />
+      <Nav page="home" />
       <main>
         <Showcase theme={mode} hero={<Hero release={release} />} onHeroDark={setHeroDark} />
       </main>

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { Download as DownloadIcon } from "lucide-react";
 import { Button } from "@astryxdesign/core/Button";
 import { Link } from "@astryxdesign/core/Link";
 import { Theme } from "@astryxdesign/core/theme";
@@ -70,8 +71,30 @@ function useNarrow(): boolean {
  * as the bar opens, and hops when clicked, back to the top. A short glowing line marks the
  * section you are in, in the colour of the mode on show.
  */
-export function Nav({ download }: { download: { label: string; icon: ReactNode; href: string } }) {
-  const [want, setWant] = useState(() => window.scrollY > openAt());
+/** Marks where you are: a short glowing line in the colour of the mode on show. */
+function Here({ tone }: { tone: Tone }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        left: "30%",
+        right: "30%",
+        bottom: -3,
+        height: 2,
+        borderRadius: 999,
+        background: `rgb(${TONES[tone]})`,
+        boxShadow: `0 0 10px 1px rgba(${TONES[tone]}, 0.7)`,
+        transition: "background 1.2s ease, box-shadow 1.2s ease",
+      }}
+    />
+  );
+}
+
+export function Nav({ page }: { page: "home" | "download" }) {
+  // Away from the home page there is no headline mascot to borrow: the bar is simply open.
+  const pinned = page !== "home";
+  const [want, setWant] = useState(() => pinned || window.scrollY > openAt());
   const [phase, setPhase] = useState<Phase>(want ? "open" : "away");
   const [mood, setMood] = useState<MascotState>("idle");
   const [gaze, setGaze] = useState<{ x: number; y: number } | null>(null);
@@ -89,7 +112,7 @@ export function Nav({ download }: { download: { label: string; icon: ReactNode; 
     let frame = 0;
     const check = () => {
       frame = 0;
-      setWant(window.scrollY > openAt());
+      setWant(pinned || window.scrollY > openAt());
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(check);
@@ -191,11 +214,14 @@ export function Nav({ download }: { download: { label: string; icon: ReactNode; 
   const hop = () => {
     setMood("done");
     window.setTimeout(() => setMood("idle"), 1900);
-    window.scrollTo({ top: 0, behavior: reduced() ? "auto" : "smooth" });
+    if (pinned) window.location.href = "/";
+    else window.scrollTo({ top: 0, behavior: reduced() ? "auto" : "smooth" });
   };
 
   const links: { label: string; href?: string; onClick?: () => void; active?: boolean }[] = [
-    { label: "How it works", onClick: scrollToDemo, active: true },
+    pinned
+      ? { label: "How it works", href: "/#how" }
+      : { label: "How it works", onClick: scrollToDemo, active: true },
     { label: "Changelog", href: `https://github.com/${REPO}/releases` },
     { label: "GitHub", href: `https://github.com/${REPO}` },
   ];
@@ -309,41 +335,26 @@ export function Nav({ download }: { download: { label: string; icon: ReactNode; 
                     variant="ghost"
                     size="sm"
                     href={link.href}
-                    target={link.href ? "_blank" : undefined}
-                    rel={link.href ? "noreferrer" : undefined}
+                    target={link.href?.startsWith("http") ? "_blank" : undefined}
+                    rel={link.href?.startsWith("http") ? "noreferrer" : undefined}
                     onClick={link.onClick}
                   />
-                  {link.active && (
-                    // Where you are, in the colour of the mode on show.
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        position: "absolute",
-                        left: "30%",
-                        right: "30%",
-                        bottom: -3,
-                        height: 2,
-                        borderRadius: 999,
-                        background: `rgb(${TONES[tone]})`,
-                        boxShadow: `0 0 10px 1px rgba(${TONES[tone]}, 0.7)`,
-                        transition: "background 1.2s ease, box-shadow 1.2s ease",
-                      }}
-                    />
-                  )}
+                  {link.active && <Here tone={tone} />}
                 </span>
               ))}
             <span
-              style={{ marginLeft: narrow ? 0 : 6 }}
+              style={{ position: "relative", marginLeft: narrow ? 0 : 6 }}
               onPointerEnter={lookAt}
               onPointerLeave={lookAhead}
             >
               <Button
-                label={narrow ? "Download" : download.label}
+                label="Download"
                 variant="primary"
                 size="sm"
-                icon={download.icon}
-                href={download.href}
+                icon={<DownloadIcon size={15} strokeWidth={2} aria-hidden="true" />}
+                href="/download"
               />
+              {page === "download" && <Here tone={tone} />}
             </span>
           </div>
         </div>

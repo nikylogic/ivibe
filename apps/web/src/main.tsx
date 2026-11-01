@@ -12,6 +12,10 @@ import "@fontsource/instrument-serif/400-italic.css";
 import "./global.css";
 import { ivibeTheme } from "./theme.ts";
 import { Home } from "./home.tsx";
+import { DownloadPage } from "./download.tsx";
+
+/** The site has two pages; anything else is the home page. */
+const onDownload = window.location.pathname.replace(/\/+$/, "") === "/download";
 
 const MODE_KEY = "ivibe.theme";
 
@@ -35,7 +39,11 @@ function App() {
   }, [mode]);
   return (
     <Theme theme={ivibeTheme} mode={mode}>
-      <Home mode={mode} onModeChange={setMode} />
+      {onDownload ? (
+        <DownloadPage mode={mode} onModeChange={setMode} />
+      ) : (
+        <Home mode={mode} onModeChange={setMode} />
+      )}
     </Theme>
   );
 }
