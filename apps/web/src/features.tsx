@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Badge } from "@astryxdesign/core/Badge";
@@ -8,7 +8,7 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { ArrowUp, Check, Lock, SendHorizontal } from "lucide-react";
+import { ArrowUp, Check, Cloud, Laptop, Lock, SendHorizontal } from "lucide-react";
 import { APP_NAME, AppIcon } from "./demo/icons.tsx";
 import type { App } from "./demo/icons.tsx";
 import { Hud, Toast } from "./demo/hud.tsx";
@@ -1176,9 +1176,10 @@ function ProofScene() {
 
 // 3. Your secrets stay yours. ------------------------------------------------------------------
 //
-// A line down the middle is the edge of your device. A screenshot slides across it: whatever has
-// crossed shows solid black boxes over the secrets, whatever hasn't is untouched. The bug itself
-// stays readable.
+// A line down the middle is the edge of your device. A screenshot slides across it. As each
+// secret character reaches the line it comes off and falls away on your side, and only a solid
+// black box travels on: your secrets literally stay on your computer. The bug itself stays
+// readable.
 
 type Run = { text: string; secret?: true; error?: true };
 
@@ -1188,20 +1189,52 @@ const TERMINAL: Run[][] = [
   [{ text: "✗ Error: connection refused", error: true }],
 ];
 
-const GATE = 280;
-const CARD = { width: 260, height: 120, top: 84 };
-const FROM_X = GATE - 16 - CARD.width;
-const TO_X = GATE + 16;
-const S_IN = 0;
-const S_SCAN = 500;
+const S_WIDTH = 640;
+const GATE = S_WIDTH / 2;
+const CARD = { width: 290, height: 134, top: 82 };
+const TERM_FONT = 12.5;
+const TERM_LINE = 25;
+const TERM_HEAD = 30;
+const TERM_PAD = { x: 14, y: 10 };
+const FROM_X = GATE - 18 - CARD.width;
+const TO_X = GATE + 18;
+const S_SCAN = 450;
 const S_SCAN_MS = 900;
-const S_FOUND = 1250;
-const S_CROSS = 1900;
-const S_CROSS_MS = 2600;
+const S_FOUND = 1200;
+const S_CROSS = 1850;
+const S_CROSS_MS = 3400;
 const S_SETTLE = S_CROSS + S_CROSS_MS;
-const S_OUT = S_SETTLE + 2500;
+const S_OUT = S_SETTLE + 2600;
 const SECRETS_MS = S_OUT + 450;
-const SECRETS_STILL = S_SETTLE + 900;
+const SECRETS_STILL = S_SETTLE + 1200;
+
+/** Where the screenshot's left edge is at time t. */
+const cardX = (t: number) => {
+  // Mostly steady through the line, easing only at the ends.
+  const steady = Math.min(1, Math.max(0, (t - S_CROSS) / S_CROSS_MS));
+  return mix(FROM_X, TO_X, 0.35 * glide(t, S_CROSS, S_CROSS_MS) + 0.65 * steady);
+};
+
+/** Every secret character: its row, its place in the line, and when it reaches the edge. */
+function secretGlyphs(charWidth: number) {
+  const glyphs: { char: string; row: number; x: number; at: number; seed: number }[] = [];
+  TERMINAL.forEach((line, row) => {
+    let column = 0;
+    for (const run of line) {
+      if (run.secret) {
+        [...run.text].forEach((char, index) => {
+          const x = TERM_PAD.x + (column + index + 0.5) * charWidth;
+          // The moment the edge passes the middle of this character.
+          let at = S_CROSS;
+          while (at < S_SETTLE && GATE - cardX(at) > x) at += 8;
+          glyphs.push({ char, row, x, at, seed: glyphs.length });
+        });
+      }
+      column += [...run.text].length;
+    }
+  });
+  return glyphs;
+}
 
 /** The terminal as captured: clear, or with its secrets under solid black boxes. */
 function Shot({ redacted, found }: { redacted: boolean; found: number }) {
@@ -1210,37 +1243,37 @@ function Shot({ redacted, found }: { redacted: boolean; found: number }) {
       style={{
         position: "absolute",
         inset: 0,
-        borderRadius: 12,
+        borderRadius: 14,
         overflow: "hidden",
         background: "#262422",
         boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
         fontFamily: MONO,
-        fontSize: 11,
-        lineHeight: "22px",
-        color: "rgba(255,255,255,0.78)",
+        fontSize: TERM_FONT,
+        lineHeight: `${TERM_LINE}px`,
+        color: "rgba(255,255,255,0.8)",
       }}
     >
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 5,
-          height: 26,
-          paddingInline: 10,
+          gap: 6,
+          height: TERM_HEAD,
+          paddingInline: 12,
           borderBottom: "1px solid rgba(255,255,255,0.07)",
         }}
       >
         {[0, 1, 2].map((dot) => (
           <span
             key={dot}
-            style={{ width: 7, height: 7, borderRadius: 4, background: "rgba(255,255,255,0.16)" }}
+            style={{ width: 8, height: 8, borderRadius: 4, background: "rgba(255,255,255,0.16)" }}
           />
         ))}
-        <span style={{ marginLeft: 6, fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+        <span style={{ marginLeft: 8, fontSize: 11, color: "rgba(255,255,255,0.42)" }}>
           Terminal
         </span>
       </div>
-      <div style={{ padding: "8px 12px", whiteSpace: "pre" }}>
+      <div style={{ padding: `${TERM_PAD.y}px ${TERM_PAD.x}px`, whiteSpace: "pre" }}>
         {TERMINAL.map((line, row) => (
           <div key={row}>
             {line.map((run, index) => (
@@ -1275,74 +1308,205 @@ function Shot({ redacted, found }: { redacted: boolean; found: number }) {
   );
 }
 
+/** The width of one terminal character, read once the font is in. */
+function useCharWidth() {
+  const probe = useRef<HTMLSpanElement>(null);
+  const [width, setWidth] = useState<number | null>(null);
+  useEffect(() => {
+    let live = true;
+    void document.fonts.ready.then(() => {
+      if (live && probe.current) setWidth(probe.current.getBoundingClientRect().width / 40);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const measure = (
+    <span
+      ref={probe}
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        visibility: "hidden",
+        whiteSpace: "pre",
+        fontFamily: MONO,
+        fontSize: TERM_FONT,
+      }}
+    >
+      {"0".repeat(40)}
+    </span>
+  );
+  return { width, measure };
+}
+
+/** A label on one side of the line. */
+function Side({ icon, label, right }: { icon: ReactNode; label: string; right?: boolean }) {
+  return (
+    <span
+      style={{
+        position: "absolute",
+        top: 10,
+        ...(right ? { left: GATE + 24 } : { right: S_WIDTH - GATE + 24 }),
+        display: "flex",
+        alignItems: "center",
+        gap: 7,
+        fontSize: 12.5,
+        fontWeight: 500,
+        color: "var(--color-text-secondary)",
+      }}
+    >
+      {icon}
+      {label}
+    </span>
+  );
+}
+
+/** Where the caught secrets gather, on your side of the line. */
+const VAULT = { top: 248, height: 30, right: GATE - 22 };
+/** The token and the password, with a separator between them. */
+const VAULT_CHARS = 13 + 3 + 7;
+const DROP_MS = 560;
+/** px per ms along the chip. */
+const ACROSS_SPEED = 0.3;
+
+function Vault({
+  t,
+  glyphs,
+  charWidth,
+  shown,
+}: {
+  t: number;
+  glyphs: ReturnType<typeof secretGlyphs>;
+  charWidth: number;
+  shown: number;
+}) {
+  const width = 12 + 14 + 8 + VAULT_CHARS * charWidth + 12;
+  const left = VAULT.right - width;
+  const textLeft = left + 12 + 14 + 8;
+  const textTop = VAULT.top + 5;
+  const opened = ease(t, glyphs[0]!.at + DROP_MS * 0.6, 320) * shown;
+  return (
+    <>
+      <span
+        style={{
+          position: "absolute",
+          left,
+          top: VAULT.top,
+          width,
+          height: VAULT.height,
+          borderRadius: 9,
+          border: `1px dashed ${tone("Fix", 0.7)}`,
+          background: tone("Fix", 0.07),
+          opacity: opened,
+          transform: `scale(${(0.96 + 0.04 * opened).toFixed(3)})`,
+        }}
+      >
+        <Lock
+          size={14}
+          strokeWidth={2.2}
+          color={tone("Fix")}
+          style={{ position: "absolute", left: 11, top: 7 }}
+        />
+      </span>
+      <span
+        style={{
+          position: "absolute",
+          left: textLeft + 14 * charWidth,
+          top: textTop,
+          fontFamily: MONO,
+          fontSize: TERM_FONT,
+          lineHeight: `${TERM_LINE - 6}px`,
+          color: "var(--color-text-secondary)",
+          opacity: opened,
+        }}
+      >
+        ·
+      </span>
+      {glyphs.map((glyph) => {
+        if (t <= glyph.at) return null;
+        const slot = glyph.seed + (glyph.row > 0 ? 3 : 0);
+        const startX = GATE - charWidth - 3;
+        const startY = CARD.top + TERM_HEAD + TERM_PAD.y + glyph.row * TERM_LINE + 3;
+        const slotX = textLeft + slot * charWidth;
+        // Down along the line, then across into its place at one steady speed, so characters
+        // never pass each other and arrive in order.
+        const down = glide(t, glyph.at, DROP_MS);
+        const travelled = Math.max(0, t - glyph.at - DROP_MS * 0.8) * ACROSS_SPEED;
+        const across = Math.min(1, travelled / (startX - slotX));
+        const x = mix(startX, slotX, across);
+        const y = mix(startY, textTop, down);
+        return (
+          <span
+            key={glyph.seed}
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              fontFamily: MONO,
+              fontSize: TERM_FONT,
+              lineHeight: `${TERM_LINE - 6}px`,
+              fontWeight: 600,
+              color: `color-mix(in srgb, ${tone("Fix")} ${(100 - 35 * across).toFixed(0)}%, var(--color-text-primary))`,
+              textShadow: `0 0 8px ${tone("Fix", 0.5 * (1 - across))}`,
+              transform: `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`,
+              opacity: shown,
+            }}
+          >
+            {glyph.char}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 function SecretsScene() {
   const clock = useClock(SECRETS_MS, 400);
   const t = still() ? SECRETS_STILL : clock.t;
-  const x = mix(FROM_X, TO_X, glide(t, S_CROSS, S_CROSS_MS));
+  const { width: charWidth, measure } = useCharWidth();
+  const glyphs = useMemo(() => (charWidth ? secretGlyphs(charWidth) : []), [charWidth]);
+  const x = cardX(t);
   // Where the edge of the device falls across the screenshot, in its own pixels.
   const edge = Math.max(0, Math.min(CARD.width, GATE - x));
   const crossing = edge > 0 && edge < CARD.width ? 1 : 0;
   const glow = Math.min(1, ease(t, S_CROSS + 150, 300) * (1 - ease(t, S_SETTLE - 250, 300)));
-  const shown = ease(t, S_IN, 360) * (1 - ease(t, S_OUT, 420));
+  const shown = ease(t, 0, 360) * (1 - ease(t, S_OUT, 420));
   const scan = (t - S_SCAN) / S_SCAN_MS;
   const found = ease(t, S_FOUND, 320);
+  const line = `color-mix(in srgb, ${tone("Fix")} ${glow * 100}%, var(--color-border))`;
   return (
-    <Scene clock={clock} width={560} height={320}>
+    <Scene clock={clock} width={S_WIDTH} height={340}>
+      {measure}
       {/* The edge of your device: always here. */}
-      <span
-        style={{
-          position: "absolute",
-          left: 0,
-          width: GATE - 18,
-          top: 6,
-          textAlign: "right",
-          fontSize: 12,
-          fontWeight: 500,
-          color: "var(--color-text-secondary)",
-        }}
-      >
-        Your computer
-      </span>
-      <span
-        style={{
-          position: "absolute",
-          left: GATE + 18,
-          top: 6,
-          fontSize: 12,
-          fontWeight: 500,
-          color: "var(--color-text-secondary)",
-        }}
-      >
-        Leaves your device
-      </span>
+      <Side icon={<Laptop size={15} />} label="Your computer" />
+      <Side icon={<Cloud size={15} />} label="Leaves your device" right />
       <span
         style={{
           position: "absolute",
           left: GATE - 0.5,
-          top: 34,
+          top: 40,
           width: 1,
-          height: 222,
-          background: `linear-gradient(180deg, transparent, color-mix(in srgb, ${tone("Fix")} ${glow * 100}%, var(--color-border)) 15%, color-mix(in srgb, ${tone("Fix")} ${glow * 100}%, var(--color-border)) 85%, transparent)`,
-          boxShadow: `0 0 ${(14 * glow).toFixed(1)}px ${(1.5 * glow).toFixed(1)}px ${tone("Fix", 0.45 * glow)}`,
+          height: 236,
+          background: `linear-gradient(180deg, ${line}, ${line} 80%, transparent)`,
+          boxShadow: `0 0 ${(16 * glow).toFixed(1)}px ${(1.5 * glow).toFixed(1)}px ${tone("Fix", 0.4 * glow)}`,
         }}
       />
       <span
         style={{
           position: "absolute",
-          left: GATE - 13,
-          top: 4,
-          width: 26,
-          height: 26,
-          borderRadius: 13,
+          left: GATE - 14,
+          top: 6,
+          width: 28,
+          height: 28,
+          borderRadius: 14,
           display: "grid",
           placeItems: "center",
           background: "var(--color-background-card)",
-          boxShadow: "inset 0 0 0 1px var(--color-border)",
-          color: glow > 0.5 ? tone("Fix") : "var(--color-text-secondary)",
-          transition: "color 200ms ease",
+          boxShadow: `inset 0 0 0 1px ${line}, 0 0 ${(14 * glow).toFixed(1)}px ${tone("Fix", 0.35 * glow)}`,
+          color: `color-mix(in srgb, ${tone("Fix")} ${glow * 100}%, var(--color-text-secondary))`,
         }}
       >
-        <Lock size={12} strokeWidth={2.4} />
+        <Lock size={13} strokeWidth={2.4} />
       </span>
       {/* The screenshot: clear on your side of the line, covered past it. */}
       <div
@@ -1354,7 +1518,7 @@ function SecretsScene() {
           height: CARD.height,
           transform: `translate3d(${x.toFixed(2)}px, ${((1 - shown) * 6).toFixed(2)}px, 0)`,
           opacity: shown,
-          filter: "drop-shadow(0 16px 22px rgba(0,0,0,0.28))",
+          filter: "drop-shadow(0 18px 24px rgba(0,0,0,0.28))",
         }}
       >
         <div
@@ -1371,7 +1535,7 @@ function SecretsScene() {
               position: "absolute",
               left: 0,
               right: 0,
-              top: 26 + Math.max(0, Math.min(1, scan)) * (CARD.height - 28),
+              top: TERM_HEAD + Math.max(0, Math.min(1, scan)) * (CARD.height - TERM_HEAD - 2),
               height: 1,
               background: tone("Fix", 0.9),
               boxShadow: `0 0 8px 1px ${tone("Fix", 0.5)}`,
@@ -1393,21 +1557,27 @@ function SecretsScene() {
           style={{
             position: "absolute",
             left: edge - 1,
-            top: -4,
+            top: -5,
             width: 2,
-            height: CARD.height + 8,
+            height: CARD.height + 10,
+            borderRadius: 1,
             background: tone("Fix"),
-            boxShadow: `0 0 12px 2px ${tone("Fix", 0.6)}`,
+            boxShadow: `0 0 14px 2px ${tone("Fix", 0.6)}`,
             opacity: crossing,
           }}
         />
       </div>
+      {/* The secrets, caught at the line: each character slides down it and files into a locked
+          chip on your side, so they visibly stay on your computer. */}
+      {charWidth && glyphs.length > 0 && (
+        <Vault t={t} glyphs={glyphs} charWidth={charWidth} shown={shown} />
+      )}
       <div
         style={{
           position: "absolute",
           left: GATE,
           right: 0,
-          top: CARD.top + CARD.height + 18,
+          top: CARD.top + CARD.height + 22,
           display: "flex",
           justifyContent: "center",
           opacity: shown,
@@ -1419,7 +1589,7 @@ function SecretsScene() {
       </div>
       <TinyPill
         t={t}
-        top={268}
+        top={288}
         rise={10}
         appearAt={S_CROSS - 300}
         speaking={[0, 0]}
