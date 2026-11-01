@@ -300,6 +300,9 @@ export function Footer({
           <Link href={home ? "#pricing" : "/#pricing"} size="sm">
             Pricing
           </Link>
+          <Link href="/docs" size="sm">
+            Docs
+          </Link>
           <Link href={`${github}/releases`} size="sm">
             Changelog
           </Link>

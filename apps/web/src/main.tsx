@@ -12,6 +12,7 @@ import "@fontsource/instrument-serif/400-italic.css";
 import "./global.css";
 import { ivibeTheme } from "./theme.ts";
 import { Home } from "./home.tsx";
+import { DocsPage } from "./docs.tsx";
 import { DownloadPage } from "./download.tsx";
 import { LegalPage } from "./legal.tsx";
 import type { LegalPageName } from "./legal.tsx";
@@ -19,6 +20,7 @@ import type { LegalPageName } from "./legal.tsx";
 /** Anything that isn't one of these pages is the home page. */
 const path = window.location.pathname.replace(/\/+$/, "");
 const onDownload = path === "/download";
+const onDocs = path === "/docs" || path.startsWith("/docs/");
 const legalPage: LegalPageName | null =
   path === "/privacy" || path === "/terms" || path === "/refunds"
     ? (path.slice(1) as LegalPageName)
@@ -48,6 +50,8 @@ function App() {
     <Theme theme={ivibeTheme} mode={mode}>
       {legalPage ? (
         <LegalPage name={legalPage} mode={mode} onModeChange={setMode} />
+      ) : onDocs ? (
+        <DocsPage mode={mode} onModeChange={setMode} />
       ) : onDownload ? (
         <DownloadPage mode={mode} onModeChange={setMode} />
       ) : (
