@@ -259,7 +259,18 @@ export function Nav({ page }: { page: "home" | "download" | "legal" }) {
     pinned
       ? { label: "How it works", href: "/#how" }
       : { label: "How it works", onClick: scrollToDemo, active: inDemo },
-    { label: "Changelog", href: `https://github.com/${REPO}/releases` },
+    pinned
+      ? { label: "Pricing", href: "/#pricing" }
+      : {
+          label: "Pricing",
+          onClick: () =>
+            document
+              .getElementById("pricing")
+              ?.scrollIntoView({ behavior: reduced() ? "auto" : "smooth" }),
+        },
+    { label: "Docs", href: `https://github.com/${REPO}#readme` },
+    // Until the site has its own blog, the release notes are where the news is.
+    { label: "Blog", href: `https://github.com/${REPO}/releases` },
     { label: "iVibe on GitHub", href: `https://github.com/${REPO}`, icon: githubMark },
   ];
 
