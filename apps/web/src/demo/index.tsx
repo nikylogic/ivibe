@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Button } from "@astryxdesign/core/Button";
-import { ProgressBar } from "@astryxdesign/core/ProgressBar";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
@@ -66,9 +65,9 @@ const HINT: Record<Mode, string> = {
 };
 
 const SUMMARY: Record<Mode, string> = {
-  fix: "Show the bug and say what's wrong. iVibe picks the screenshots that prove it, hides secrets on your device, and pastes a clear fix prompt into your coding agent.",
-  prompt: "Ramble an idea. A clear, structured prompt lands in the chat you were typing in.",
-  dictate: "Just talk. Fillers and false starts go; your words land where you were typing.",
+  fix: "Show the bug and say what's wrong. Get a clear fix prompt.",
+  prompt: "Say your idea in your own words. Get a clear prompt.",
+  dictate: "Just talk. Get clean text where you type.",
 };
 
 /** What one mode does on screen. Every value is a pure function of t. */
@@ -375,6 +374,52 @@ function geometry(vw: number, vh: number, env: Env, focus: number) {
     y: card.top + pill.y * (cardWidth / view),
   };
   return { card, pill, inside, desktop, settled };
+}
+
+/**
+ * Where the demo is: one hairline for each mode, filled for those already shown and filling with
+ * the clock for the one playing. Drawn in the page's own text colour, moved by a transform.
+ */
+function Steps({ mode, progress }: { mode: Mode; progress: number }) {
+  const current = ORDER.indexOf(mode);
+  return (
+    <div
+      role="progressbar"
+      aria-label={`${LABELS[mode]} demo`}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(progress * 100)}
+      style={{ display: "flex", gap: 6, width: 168 }}
+    >
+      {ORDER.map((item, index) => {
+        const fill =
+          index < current ? 1 : index === current ? Math.min(1, Math.max(0, progress)) : 0;
+        return (
+          <span
+            key={item}
+            style={{
+              flex: 1,
+              height: 2,
+              borderRadius: 999,
+              overflow: "hidden",
+              background: "color-mix(in srgb, var(--color-text-primary) 14%, transparent)",
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                height: "100%",
+                background: "var(--color-text-primary)",
+                opacity: 0.75,
+                transformOrigin: "0 50%",
+                transform: `scaleX(${fill})`,
+              }}
+            />
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 /** A tile of soft white noise, drawn once by the browser and repeated. */
@@ -920,13 +965,7 @@ export function Showcase({
                     <SegmentedControlItem key={item} value={item} label={LABELS[item]} />
                   ))}
                 </SegmentedControl>
-                <div style={{ width: 200 }}>
-                  <ProgressBar
-                    label={`${LABELS[mode]} demo`}
-                    isLabelHidden
-                    value={(t / duration) * 100}
-                  />
-                </div>
+                <Steps mode={mode} progress={playing ? t / duration : 0} />
               </VStack>
               <div style={{ maxWidth: 560, textAlign: "center" }}>
                 <Text color="secondary" size="sm">
