@@ -360,20 +360,22 @@ export function Nav({ page }: { page: "home" | "download" }) {
                   {link.active && <Here tone={tone} />}
                 </span>
               ))}
-            <span
-              style={{ position: "relative", marginLeft: narrow ? 0 : 6 }}
-              onPointerEnter={lookAt}
-              onPointerLeave={lookAhead}
-            >
-              <Button
-                label="Download"
-                variant="primary"
-                size="sm"
-                icon={<DownloadIcon size={15} strokeWidth={2} aria-hidden="true" />}
-                href="/download"
-              />
-              {page === "download" && <Here tone={tone} />}
-            </span>
+            {/* On the download page itself, the page is the download: no button. */}
+            {page !== "download" && (
+              <span
+                style={{ marginLeft: narrow ? 0 : 6 }}
+                onPointerEnter={lookAt}
+                onPointerLeave={lookAhead}
+              >
+                <Button
+                  label="Download"
+                  variant="primary"
+                  size="sm"
+                  icon={<DownloadIcon size={15} strokeWidth={2} aria-hidden="true" />}
+                  href="/download"
+                />
+              </span>
+            )}
           </div>
         </div>
       </Theme>
