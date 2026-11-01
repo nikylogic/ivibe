@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { siClaude } from "simple-icons";
 import { Glyph } from "./icons.tsx";
-import { between, ease, Frame, MONO } from "./kit.tsx";
+import { between, ease, Frame, MONO, SANS } from "./kit.tsx";
 import type { Env, Palette } from "./kit.tsx";
 
 /**
@@ -34,20 +34,50 @@ import type { Env, Palette } from "./kit.tsx";
 const icon = { strokeWidth: 1.8 } as const;
 
 // ---------------------------------------------------------------------------------------------
-// Chrome, on a profile page whose Save button does nothing.
+// Chrome, on a profile page whose Save button does nothing, with DevTools docked on the right.
 
-/** The Save button's centre from the window's top left; the page has fixed heights so this holds. */
-export const SAVE = { x: 66, y: 344 };
+/** Fixed sizes, so the pointer can find things. Points are from the window's top left. */
+export const CHROME = { width: 680, height: 470 };
+const DEVTOOLS = 290;
+export const SAVE = { x: 64, y: 369 };
+export const CONSOLE_ERROR = { x: CHROME.width - DEVTOOLS + 130, y: 166 };
+
+const TOKEN = "ghp_8fK2vQ9xR1mN4tL7wP3sY6zB0cD5eH2jA";
+
+function pageColors(dark: boolean) {
+  return {
+    bg: dark ? "#101012" : "#ffffff",
+    fg: dark ? "#f4f4f5" : "#18181b",
+    dim: dark ? "#a1a1aa" : "#71717a",
+    line: dark ? "#2a2a2e" : "#e4e4e7",
+    field: dark ? "#18181b" : "#ffffff",
+  };
+}
+
+function toolsColors(dark: boolean) {
+  return {
+    bg: dark ? "#282828" : "#ffffff",
+    bar: dark ? "#3c3c3c" : "#f1f3f4",
+    line: dark ? "#494c50" : "#cbcdd1",
+    fg: dark ? "#e3e3e3" : "#1f1f1f",
+    dim: dark ? "#c7c7c7" : "#474747",
+    accent: dark ? "#7cacf8" : "#0b57d0",
+    errorBg: dark ? "#4e3534" : "#fcebeb",
+    errorLine: dark ? "#653b39" : "#f9dedc",
+    errorFg: dark ? "#f9b7b2" : "#dc362e",
+  };
+}
 
 export function ChromeWindow({
   env,
   t,
-  clickAt,
+  clicks,
   style,
 }: {
   env: Env;
   t: number;
-  clickAt: number;
+  /** When Save is clicked; the error shows after the first. */
+  clicks: number[];
   style: CSSProperties;
 }) {
   const d = env.dark;
@@ -58,15 +88,12 @@ export function ChromeWindow({
     fg: d ? "#e8eaed" : "#1f1f1f",
     dim: d ? "#9aa0a6" : "#5f6368",
   };
-  const page = {
-    bg: d ? "#101012" : "#ffffff",
-    fg: d ? "#f4f4f5" : "#18181b",
-    dim: d ? "#a1a1aa" : "#71717a",
-    line: d ? "#27272a" : "#e4e4e7",
-  };
-  const palette: Palette = { bar: c.strip, bg: c.tab, fg: c.fg, dim: c.dim, edge: c.strip };
-  const pressed = between(t, clickAt, clickAt + 140);
-  const failed = t >= clickAt + 180;
+  const page = pageColors(d);
+  const tools = toolsColors(d);
+  const palette: Palette = { bar: c.strip, bg: c.tab, fg: c.fg, dim: c.dim };
+  const pressed = clicks.some((at) => between(t, at, at + 140));
+  const errors = clicks.filter((at) => t >= at + 180).length;
+  const firstError = clicks[0]! + 180;
 
   const tabs = (
     <div
@@ -108,18 +135,22 @@ export function ChromeWindow({
     </div>
   );
 
-  const field = (label: string, value: string, height: number) => (
+  const field = (label: string, value: ReactNode, last = false) => (
     <>
       <div style={{ height: 21, fontSize: 11.5, fontWeight: 500, color: page.dim }}>{label}</div>
       <div
         style={{
-          height,
+          height: 32,
           boxSizing: "border-box",
           border: `1px solid ${page.line}`,
           borderRadius: 7,
           padding: "7px 10px",
           fontSize: 12.5,
-          marginBottom: 12,
+          marginBottom: last ? 14 : 10,
+          background: page.field,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
         {value}
@@ -161,7 +192,7 @@ export function ChromeWindow({
         >
           <Info size={13} color={c.dim} {...icon} />
           <span>
-            localhost:5173<span style={{ color: c.dim }}>/profile</span>
+            localhost:5173<span style={{ color: c.dim }}>/settings/profile</span>
           </span>
           <span style={{ flex: 1 }} />
           <Star size={13} color={c.dim} {...icon} />
@@ -184,81 +215,73 @@ export function ChromeWindow({
         <EllipsisVertical size={15} color={c.fg} {...icon} />
       </div>
 
-      {/* The page */}
-      <div
-        style={{
-          position: "absolute",
-          top: 40,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: page.bg,
-          color: page.fg,
-        }}
-      >
-        <div
-          style={{
-            height: 40,
-            display: "flex",
-            alignItems: "center",
-            gap: 18,
-            paddingInline: 24,
-            borderBottom: `1px solid ${page.line}`,
-            fontSize: 12.5,
-            boxSizing: "border-box",
-          }}
-        >
-          <span style={{ fontWeight: 800, letterSpacing: -0.3 }}>Pulse</span>
-          <span style={{ color: page.dim }}>Dashboard</span>
-          <span style={{ color: page.dim }}>Projects</span>
-          <span>Settings</span>
-          <span style={{ flex: 1 }} />
-          <span
+      <div style={{ position: "absolute", top: 40, left: 0, right: 0, bottom: 0, display: "flex" }}>
+        {/* The page */}
+        <div style={{ flex: 1, minWidth: 0, background: page.bg, color: page.fg }}>
+          <div
             style={{
-              width: 24,
-              height: 24,
-              borderRadius: 12,
-              background: "linear-gradient(135deg,#f6a35c,#e5484d)",
-            }}
-          />
-        </div>
-        <div style={{ padding: "18px 24px 0" }}>
-          <div style={{ height: 40, fontSize: 19, fontWeight: 700, letterSpacing: -0.3 }}>
-            Edit profile
-          </div>
-          {field("Name", "Asha Rao", 32)}
-          {field("Bio", "Building things on weekends. Coffee, maps and side projects.", 50)}
-          <div style={{ height: 4 }} />
-          <span
-            style={{
-              display: "inline-grid",
-              placeItems: "center",
-              width: 84,
-              height: 32,
-              borderRadius: 7,
-              background: pressed ? "#3f35c9" : "#5146e5",
-              color: "#fff",
-              fontWeight: 600,
-              fontSize: 12.5,
-              transform: `scale(${pressed ? 0.96 : 1})`,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              paddingInline: 22,
+              borderBottom: `1px solid ${page.line}`,
+              fontSize: 12,
+              boxSizing: "border-box",
             }}
           >
-            Save
-          </span>
+            <span style={{ fontWeight: 800, letterSpacing: -0.3 }}>Pulse</span>
+            <span style={{ color: page.dim }}>Projects</span>
+            <span>Settings</span>
+            <span style={{ flex: 1 }} />
+            <span
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 11,
+                background: "linear-gradient(135deg,#f6a35c,#e5484d)",
+              }}
+            />
+          </div>
+          <div style={{ padding: "14px 22px 0" }}>
+            <div style={{ height: 32, fontSize: 18, fontWeight: 700, letterSpacing: -0.3 }}>
+              Edit profile
+            </div>
+            {field("Name", "Asha Rao")}
+            {field("Bio", "Building things on weekends. Coffee and maps.")}
+            {field(
+              "GitHub token",
+              <span style={{ fontFamily: MONO, fontSize: 11.5 }}>{TOKEN}</span>,
+              true,
+            )}
+            <span
+              style={{
+                display: "inline-grid",
+                placeItems: "center",
+                width: 84,
+                height: 32,
+                borderRadius: 7,
+                background: pressed ? "#3f35c9" : "#5146e5",
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: 12.5,
+                transform: `scale(${pressed ? 0.96 : 1})`,
+              }}
+            >
+              Save
+            </span>
+          </div>
         </div>
 
-        {/* DevTools, docked at the bottom */}
+        {/* DevTools, docked on the right */}
         <div
           style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: 112,
-            background: d ? "#282828" : "#ffffff",
-            borderTop: `1px solid ${d ? "#494c50" : "#cbcdd1"}`,
+            width: DEVTOOLS,
+            flexShrink: 0,
+            background: tools.bg,
+            borderLeft: `1px solid ${tools.line}`,
             fontSize: 11.5,
-            color: d ? "#e3e3e3" : "#1f1f1f",
+            color: tools.fg,
           }}
         >
           <div
@@ -266,70 +289,132 @@ export function ChromeWindow({
               height: 27,
               display: "flex",
               alignItems: "stretch",
-              gap: 16,
+              gap: 14,
               paddingInline: 10,
-              background: d ? "#3c3c3c" : "#f1f3f4",
-              borderBottom: `1px solid ${d ? "#494c50" : "#cbcdd1"}`,
-              color: d ? "#c7c7c7" : "#474747",
+              background: tools.bar,
+              borderBottom: `1px solid ${tools.line}`,
+              color: tools.dim,
               boxSizing: "border-box",
             }}
           >
-            {["Elements", "Console", "Sources", "Network", "Performance"].map((name) => (
+            {["Elements", "Console", "Sources", "»"].map((name) => (
               <span
                 key={name}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  borderBottom:
-                    name === "Console"
-                      ? `2px solid ${d ? "#7cacf8" : "#0b57d0"}`
-                      : "2px solid transparent",
-                  color: name === "Console" ? (d ? "#e3e3e3" : "#1f1f1f") : undefined,
+                  borderBottom: `2px solid ${name === "Console" ? tools.accent : "transparent"}`,
+                  color: name === "Console" ? tools.fg : undefined,
                 }}
               >
                 {name}
               </span>
             ))}
             <span style={{ flex: 1 }} />
-            {failed && (
+            {errors > 0 && (
               <span style={{ display: "flex", alignItems: "center", gap: 4, color: "#e46962" }}>
-                <ErrorDot /> 1
+                <ErrorDot /> {errors}
               </span>
             )}
           </div>
-          {failed ? (
+          <div
+            style={{
+              height: 26,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              paddingInline: 10,
+              borderBottom: `1px solid ${tools.line}`,
+              color: tools.dim,
+              boxSizing: "border-box",
+            }}
+          >
+            <span>⊘</span>
+            <span>top ▾</span>
+            <span
+              style={{
+                flex: 1,
+                height: 18,
+                borderRadius: 4,
+                background: d ? "#1f1f1f" : "#f1f3f4",
+                paddingInline: 6,
+                fontSize: 11,
+                lineHeight: "18px",
+                color: d ? "#8a8a8a" : "#80868b",
+              }}
+            >
+              Filter
+            </span>
+          </div>
+          {errors > 0 && (
             <div
               style={{
                 display: "flex",
                 gap: 8,
                 padding: "6px 10px",
-                background: d ? "#4e3534" : "#fcebeb",
-                borderBottom: `1px solid ${d ? "#653b39" : "#f9dedc"}`,
-                color: d ? "#f9b7b2" : "#dc362e",
+                background: tools.errorBg,
+                borderBottom: `1px solid ${tools.errorLine}`,
+                color: tools.errorFg,
                 fontFamily: MONO,
-                fontSize: 11,
-                lineHeight: 1.6,
-                opacity: ease(t, clickAt + 180, 160),
+                fontSize: 10.5,
+                lineHeight: 1.55,
+                opacity: ease(t, firstError, 160),
               }}
             >
               <ErrorDot />
-              <div style={{ flex: 1 }}>
-                <div>
-                  Uncaught TypeError: Cannot read properties of undefined (reading &apos;map&apos;)
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <span style={{ flex: 1 }}>
+                    Uncaught TypeError: Cannot read properties of undefined (reading
+                    &apos;map&apos;)
+                  </span>
+                  {errors > 1 && (
+                    <span
+                      style={{
+                        alignSelf: "flex-start",
+                        borderRadius: 8,
+                        paddingInline: 5,
+                        background: "#e46962",
+                        color: "#fff",
+                        fontFamily: SANS,
+                        fontSize: 9.5,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {errors}
+                    </span>
+                  )}
                 </div>
-                <div style={{ paddingLeft: 14 }}>
+                <div style={{ paddingLeft: 12 }}>
                   at saveProfile (<u>ProfileForm.tsx:41:18</u>)
                 </div>
+                <div style={{ textAlign: "right", color: tools.dim }}>
+                  <u>ProfileForm.tsx:41</u>
+                </div>
               </div>
-              <u style={{ color: d ? "#c7c7c7" : "#474747" }}>ProfileForm.tsx:41</u>
             </div>
-          ) : null}
-          <div style={{ padding: "4px 10px", color: d ? "#7cacf8" : "#0b57d0", fontFamily: MONO }}>
-            ›
-          </div>
+          )}
+          <div style={{ padding: "4px 10px", color: tools.accent, fontFamily: MONO }}>›</div>
         </div>
       </div>
     </Frame>
+  );
+}
+
+/** A text field's blinking caret. */
+function Caret({ t, color }: { t: number; color: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        width: 1.5,
+        height: 15,
+        marginRight: 1,
+        verticalAlign: -3,
+        background: color,
+        opacity: Math.floor(t / 530) % 2 ? 0 : 1,
+      }}
+    />
   );
 }
 
@@ -353,6 +438,105 @@ function ErrorDot() {
     >
       ×
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// The proof screenshots iVibe picked while you talked, as the pill shows them: the element that
+// matters boxed in red, and the token blacked out before anything left the device.
+
+const SHOT = { width: 156, height: 98 };
+
+function Shot({ children, background }: { children: ReactNode; background: string }) {
+  return (
+    <span
+      style={{
+        position: "relative",
+        flexShrink: 0,
+        width: SHOT.width,
+        height: SHOT.height,
+        borderRadius: 10,
+        overflow: "hidden",
+        border: "1px solid rgba(255, 255, 255, 0.12)",
+        background,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+const box = (left: number, top: number, width: number, height: number): CSSProperties => ({
+  position: "absolute",
+  left,
+  top,
+  width,
+  height,
+  borderRadius: 4,
+  border: "2px solid #e5484d",
+  boxShadow: "0 0 0 2px rgba(229, 72, 77, 0.25)",
+});
+
+const bar = (
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+  background: string,
+): CSSProperties => ({
+  position: "absolute",
+  left,
+  top,
+  width,
+  height,
+  borderRadius: 2,
+  background,
+});
+
+/** The page at the moment Save was clicked. */
+export function ProofPage({ dark }: { dark: boolean }) {
+  const page = pageColors(dark);
+  const field = (top: number, width: number, value: string) => (
+    <>
+      <span style={bar(10, top, 26, 3, page.dim)} />
+      <span
+        style={{ ...bar(10, top + 6, 130, 12, page.field), border: `1px solid ${page.line}` }}
+      />
+      <span style={bar(14, top + 10, width, 4, value)} />
+    </>
+  );
+  return (
+    <Shot background={page.bg}>
+      <span style={bar(10, 7, 46, 6, page.fg)} />
+      {field(18, 40, page.fg)}
+      {field(39, 90, page.fg)}
+      <span style={bar(10, 60, 36, 3, page.dim)} />
+      <span style={{ ...bar(10, 66, 130, 12, page.field), border: `1px solid ${page.line}` }} />
+      {/* The token, hidden on this device. */}
+      <span style={bar(13, 68, 124, 8, "#111")} />
+      <span style={{ ...bar(10, 82, 30, 11, "#5146e5"), borderRadius: 3 }} />
+      <span style={box(6, 79, 38, 17)} />
+    </Shot>
+  );
+}
+
+/** DevTools with the error that Save threw. */
+export function ProofConsole({ dark }: { dark: boolean }) {
+  const tools = toolsColors(dark);
+  return (
+    <Shot background={tools.bg}>
+      <span style={bar(0, 0, SHOT.width, 12, tools.bar)} />
+      <span style={bar(8, 4, 22, 4, tools.dim)} />
+      <span style={bar(36, 4, 22, 4, tools.accent)} />
+      <span style={bar(64, 4, 22, 4, tools.dim)} />
+      <span style={bar(0, 20, SHOT.width, 38, tools.errorBg)} />
+      <span style={bar(8, 25, 120, 4, tools.errorFg)} />
+      <span style={bar(8, 33, 96, 4, tools.errorFg)} />
+      <span style={bar(16, 41, 80, 4, tools.errorFg)} />
+      <span style={bar(100, 49, 48, 4, tools.dim)} />
+      <span style={box(3, 21, 148, 36)} />
+      <span style={bar(8, 66, 6, 4, tools.accent)} />
+    </Shot>
   );
 }
 
@@ -384,7 +568,6 @@ export function ClaudeCodeWindow({
     bg: mac ? "#1e1e1e" : "#0c0c0c",
     fg: "#e6e6e6",
     dim: "#a8a8a8",
-    edge: "#000",
   };
   const pasted = t >= pasteAt;
   const flash = pasted ? 1 - ease(t, pasteAt, 700) : 0;
@@ -516,11 +699,13 @@ export const STRUCTURED: { text: string; kind?: "title" | "label" }[] = [
 export function ClaudeAppWindow({
   env,
   t,
+  focusAt,
   pasteAt,
   style,
 }: {
   env: Env;
   t: number;
+  focusAt: number;
   pasteAt: number;
   style: CSSProperties;
 }) {
@@ -535,7 +720,7 @@ export function ClaudeAppWindow({
     accent: "#c96442",
   };
   const pasted = t >= pasteAt;
-  const palette: Palette = { bar: c.side, bg: c.bg, fg: c.fg, dim: c.dim, edge: c.line };
+  const palette: Palette = { bar: c.side, bg: c.bg, fg: c.fg, dim: c.dim };
   const sideIcon = (node: ReactNode) => (
     <span style={{ width: 30, height: 30, borderRadius: 8, display: "grid", placeItems: "center" }}>
       {node}
@@ -633,7 +818,10 @@ export function ClaudeAppWindow({
                   </div>
                 ))
               ) : (
-                <span style={{ color: c.dim }}>How can I help you today?</span>
+                <>
+                  {t >= focusAt && <Caret t={t} color={c.fg} />}
+                  <span style={{ color: c.dim }}>How can I help you today?</span>
+                </>
               )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
@@ -714,12 +902,14 @@ function Avatar({ name, color, size }: { name: string; color: string; size: numb
 export function WhatsAppWindow({
   env,
   t,
+  focusAt,
   pasteAt,
   sendAt,
   style,
 }: {
   env: Env;
   t: number;
+  focusAt: number;
   pasteAt: number;
   sendAt: number;
   style: CSSProperties;
@@ -738,7 +928,7 @@ export function WhatsAppWindow({
     line: d ? "#222d34" : "#e9edef",
     green: "#00a884",
   };
-  const palette: Palette = { bar: c.head, bg: c.pane, fg: c.fg, dim: c.dim, edge: c.line };
+  const palette: Palette = { bar: c.head, bg: c.pane, fg: c.fg, dim: c.dim };
   const sent = t >= sendAt;
   const draft = t >= pasteAt && !sent;
   const bubble = (text: string, mine: boolean, time: string, style?: CSSProperties) => (
@@ -959,7 +1149,14 @@ export function WhatsAppWindow({
                 lineHeight: 1.4,
               }}
             >
-              {draft ? CLEAN : "Type a message"}
+              {draft ? (
+                CLEAN
+              ) : (
+                <>
+                  {t >= focusAt && <Caret t={t} color={c.fg} />}
+                  Type a message
+                </>
+              )}
             </div>
             {draft ? (
               <span

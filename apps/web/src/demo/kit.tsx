@@ -20,20 +20,36 @@ export const top = (env: Env, y: number) => (env.os === "mac" ? y + 16 : y);
 // ---------------------------------------------------------------------------------------------
 // Timing: everything is a function of t, ms into the current mode.
 
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
 /** 0 → 1 over [start, start + ms], eased out. */
 export function ease(t: number, start: number, ms = 360): number {
-  const p = Math.min(1, Math.max(0, (t - start) / ms));
-  return 1 - (1 - p) ** 3;
+  return 1 - (1 - clamp01((t - start) / ms)) ** 3;
+}
+
+/** 0 → 1 over [start, start + ms], eased in and out, for movement. */
+export function glide(t: number, start: number, ms: number): number {
+  const p = clamp01((t - start) / ms);
+  return p < 0.5 ? 4 * p ** 3 : 1 - (-2 * p + 2) ** 3 / 2;
 }
 
 export const between = (t: number, start: number, end: number) => t >= start && t < end;
 
-/** A window opening: scales up a touch and fades in. */
-export function opening(t: number, start: number): CSSProperties {
-  const e = ease(t, start, 380);
+/**
+ * A window coming to the front out of its dock icon: it grows from the icon's position, the way
+ * macOS and Windows open a window you launched.
+ */
+export function launch(
+  t: number,
+  start: number,
+  window: { left: number; top: number },
+  from: { x: number; y: number },
+): CSSProperties {
+  const e = ease(t, start, 460);
   return {
-    opacity: e,
-    transform: `translateY(${(1 - e) * 12}px) scale(${0.965 + e * 0.035})`,
+    opacity: clamp01((t - start) / 160),
+    transform: `scale(${0.08 + 0.92 * e})`,
+    transformOrigin: `${from.x - window.left}px ${from.y - window.top}px`,
     visibility: t < start ? "hidden" : "visible",
   };
 }
@@ -77,7 +93,7 @@ export function CaptionButtons({ color }: { color: string }) {
   );
 }
 
-export type Palette = { bar: string; bg: string; fg: string; dim: string; edge: string };
+export type Palette = { bar: string; bg: string; fg: string; dim: string };
 
 /**
  * A window as the OS draws it. `bar` replaces the plain title row (Chrome's tab strip, say); the
@@ -159,137 +175,37 @@ export function Frame({
 }
 
 // ---------------------------------------------------------------------------------------------
-// iVibe's own pieces: the pill and what you said.
+// The pointer and the keyboard.
 
-export type PillState = "listening" | "writing" | "done";
+/** A point in a pointer's path: arrive at (x, y) by `at`, having left the previous point at `from`. */
+export type Stop = { at: number; x: number; y: number; from?: number };
 
-/** The app's compact pill: listening (dotted waveform), writing (shimmer) or done (check). */
-export function Pill({ t, state, label }: { t: number; state: PillState; label?: string }) {
-  const box: CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 7,
-    height: 34,
-    paddingInline: 16,
-    borderRadius: 17,
-    background: "#1c1b19",
-    color: "#f2efe8",
-    fontSize: 12.5,
-    fontWeight: 550,
-    boxShadow: "0 10px 26px rgba(0,0,0,0.3), inset 0 0 0 0.5px rgba(255,255,255,0.12)",
-    whiteSpace: "nowrap",
-  };
-  if (state === "done") {
-    return (
-      <span style={box}>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#46a758"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M20 6 9 17l-5-5" />
-        </svg>
-        {label}
-      </span>
-    );
-  }
-  if (state === "writing") {
-    const x = (t / 6) % 220;
-    return (
-      <span style={box}>
-        <span
-          style={{
-            backgroundImage: `linear-gradient(90deg, #8f8a80 ${x - 50}px, #fdfcf9 ${x}px, #8f8a80 ${x + 50}px)`,
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            color: "transparent",
-          }}
-        >
-          {label ?? "Writing the prompt…"}
-        </span>
-      </span>
-    );
-  }
-  const dots = 13;
-  return (
-    <span style={{ ...box, gap: 4, paddingInline: 18 }}>
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: 3,
-          background: "#e5484d",
-          marginRight: 5,
-          opacity: 0.55 + 0.45 * Math.sin(t / 160),
-        }}
-      />
-      {Array.from({ length: dots }, (_, index) => {
-        const center = 1 - Math.abs(index - (dots - 1) / 2) / ((dots - 1) / 2);
-        const voice = Math.abs(Math.sin(t / 105 + index * 0.9) * Math.sin(t / 240 + index));
-        return (
-          <span
-            key={index}
-            style={{
-              width: 2.5,
-              height: 3 + center * voice * 15,
-              borderRadius: 2,
-              background: "#f2efe8",
-            }}
-          />
-        );
-      })}
-    </span>
-  );
-}
-
-/** What you said, live, above the pill. */
-export function Caption({ children }: { children: ReactNode }) {
-  return (
-    <div
-      style={{
-        maxWidth: 540,
-        padding: "9px 14px",
-        borderRadius: 12,
-        background: "rgba(28, 27, 25, 0.92)",
-        color: "#f2efe8",
-        fontSize: 14,
-        lineHeight: 1.45,
-        boxShadow: "0 10px 26px rgba(0,0,0,0.22)",
-        textAlign: "center",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-/** A pointer gliding along [time, x, y] points, with a ring on each click. */
-export function Cursor({
-  t,
-  path,
-  clicks = [],
-}: {
-  t: number;
-  path: [number, number, number][];
-  clicks?: number[];
-}) {
-  let x = path[0]![1];
-  let y = path[0]![2];
+/** Where the pointer is at t: it glides along a slight arc between stops, as a hand moves. */
+export function pointerAt(t: number, path: Stop[]): { x: number; y: number } {
+  let { x, y } = path[0]!;
   for (let index = 1; index < path.length; index++) {
-    const [time, nx, ny] = path[index]!;
-    const [prev] = path[index - 1]!;
-    const e = ease(t, prev, time - prev);
-    x = x + (nx - x) * e;
-    y = y + (ny - y) * e;
+    const stop = path[index]!;
+    const start = stop.from ?? path[index - 1]!.at;
+    if (t <= start) break;
+    const p = glide(t, start, stop.at - start);
+    const dx = stop.x - x;
+    const dy = stop.y - y;
+    // The arc bows to one side by a tenth of the distance, more in the middle of the move.
+    const bow = 0.1 * Math.sin(p * Math.PI);
+    const nx = x + dx * p - dy * bow;
+    const ny = y + dy * p + dx * bow;
+    if (p < 1) return { x: nx, y: ny };
+    x = stop.x;
+    y = stop.y;
   }
+  return { x, y };
+}
+
+export function Cursor({ t, path, clicks = [] }: { t: number; path: Stop[]; clicks?: number[] }) {
+  const { x, y } = pointerAt(t, path);
   const click = clicks.find((at) => between(t, at, at + 380));
   const ring = click === undefined ? 0 : (t - click) / 380;
-  const pressed = clicks.some((at) => between(t, at, at + 120));
+  const pressed = clicks.some((at) => between(t, at - 40, at + 110));
   return (
     <>
       {ring > 0 && (
@@ -301,8 +217,8 @@ export function Cursor({
             width: 32 * ring,
             height: 32 * ring,
             borderRadius: "50%",
-            background: "rgba(80, 120, 255, 0.25)",
-            border: "1.5px solid rgba(80, 120, 255, 0.6)",
+            background: "rgba(80, 120, 255, 0.22)",
+            border: "1.5px solid rgba(80, 120, 255, 0.55)",
             opacity: 1 - ring,
           }}
         />
@@ -315,7 +231,7 @@ export function Cursor({
           position: "absolute",
           left: x - 4,
           top: y - 2,
-          transform: `scale(${pressed ? 0.88 : 1})`,
+          transform: `scale(${pressed ? 0.86 : 1})`,
           transformOrigin: "4px 2px",
           filter: "drop-shadow(0 1px 2px rgba(0,0,0,.4))",
         }}
@@ -338,10 +254,10 @@ export function Cursor({
  */
 export function Keys({ combo, t, at }: { combo: string; t: number; at: number }) {
   const parts = combo.split("+");
-  const shown = ease(t, at - 650, 240) * (1 - ease(t, at + 2000, 400));
+  const shown = ease(t, at - 650, 240) * (1 - ease(t, at + 1700, 400));
   if (shown <= 0) return null;
   const release = at + 360;
-  const ring = Math.min(1, Math.max(0, (t - at) / 450));
+  const ring = clamp01((t - at) / 450);
   return (
     <div
       style={{
