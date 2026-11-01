@@ -33,6 +33,19 @@ export function glide(t: number, start: number, ms: number): number {
   return p < 0.5 ? 4 * p ** 3 : 1 - (-2 * p + 2) ** 3 / 2;
 }
 
+/** 0 → 1 over [start, start + ms] with a small overshoot, for things that pop in. */
+export function pop(t: number, start: number, ms = 420): number {
+  const p = clamp01((t - start) / ms);
+  const c = 1.7;
+  return 1 + (c + 1) * (p - 1) ** 3 + c * (p - 1) ** 2;
+}
+
+/** A short 0 → 1 → 0 bump over [start, start + ms]: a nod in time with a key press. */
+export function bump(t: number, start: number, ms = 320): number {
+  const p = (t - start) / ms;
+  return p <= 0 || p >= 1 ? 0 : Math.sin(p * Math.PI);
+}
+
 export const between = (t: number, start: number, end: number) => t >= start && t < end;
 
 /**
@@ -249,31 +262,64 @@ export function Cursor({ t, path, clicks = [] }: { t: number; path: Stop[]; clic
 }
 
 /**
- * The shortcut, pressed: keys show, go down one after another (modifiers first), come back up,
- * and fade out once the pill has taken over.
+ * The shortcut, pressed, in a bubble above the mascot: it pops up from the mascot, the keys go
+ * down one after another (modifiers first) and come back up, then it floats off and fades once
+ * the pill has taken over. It is positioned on its own, so nothing around it moves.
  */
-export function Keys({ combo, t, at }: { combo: string; t: number; at: number }) {
+export function Keys({
+  combo,
+  t,
+  at,
+  tail,
+}: {
+  combo: string;
+  t: number;
+  at: number;
+  /** How far from the bubble's right edge its tail points down, at the mascot. */
+  tail: number;
+}) {
   const parts = combo.split("+");
-  const shown = ease(t, at - 650, 240) * (1 - ease(t, at + 1700, 400));
-  if (shown <= 0) return null;
+  const enter = at - 600;
+  const leave = at + 1600;
+  if (t < enter || t > leave + 360) return null;
+  const grow = pop(t, enter, 420);
+  const gone = ease(t, leave, 360);
   const release = at + 360;
   const ring = clamp01((t - at) / 450);
+  const surface = "color-mix(in srgb, var(--color-background-surface) 92%, transparent)";
   return (
     <div
       style={{
-        position: "relative",
+        position: "absolute",
+        right: 0,
+        bottom: 0,
         display: "inline-flex",
         alignItems: "center",
         gap: 7,
         padding: "8px 11px",
         borderRadius: 13,
-        background: "color-mix(in srgb, var(--color-background-surface) 88%, transparent)",
+        whiteSpace: "nowrap",
+        background: surface,
         backdropFilter: "blur(10px)",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.18), inset 0 0 0 0.5px rgba(0,0,0,0.08)",
-        opacity: shown,
-        transform: `translateY(${(1 - shown) * 8}px)`,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.18), inset 0 0 0 1px var(--color-border)",
+        opacity: clamp01((t - enter) / 140) * (1 - gone),
+        transform: `translateY(${(1 - grow) * 10 - gone * 8}px) scale(${0.8 + 0.2 * grow})`,
+        transformOrigin: `calc(100% - ${tail}px) calc(100% + 8px)`,
       }}
     >
+      <span
+        style={{
+          position: "absolute",
+          right: tail - 6,
+          bottom: -5,
+          width: 12,
+          height: 12,
+          background: surface,
+          transform: "rotate(45deg)",
+          borderRadius: 2,
+          boxShadow: "inset -1px -1px 0 var(--color-border)",
+        }}
+      />
       {ring > 0 && ring < 1 && (
         <span
           style={{

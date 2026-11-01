@@ -34,7 +34,7 @@ import {
 import { Hud, Toast } from "./hud.tsx";
 import type { HudPhase, Segment } from "./hud.tsx";
 import type { App } from "./icons.tsx";
-import { between, Cursor, ease, H, Keys, launch, top, W } from "./kit.tsx";
+import { between, bump, Cursor, ease, H, Keys, launch, top, W } from "./kit.tsx";
 import type { Env, Stop } from "./kit.tsx";
 
 /**
@@ -299,6 +299,8 @@ function frozenFrame(): { mode: Mode; t: number } | null {
   return { mode: mode as Mode, t };
 }
 
+const MASCOT = 92;
+
 /** On a phone the whole desktop is too small to read, so it shows a part of it this wide. */
 const NARROW_VIEW = 600;
 
@@ -368,6 +370,7 @@ export function Demo({ theme }: { theme: ThemeMode }) {
   const pan = narrow ? Math.min(W - view, Math.max(0, now.focus(t) - view / 2)) : 0;
   const fade = ease(t, 0, 350) * (1 - ease(t, duration - 450, 400));
   const phase = now.hud(t);
+  const nod = Math.max(0, ...now.keys.map((press) => bump(t, press.at - 60)));
   const mac = env.os === "mac";
 
   return (
@@ -437,22 +440,38 @@ export function Demo({ theme }: { theme: ThemeMode }) {
             {phase && <Hud t={t} phase={phase} pressed={now.viewPressed?.(t)} />}
           </div>
 
-          {/* The mascot in the corner, with the shortcut being pressed just above it. */}
+          {/*
+            The mascot sits still in the corner and nods with each key press; the shortcut floats
+            above it on its own layer, so showing it never moves the mascot.
+          */}
           <div
             style={{
               position: "absolute",
               right: 16,
               bottom: mascotBottom(env),
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 4,
+              width: MASCOT,
+              height: MASCOT,
             }}
           >
+            <div
+              style={{
+                transform: `translateY(${nod * 3}px) scale(${1 + nod * 0.04}, ${1 - nod * 0.06})`,
+                transformOrigin: "50% 100%",
+              }}
+            >
+              <Mascot size={MASCOT} state={mascotState(phase)} />
+            </div>
+          </div>
+          <div style={{ position: "absolute", right: 12, bottom: mascotBottom(env) + MASCOT + 6 }}>
             {now.keys.map((press) => (
-              <Keys key={press.at} combo={press.combo} t={t} at={press.at} />
+              <Keys
+                key={press.at}
+                combo={press.combo}
+                t={t}
+                at={press.at}
+                tail={16 + MASCOT / 2 - 12}
+              />
             ))}
-            <Mascot size={92} state={mascotState(phase)} />
           </div>
 
           <div style={{ position: "absolute", inset: 0, opacity: fade, pointerEvents: "none" }}>
