@@ -435,9 +435,9 @@ export function Showcase({
     const to = b > 0 ? g.settled : g.desktop;
     const amount = b > 0 ? b : a;
     // Scale changes by the same ratio per step, which reads as a steady pull back.
-    const k = from.k * (to.k / from.k) ** amount;
-    const x = mix(from.x, to.x, amount);
-    const y = mix(from.y, to.y, amount);
+    let k = from.k * (to.k / from.k) ** amount;
+    let x = mix(from.x, to.x, amount);
+    let y = mix(from.y, to.y, amount);
     // The visible part of the screen: all of it in the hero, the card once settled.
     const left = g.card.left * b;
     const top = g.card.top * b;
@@ -450,6 +450,17 @@ export function Showcase({
       bottom: Math.max(0, vh - top - height),
     };
     const radius = 22 * b;
+    // The desktop always fills the visible window, edge to edge, so nothing shows around it
+    // while the window shrinks into the card: only its corners round.
+    if (b > 0) {
+      const right = vw - rect.right;
+      const bottom = vh - rect.bottom;
+      k = Math.max(k, (right - left) / W, (bottom - top) / H);
+      const worldLeft = Math.min(left, Math.max(right - W * k, x - g.pill.x * k));
+      const worldTop = Math.min(top, Math.max(bottom - H * k, y - g.pill.y * k));
+      x = worldLeft + g.pill.x * k;
+      y = worldTop + g.pill.y * k;
+    }
 
     if (world.current) {
       world.current.style.transform = `translate(${x - g.pill.x * k}px, ${y - g.pill.y * k}px) scale(${k})`;
