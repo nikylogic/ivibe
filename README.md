@@ -127,7 +127,8 @@ Updated **Oct 29, 2026**, when 0.1 was released. iVibe is being built in public 
 
 - [ ] Evaluation suite: voice cases and a set of 20 recorded bugs
 - [ ] Code signing for Windows and macOS
-- [ ] After the hackathon: Vibes (your own modes) and community plugins ([plan](docs/vibes-and-prompts.md))
+- [ ] After the hackathon: Vibes, where everything is a vibe, even Fix, Prompt and Dictate, and you can describe a new one instead of coding it ([plan](docs/vibes-and-prompts.md))
+- [ ] Then: the note taker, built as a vibe
 
 ## Development
 

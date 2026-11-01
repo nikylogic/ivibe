@@ -2,6 +2,8 @@
 
 Status: **approved direction, details open** (October 27, 2026). Adds decisions D21 (prompt stack and evals), D22 (Vibes) and D23 (community plugins) to [architecture.md](architecture.md).
 
+**Direction update (November 1, 2026):** iVibe moves towards an everything-is-a-plugin design, in the spirit of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), driven by voice. Everything is a vibe: Fix, Prompt, Dictate and the coming note taker are all removable pieces, and users describe new ones by voice instead of writing code. The one exception is safety: secret redaction, key protection and permission checks stay outside what any vibe can remove (§5.3). This replaces the split below between no-code vibes and developer-only plugins (§8), and those sections still need rewriting to match.
+
 **Timing:** the prompt stack and evals (§4) ship before the hackathon deadline (Nov 4). **Vibes** (§1–3, §5) roll out after the hackathon, followed by **community plugins** (§8).
 
 A **vibe** is what iVibe does with a recording. Fix, Prompt and Dictate are the first three. Anyone can make their own: a Jira ticket from a screen recording, a polite Slack reply from a rant, a commit message from narration, a UX review of what's on screen, a mockup image from a description.

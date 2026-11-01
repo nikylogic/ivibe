@@ -80,7 +80,7 @@ const still = () => window.matchMedia("(prefers-reduced-motion: reduce)").matche
  * A story clock: `t` runs from 0 to `total` while the band is on screen, rests a moment, and
  * starts over. Off screen it stops.
  */
-function useClock(total: number, rest = 1800) {
+export function useClock(total: number, rest = 1800) {
   const box = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [t, setT] = useState(0);
@@ -120,7 +120,7 @@ export function look(target: HTMLElement | null) {
 }
 
 /** A scene in fixed pixels, scaled down to fit its column, with the mode's light behind it. */
-function Scene({
+export function Scene({
   clock,
   width,
   height,

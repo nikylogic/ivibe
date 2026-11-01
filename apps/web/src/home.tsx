@@ -22,6 +22,7 @@ import { ivibeTheme } from "./theme.ts";
 import { heroMascotSize, Nav } from "./nav.tsx";
 import { Features } from "./features.tsx";
 import { Faq } from "./faq.tsx";
+import { Roadmap } from "./roadmap.tsx";
 import { Pricing } from "./pricing.tsx";
 
 /** What the headline says iVibe does, one mode at a time. */
@@ -385,6 +386,7 @@ export function Home({
         <Features />
         <Pricing />
         <Faq />
+        <Roadmap />
       </main>
     </div>
   );
