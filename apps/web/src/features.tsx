@@ -239,29 +239,6 @@ function Band({
   );
 }
 
-/** A keycap as it sits on a real keyboard. */
-function Keycap({ label, width = 52 }: { label: string; width?: number }) {
-  return (
-    <span
-      style={{
-        display: "grid",
-        placeItems: "center",
-        width,
-        height: 48,
-        borderRadius: 10,
-        background: "var(--color-background-card)",
-        color: "var(--color-text-primary)",
-        fontSize: 13.5,
-        fontWeight: 500,
-        boxShadow:
-          "inset 0 0 0 1px var(--color-border), 0 3px 0 var(--color-border), 0 10px 18px -10px rgba(0,0,0,0.3)",
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
 // 1. Press a key. Just talk. -------------------------------------------------------------------
 //
 // Your words appear as you say them, ums and all. When you stop, the fillers and the false start
@@ -296,7 +273,6 @@ const WORDS: Word[] = [
 
 /** The story, in ms. */
 const KEY = 350;
-const LISTEN = 550;
 const SAY = 850;
 const STEP = 165;
 const STOP = SAY + WORDS.length * STEP + 250;
@@ -388,6 +364,256 @@ function at(box: { left: number; top: number; width: number }): CSSProperties {
 
 const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
 
+/** A key on a real keyboard: a lit face over a skirt that shortens as it goes down. */
+function Key({
+  x,
+  y,
+  width = 46,
+  legend,
+  glyph,
+  down = 0,
+  glow = 0,
+  led,
+}: {
+  x: number;
+  y: number;
+  width?: number;
+  /** The small word in the corner ("caps lock", "option"). */
+  legend?: string;
+  /** The big symbol ("⌥", "Q"). */
+  glyph?: string;
+  /** 0 up, 1 fully pressed. */
+  down?: number;
+  /** How lit it is in the pill's colour. */
+  glow?: number;
+  /** Caps Lock's light: undefined for keys without one, else how lit (0 to 1). */
+  led?: number;
+}) {
+  return (
+    <span
+      style={{
+        position: "absolute",
+        left: x,
+        top: y,
+        width,
+        height: 46,
+        borderRadius: 9,
+        background:
+          "linear-gradient(180deg, var(--color-background-card) 0%, color-mix(in srgb, var(--color-background-card) 94%, var(--color-text-primary)) 100%)",
+        boxShadow: [
+          "inset 0 0 0 1px var(--color-border)",
+          `0 ${(3 - 2 * down).toFixed(2)}px 0 var(--color-border)`,
+          `0 ${(9 - 5 * down).toFixed(2)}px 16px -10px rgba(0,0,0,0.4)`,
+          `0 0 0 ${(1.5 * glow).toFixed(2)}px ${tone("Dictate", 0.75 * glow)}`,
+          `0 0 22px ${tone("Dictate", 0.32 * glow)}`,
+        ].join(", "),
+        transform: `translateY(${(2 * down).toFixed(2)}px)`,
+        color: "var(--color-text-secondary)",
+        fontWeight: 500,
+      }}
+    >
+      {led !== undefined && (
+        <span
+          style={{
+            position: "absolute",
+            left: 8,
+            top: 8,
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            background: `color-mix(in srgb, ${tone("Dictate")} ${led * 100}%, var(--color-border))`,
+            boxShadow: `0 0 ${(8 * led).toFixed(2)}px ${(1.5 * led).toFixed(2)}px ${tone("Dictate", 0.7 * led)}`,
+          }}
+        />
+      )}
+      {glyph && (
+        <span
+          style={{
+            position: "absolute",
+            right: legend ? 8 : undefined,
+            left: legend ? undefined : 0,
+            width: legend ? undefined : "100%",
+            textAlign: "center",
+            top: legend ? 6 : 12,
+            fontSize: legend ? 13 : 15,
+            color: "var(--color-text-primary)",
+          }}
+        >
+          {glyph}
+        </span>
+      )}
+      {legend && (
+        <span style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10.5 }}>{legend}</span>
+      )}
+    </span>
+  );
+}
+
+/** One pressed key: a soft press and release. */
+const press = (t: number, at: number) => bump(t, at, 240);
+
+/**
+ * A slice of a real keyboard around the shortcut, fading out at its edges. On Windows it's Caps
+ * Lock, whose light turns on for as long as you talk; on a Mac, Option and Space.
+ */
+function Keyboard({ t, mac }: { t: number; mac: boolean }) {
+  const down = press(t, KEY) + press(t, STOP);
+  const glow = Math.max(down, 0);
+  const led = ease(t, KEY + 80, 180) * (1 - ease(t, STOP + 80, 180));
+  const row = (index: number) => index * 52;
+  const keys = mac ? (
+    <>
+      <Key x={0} y={row(0)} width={98} legend="shift" glyph="⇧" />
+      <Key x={104} y={row(0)} glyph="Z" />
+      <Key x={156} y={row(0)} glyph="X" />
+      <Key x={208} y={row(0)} glyph="C" />
+      <Key x={260} y={row(0)} glyph="V" />
+      <Key x={0} y={row(1)} legend="fn" />
+      <Key x={52} y={row(1)} legend="control" glyph="⌃" />
+      <Key x={104} y={row(1)} legend="option" glyph="⌥" down={down} glow={glow} />
+      <Key x={156} y={row(1)} width={56} legend="command" glyph="⌘" />
+      <Key x={218} y={row(1)} width={210} down={down} glow={glow} />
+    </>
+  ) : (
+    <>
+      <Key x={0} y={row(0)} width={70} legend="tab" />
+      <Key x={76} y={row(0)} glyph="Q" />
+      <Key x={128} y={row(0)} glyph="W" />
+      <Key x={180} y={row(0)} glyph="E" />
+      <Key x={0} y={row(1)} width={84} legend="caps lock" led={led} down={down} glow={glow} />
+      <Key x={90} y={row(1)} glyph="A" />
+      <Key x={142} y={row(1)} glyph="S" />
+      <Key x={194} y={row(1)} glyph="D" />
+      <Key x={0} y={row(2)} width={108} legend="shift" />
+      <Key x={114} y={row(2)} glyph="Z" />
+      <Key x={166} y={row(2)} glyph="X" />
+    </>
+  );
+  // The shortcut sits at the centre of the scene, and the slice fades out around it.
+  const focus = mac ? { x: 262, y: row(1) + 23 } : { x: 42, y: row(1) + 23 };
+  const mask = `radial-gradient(ellipse 230px 78px at ${focus.x}px ${focus.y}px, #000 45%, transparent 100%)`;
+  const shown = ease(t, 0, 380);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 280 - focus.x,
+        top: KEYS_TOP - focus.y,
+        width: 440,
+        height: 160,
+        maskImage: mask,
+        WebkitMaskImage: mask,
+        opacity: shown,
+        transform: `translateY(${((1 - shown) * 10).toFixed(2)}px) scale(1.2)`,
+        transformOrigin: `${focus.x}px ${focus.y}px`,
+      }}
+    >
+      {keys}
+    </div>
+  );
+}
+
+/** Where the shortcut key's centre sits in the scene. */
+const KEYS_TOP = 392;
+/** Where the compact pill sits. */
+const PILL_TOP = 238;
+const EMERGE = KEY + 90;
+
+/** The compact pill's bars: tallest in the middle (shared/voice-wave.tsx). */
+const envelope = (index: number, count: number) => {
+  const x = (index - (count - 1) / 2) / ((count - 1) / 2);
+  return 0.5 + 0.5 * Math.cos((x * Math.PI) / 2) ** 1.4;
+};
+
+/**
+ * The app's compact pill (hud/compact.tsx): a small capsule with only a waveform while you talk;
+ * working, the voice settles into a line with light running along it; with the result it goes.
+ * It rises out of the key that started it.
+ */
+function TinyPill({ t }: { t: number }) {
+  const listening = t < STOP;
+  const appear = ease(t, EMERGE, 460);
+  const gone = ease(t, PASTED, 300);
+  const speaking = t > SAY - 80 && t < STOP - 200;
+  const voice = speaking
+    ? 0.55 + 0.25 * Math.sin(t / 130) + 0.2 * Math.sin(t / 53 + 1.7)
+    : 0.16 + 0.04 * Math.sin(t / 300);
+  const ink = "#f2efe8";
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: PILL_TOP,
+        display: "flex",
+        justifyContent: "center",
+        opacity: appear * (1 - gone),
+        transform: `translateY(${((1 - appear) * (KEYS_TOP - PILL_TOP - 18) + gone * 6).toFixed(2)}px) scale(${(0.45 + 0.55 * appear).toFixed(3)})`,
+      }}
+    >
+      <span
+        style={{
+          position: "relative",
+          width: listening ? 104 : 84,
+          height: 36,
+          borderRadius: 999,
+          background: "rgba(15, 14, 13, 0.94)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          boxShadow: `0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2), 0 0 26px -4px ${tone("Dictate", 0.45)}`,
+          transition: "width 225ms var(--motion-ease)",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 3,
+            opacity: listening ? 1 : 0,
+            transition: "opacity 125ms ease",
+          }}
+        >
+          {Array.from({ length: 13 }, (_, index) => {
+            const sway = 0.8 + 0.2 * Math.sin(t / 95 - index * 0.6);
+            const level = Math.min(1, Math.max(0.16, envelope(index, 13) * voice * sway));
+            return (
+              <span
+                key={index}
+                style={{
+                  width: 2.5,
+                  height: 18,
+                  borderRadius: 2,
+                  background: ink,
+                  transform: `scaleY(${level.toFixed(3)})`,
+                }}
+              />
+            );
+          })}
+        </span>
+        <span
+          style={{
+            position: "absolute",
+            left: 13,
+            right: 13,
+            top: 17,
+            height: 2,
+            borderRadius: 999,
+            backgroundImage:
+              "linear-gradient(90deg, rgba(242,239,232,0.18) 0%, rgba(242,239,232,0.18) 35%, rgba(242,239,232,0.95) 50%, rgba(242,239,232,0.18) 65%, rgba(242,239,232,0.18) 100%)",
+            backgroundSize: "300% 100%",
+            backgroundPosition: `${(100 - ((t / 1400) % 1) * 100).toFixed(2)}% 0`,
+            opacity: listening ? 0 : 1,
+            transition: "opacity 125ms ease",
+          }}
+        />
+      </span>
+    </div>
+  );
+}
+
 function TalkScene() {
   const clock = useClock(TALK_MS, 500);
   const t = still() ? TALK_STILL : clock.t;
@@ -395,19 +621,11 @@ function TalkScene() {
   const { spots, measure } = useSpots();
   // Everything fades together at the end of the loop.
   const shown = 1 - ease(t, OUT, 420);
-  const phase: HudPhase | null =
-    t < LISTEN
-      ? null
-      : t < STOP
-        ? { kind: "listening", since: LISTEN, hint: "Listening. Speak naturally.", segments: [] }
-        : t < PASTED
-          ? { kind: "working", label: "Cleaning up your words for WhatsApp…" }
-          : { kind: "pasted", label: "Pasted into WhatsApp" };
   const box = ease(t, BOX, 420);
   let kept = 0;
   let dropped = 0;
   return (
-    <Scene clock={clock} width={560} height={400} hue="Dictate">
+    <Scene clock={clock} width={560} height={440} hue="Dictate">
       {measure}
       {/* WhatsApp's message box, appearing around the clean sentence. */}
       {spots && (
@@ -496,32 +714,10 @@ function TalkScene() {
             </span>
           );
         })}
-      {/* The shortcut, pressed where the pill then opens. */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 22,
-          display: "flex",
-          justifyContent: "center",
-          opacity: 1 - ease(t, LISTEN - 60, 200),
-          transform: `translateY(${bump(t, KEY, 260) * 3}px) scale(${1 - ease(t, LISTEN - 60, 200) * 0.1})`,
-        }}
-      >
-        <span style={{ display: "flex", gap: 8 }}>
-          {mac ? (
-            <>
-              <Keycap label="⌥" />
-              <Keycap label="space" width={92} />
-            </>
-          ) : (
-            <Keycap label="Caps Lock" width={108} />
-          )}
-        </span>
-      </div>
+      {/* The shortcut on a real keyboard, and the pill rising out of it. */}
       <div style={{ position: "absolute", inset: 0, opacity: shown }}>
-        <PillAt phase={phase} t={t} />
+        <Keyboard t={t} mac={mac} />
+        <TinyPill t={t} />
       </div>
     </Scene>
   );
