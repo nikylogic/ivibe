@@ -32,6 +32,7 @@
   "vars": {
     "API_URL": "https://api.ivibe.tech",
     "AUTH_URL": "https://auth.ivibe.tech",
+    "SITE_URL": "https://ivibe.tech",
     "APP_SCHEME": "tech.ivibe.app",
     // Live mode (Oct 29). For test mode: https://test.dodopayments.com with the test key,
     // product and webhook secret.

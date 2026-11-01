@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
+import { Link } from "@astryxdesign/core/Link";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { Theme } from "@astryxdesign/core/theme";
+import { BUY_URL, fetchAccount, signOutOfWeb } from "./account.ts";
+import type { WebAccount } from "./account.ts";
 import { glide, MONO } from "./demo/kit.tsx";
 import { ivibeTheme } from "./theme.ts";
 
@@ -73,7 +77,7 @@ const styles = stylex.create({
     flexDirection: "column",
     alignItems: "center",
     textAlign: "center",
-    gap: 20,
+    gap: 6,
     marginTop: 48,
   },
 });
@@ -105,7 +109,7 @@ const PLANS: {
   {
     name: "Pro",
     action: "Buy",
-    href: "/download?plan=pro",
+    href: BUY_URL,
     rows: [
       { label: "API key", value: "not needed" },
       { label: "Usage", value: "400 credits a month" },
@@ -330,8 +334,48 @@ export function Awake() {
   );
 }
 
+/** What Buy came back with, when it didn't end in a purchase. */
+const NOTICES: Record<string, string> = {
+  failed: "The payment didn't go through. You weren't charged.",
+  cancelled: "Sign-in didn't finish. You weren't charged.",
+};
+
+function useBuyNotice() {
+  const [notice] = useState(
+    () => NOTICES[new URLSearchParams(window.location.search).get("buy") ?? ""],
+  );
+  useEffect(() => {
+    // Said once: a reload or a shared link shouldn't say it again.
+    if (notice) window.history.replaceState(null, "", `/${window.location.hash}`);
+  }, [notice]);
+  return notice;
+}
+
+/** Who's signed in, asked only as the plans come near, since most visitors never buy. */
+function useAccountNear(box: RefObject<HTMLDivElement | null>) {
+  const [account, setAccount] = useState<WebAccount | null>(null);
+  useEffect(() => {
+    const element = box.current;
+    if (!element) return;
+    const watch = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        watch.disconnect();
+        void fetchAccount().then(setAccount);
+      },
+      { rootMargin: "800px" },
+    );
+    watch.observe(element);
+    return () => watch.disconnect();
+  }, [box]);
+  return { account, setAccount };
+}
+
 export function Pricing() {
   const { box, t } = usePrint();
+  const notice = useBuyNotice();
+  const { account, setAccount } = useAccountNear(box);
+  const pro = account?.signedIn === true && account.pro;
   return (
     <section id="pricing" {...stylex.props(styles.section)}>
       <div {...stylex.props(styles.words)}>
@@ -340,19 +384,42 @@ export function Pricing() {
             Pick how you run it.
           </Heading>
           <Text size="lg" color="secondary">
-            Same app, every plan.
+            {notice ?? "Same app, every plan."}
           </Text>
         </VStack>
       </div>
       <div ref={box} {...stylex.props(styles.receipts)}>
         {PLANS.map((plan, index) => (
-          <Receipt key={plan.name} {...plan} t={t - index * STAGGER_MS} />
+          <Receipt
+            key={plan.name}
+            {...plan}
+            action={plan.featured && pro ? "Manage" : plan.action}
+            t={t - index * STAGGER_MS}
+          />
         ))}
       </div>
       <div {...stylex.props(styles.after)}>
         <Text color="secondary">
           Free credits need a GitHub sign-in. Pro credits reset monthly.
         </Text>
+        <Text size="sm" color="secondary">
+          By buying you agree to the <Link href="/terms">Terms</Link> and{" "}
+          <Link href="/refunds">Refunds</Link>.
+        </Text>
+        {account?.signedIn && (
+          <Text size="sm" color="secondary">
+            {account.login ? `Signed in as @${account.login} · ` : ""}
+            <Link
+              onClick={() => {
+                void signOutOfWeb().then((done) => {
+                  if (done) setAccount({ signedIn: false });
+                });
+              }}
+            >
+              Sign out
+            </Link>
+          </Text>
+        )}
       </div>
     </section>
   );

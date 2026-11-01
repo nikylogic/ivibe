@@ -817,8 +817,8 @@ const PAGES: DocPage[] = [
         body: (
           <P>
             $8 a month for 400 credits and encrypted <To page="backups">backups</To>, no key needed.
-            Buy it in the app and manage or cancel it from the billing portal. Credits reset at each
-            renewal and don&apos;t roll over.
+            Buy it from <Link href="/#pricing">pricing</Link> or in the app, and manage or cancel it
+            from the billing portal. Credits reset at each renewal and don&apos;t roll over.
           </P>
         ),
       },

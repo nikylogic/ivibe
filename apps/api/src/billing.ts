@@ -15,6 +15,7 @@ import { now } from "./util.ts";
  * left at a renewal is replaced, and when the plan ends the balance goes to zero.
  *
  *   POST /v1/billing/checkout  → a Dodo checkout URL (or the portal, if already subscribed)
+ *   GET  auth.ivibe.tech/buy   → the same, from the website (web.ts)
  *   POST /v1/billing/portal    → the Dodo customer portal (cancel, card, invoices)
  *   GET  /v1/billing/return    → the page Dodo sends the browser back to
  *   POST /v1/billing/webhook   → Dodo's signed events (Standard Webhooks)
@@ -99,10 +100,15 @@ async function dodo<T>(env: Env, path: string, body?: object): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function portalLink(c: Ctx, customerId: string): Promise<string> {
-  const back = encodeURIComponent(`${c.env.API_URL}/v1/billing/return?from=portal`);
+/** Where the buyer started: decides where Dodo sends them back to. */
+type BoughtFrom = "app" | "web";
+
+async function portalLink(env: Env, customerId: string, from: BoughtFrom = "app"): Promise<string> {
+  const back = encodeURIComponent(
+    `${env.API_URL}/v1/billing/return?from=${from === "web" ? "web-portal" : "portal"}`,
+  );
   const { link } = await dodo<{ link: string }>(
-    c.env,
+    env,
     `/customers/${encodeURIComponent(customerId)}/customer-portal/session?return_url=${back}`,
   );
   return link;
@@ -116,23 +122,20 @@ const latestCustomer = (db: D1Database, userId: string) =>
     .bind(userId)
     .first<{ customer_id: string; status: string }>();
 
-export async function checkoutRoute(c: Ctx): Promise<Response> {
-  const settings = await loadSettings(c.env.DB);
-  if (!planOffer(c.env, settings).available) {
-    return apiError(
-      c,
-      503,
-      "billing_unavailable",
-      "iVibe Pro is coming soon. Until then, add your own Meta API key in Settings to keep going for free.",
-    );
-  }
-  const { userId } = c.get("session");
-  const last = await latestCustomer(c.env.DB, userId);
+/** A Dodo checkout, or the portal for someone already on Pro; null when Pro isn't on sale. */
+export async function purchaseLink(
+  env: Env,
+  userId: string,
+  from: BoughtFrom,
+): Promise<{ url: string; portal: boolean } | null> {
+  const settings = await loadSettings(env.DB);
+  if (!planOffer(env, settings).available) return null;
+  const last = await latestCustomer(env.DB, userId);
   // Already on Pro: a second checkout would double-bill, so send them to manage it instead.
   if (last && SUBSCRIBED.has(last.status)) {
-    return c.json({ url: await portalLink(c, last.customer_id), portal: true });
+    return { url: await portalLink(env, last.customer_id, from), portal: true };
   }
-  const user = await c.env.DB.prepare("SELECT email, name, github_login FROM users WHERE id = ?")
+  const user = await env.DB.prepare("SELECT email, name, github_login FROM users WHERE id = ?")
     .bind(userId)
     .first<{ email: string | null; name: string | null; github_login: string | null }>();
   const customer = last
@@ -140,15 +143,28 @@ export async function checkoutRoute(c: Ctx): Promise<Response> {
     : user?.email
       ? { email: user.email, name: user.name ?? user.github_login ?? user.email }
       : undefined;
-  const session = await dodo<{ checkout_url: string | null }>(c.env, "/checkouts", {
+  const session = await dodo<{ checkout_url: string | null }>(env, "/checkouts", {
     product_cart: [{ product_id: settings.plan.productId, quantity: 1 }],
     ...(customer ? { customer } : {}),
     // Copied onto the subscription and its payments, which is how webhooks find the account.
     metadata: { user_id: userId },
-    return_url: `${c.env.API_URL}/v1/billing/return`,
+    return_url: `${env.API_URL}/v1/billing/return${from === "web" ? "?from=web" : ""}`,
   });
   if (!session.checkout_url) throw new Error("Dodo returned no checkout_url");
-  return c.json({ url: session.checkout_url, portal: false });
+  return { url: session.checkout_url, portal: false };
+}
+
+export async function checkoutRoute(c: Ctx): Promise<Response> {
+  const link = await purchaseLink(c.env, c.get("session").userId, "app");
+  if (!link) {
+    return apiError(
+      c,
+      503,
+      "billing_unavailable",
+      "iVibe Pro is coming soon. Until then, add your own Meta API key in Settings to keep going for free.",
+    );
+  }
+  return c.json(link);
 }
 
 export async function portalRoute(c: Ctx): Promise<Response> {
@@ -157,13 +173,21 @@ export async function portalRoute(c: Ctx): Promise<Response> {
   }
   const last = await latestCustomer(c.env.DB, c.get("session").userId);
   if (!last) return apiError(c, 400, "no_subscription", "You don't have an iVibe Pro plan yet.");
-  return c.json({ url: await portalLink(c, last.customer_id) });
+  return c.json({ url: await portalLink(c.env, last.customer_id) });
 }
 
 /** Where Dodo sends the browser after checkout (`?status=active|failed|…`) or the portal. */
 export function returnPage(c: Ctx): Response {
   const appLink = `${c.env.APP_SCHEME}://billing`;
-  if (c.req.query("from") === "portal") {
+  const from = c.req.query("from");
+  if (from === "web-portal") return c.redirect(`${c.env.SITE_URL}/#pricing`);
+  if (from === "web") {
+    const status = c.req.query("status");
+    return status && status !== "active" && status !== "succeeded"
+      ? c.redirect(`${c.env.SITE_URL}/?buy=failed#pricing`)
+      : c.redirect(`${c.env.SITE_URL}/welcome`);
+  }
+  if (from === "portal") {
     return c.html(page("All set", "You can go back to iVibe now.", appLink));
   }
   const status = c.req.query("status");

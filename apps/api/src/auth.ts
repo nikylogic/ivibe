@@ -6,6 +6,7 @@ import type { AppEnv, Env } from "./env.ts";
 import { apiError } from "./runs.ts";
 import { loadSettings } from "./settings.ts";
 import { now, pkceChallenge, randomToken, sha256, toCredits } from "./util.ts";
+import { finishWebSignIn, startedHere } from "./web.ts";
 import { balanceOf, trialOnly, trialState } from "./wallet.ts";
 
 /**
@@ -36,12 +37,17 @@ export async function githubStart(c: Ctx): Promise<Response> {
   await c.env.DB.prepare("INSERT INTO oauth_states (state, challenge, created_at) VALUES (?, ?, ?)")
     .bind(state, challenge, now())
     .run();
+  return c.redirect(githubAuthorizeUrl(c, state));
+}
+
+/** GitHub's sign-in page, for the app and the website alike. */
+export function githubAuthorizeUrl(c: Ctx, state: string): string {
   const url = new URL("https://github.com/login/oauth/authorize");
   url.searchParams.set("client_id", c.env.GITHUB_CLIENT_ID);
   url.searchParams.set("redirect_uri", `${c.env.AUTH_URL}/github/callback`);
   url.searchParams.set("scope", "read:user user:email");
   url.searchParams.set("state", state);
-  return c.redirect(url.toString());
+  return url.toString();
 }
 
 interface GitHubUser {
@@ -127,13 +133,20 @@ export async function githubCallback(c: Ctx): Promise<Response> {
   const state = c.req.query("state") ?? "";
   const code = c.req.query("code");
   const saved = await db
-    .prepare("DELETE FROM oauth_states WHERE state = ? RETURNING challenge, created_at")
+    .prepare("DELETE FROM oauth_states WHERE state = ? RETURNING challenge, created_at, purpose")
     .bind(state)
-    .first<{ challenge: string; created_at: number }>();
+    .first<{ challenge: string; created_at: number; purpose: string }>();
+  // A website sign-in that didn't finish goes quietly back to the pricing section.
+  const backToPricing = () => c.redirect(`${c.env.SITE_URL}/?buy=cancelled#pricing`);
+  const web = saved?.purpose === "web";
+  if (web && (!code || !startedHere(c, state) || now() - saved.created_at > STATE_TTL_MS)) {
+    return backToPricing();
+  }
   if (!saved || !code || now() - saved.created_at > STATE_TTL_MS) {
     return c.html(page("Sign-in expired", "Start again from the iVibe app."), 400);
   }
   const user = await githubUser(c, code);
+  if (!user && web) return backToPricing();
   if (!user)
     return c.html(
       page("Sign-in failed", "GitHub didn't confirm the sign-in. Try again from the iVibe app."),
@@ -141,6 +154,7 @@ export async function githubCallback(c: Ctx): Promise<Response> {
     );
 
   const userId = await upsertUser(db, user);
+  if (web) return finishWebSignIn(c, userId);
   const loginCode = randomToken();
   await db
     .prepare(

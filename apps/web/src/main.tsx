@@ -16,11 +16,13 @@ import { BlogPage } from "./blog.tsx";
 import { DocsPage } from "./docs.tsx";
 import { DownloadPage } from "./download.tsx";
 import { LegalPage } from "./legal.tsx";
+import { WelcomePage } from "./welcome.tsx";
 import type { LegalPageName } from "./legal.tsx";
 
 /** Anything that isn't one of these pages is the home page. */
 const path = window.location.pathname.replace(/\/+$/, "");
 const onDownload = path === "/download";
+const onWelcome = path === "/welcome";
 const onDocs = path === "/docs" || path.startsWith("/docs/");
 const onBlog = path === "/blog" || path.startsWith("/blog/");
 const legalPage: LegalPageName | null =
@@ -56,6 +58,8 @@ function App() {
         <BlogPage mode={mode} onModeChange={setMode} />
       ) : onDocs ? (
         <DocsPage mode={mode} onModeChange={setMode} />
+      ) : onWelcome ? (
+        <WelcomePage mode={mode} onModeChange={setMode} />
       ) : onDownload ? (
         <DownloadPage mode={mode} onModeChange={setMode} />
       ) : (

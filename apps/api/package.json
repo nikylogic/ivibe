@@ -6,7 +6,7 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
-    "dev": "npx wrangler@4.154.0 dev --var API_URL:http://localhost:8787 --var AUTH_URL:http://localhost:8787/auth",
+    "dev": "npx wrangler@4.154.0 dev --var API_URL:http://localhost:8787 --var AUTH_URL:http://localhost:8787/auth --var SITE_URL:http://localhost:5280",
     "deploy": "npx wrangler@4.154.0 d1 migrations apply ivibe --remote && npx wrangler@4.154.0 deploy",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests"

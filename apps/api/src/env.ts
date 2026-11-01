@@ -8,6 +8,8 @@ export interface Env {
   API_URL: string;
   /** https://auth.ivibe.tech; GitHub redirects back here. */
   AUTH_URL: string;
+  /** https://ivibe.tech: the one site allowed to ask who's signed in, and where buyers return. */
+  SITE_URL: string;
   APP_SCHEME: string;
   META_API_KEY: string;
   GITHUB_CLIENT_ID: string;

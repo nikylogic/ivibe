@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import {
   backupDeleteObjectRoute,
   backupDeleteRoute,
@@ -18,16 +19,21 @@ import { loadSettings } from "./settings.ts";
 import { usageRoute } from "./usage.ts";
 import { now } from "./util.ts";
 import { settleStale } from "./wallet.ts";
+import { buyRoute, webMeRoute, webSignOutRoute } from "./web.ts";
 
 /** iVibe Cloud (docs/architecture.md §6). */
 
-/** auth.ivibe.tech: GitHub sign-in for the desktop app. */
+/** auth.ivibe.tech: GitHub sign-in for the desktop app, and buying Pro from the website. */
 const auth = new Hono<AppEnv>();
 auth.get("/", (c) => c.redirect("https://ivibe.tech"));
 auth.get("/github", githubStart);
 auth.get("/github/callback", githubCallback);
 auth.post("/token", exchangeToken);
 auth.post("/sign-out", signOut);
+auth.get("/buy", buyRoute);
+auth.use("/web/*", (c, next) => cors({ origin: c.env.SITE_URL, credentials: true })(c, next));
+auth.get("/web/me", webMeRoute);
+auth.post("/web/sign-out", webSignOutRoute);
 
 /** api.ivibe.tech: everything the app calls once signed in. */
 const api = new Hono<AppEnv>();
@@ -97,6 +103,7 @@ export default {
       env.DB.prepare("DELETE FROM oauth_states WHERE created_at < ?").bind(now() - day),
       env.DB.prepare("DELETE FROM login_codes WHERE expires_at < ?").bind(now()),
       env.DB.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now()),
+      env.DB.prepare("DELETE FROM web_sessions WHERE expires_at < ?").bind(now()),
       env.DB.prepare("DELETE FROM webhook_events WHERE received_at < ?").bind(now() - 30 * day),
     ]);
     const expired = await expireBackups(env);
