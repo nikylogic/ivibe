@@ -312,6 +312,8 @@ export class MascotScene {
   #look = new Vector2();
   #doneAt = 0;
   #shyAt = 0;
+  /** Extra seconds the shy hello stays hidden, peeking back now and then, before it smiles. */
+  #shyHold = 0;
   #blinkAt = -10_000;
   #doubleBlink = false;
   #frame = 0;
@@ -482,6 +484,14 @@ export class MascotScene {
     if (state === "done") this.#doneAt = this.#now();
     if (state === "shy") this.#shyAt = this.#now();
     this.#wake(1200);
+  }
+
+  /**
+   * Makes the shy hello last `seconds` longer: it stays turned away, blushing, and peeks back
+   * at you now and then before it smiles. 0 (the app) keeps it short.
+   */
+  setShyHold(seconds: number): void {
+    this.#shyHold = Math.max(0, seconds);
   }
 
   /** Turns the toy round by `radians`, to see it from any side (the test bench uses it). */
@@ -669,14 +679,22 @@ export class MascotScene {
     if (this.#state === "shy") {
       // A first hello: a soft blush, a small glance down and away, then a smile back at you.
       const s = (now - this.#shyAt) / 1000;
-      const away = smooth(0.1, 0.9, s) * (1 - smooth(2.0, 2.8, s));
+      const hold = this.#shyHold;
+      // While it holds, it peeks back at you every couple of seconds, then hides again.
+      const sincePeek = (s - 1.4) % 2.2;
+      const peek =
+        !still && s > 1.4 && s < 1.4 + hold
+          ? Math.sin(Math.PI * smooth(0, 1.1, sincePeek)) ** 2
+          : 0;
+      const away =
+        smooth(0.1, 0.9, s) * (1 - smooth(2.0 + hold, 2.8 + hold, s)) * (1 - 0.75 * peek);
       yaw -= 0.16 * away;
       pitch += 0.06 * away;
       tuck = 0.015 * away;
       squint = 0.12 * away;
-      blush = smooth(0.2, 1.0, s) * (1 - smooth(3.6, 4.6, s));
-      happy = smooth(2.4, 2.8, s) * (1 - smooth(3.8, 4.3, s));
-      if (s > 4.8) this.#state = "idle";
+      blush = smooth(0.2, 1.0, s) * (1 - smooth(3.6 + hold, 4.6 + hold, s));
+      happy = smooth(2.4 + hold, 2.8 + hold, s) * (1 - smooth(3.8 + hold, 4.3 + hold, s));
+      if (s > 4.8 + hold) this.#state = "idle";
     }
 
     // Key: turns slowly while recording, clearly faster while writing, eases to a stop.

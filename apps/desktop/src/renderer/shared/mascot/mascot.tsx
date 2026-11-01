@@ -14,16 +14,19 @@ export function Mascot({
   size,
   state = "idle",
   onLevel,
+  shyHold = 0,
 }: {
   size: number;
   state?: MascotState;
+  /** Extra seconds the shy hello lasts (the website's first hello is longer). */
+  shyHold?: number;
   /** Voice levels, while recording. */
   onLevel?: (listener: (rms: number) => void) => () => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const scene = useRef<MascotScene | null>(null);
-  const latest = useRef({ size, state });
-  latest.current = { size, state };
+  const latest = useRef({ size, state, shyHold });
+  latest.current = { size, state, shyHold };
 
   useEffect(() => {
     let disposed = false;
@@ -39,6 +42,7 @@ export function Mascot({
       }
       scene.current = made;
       made.setSize(latest.current.size);
+      made.setShyHold(latest.current.shyHold);
       made.setState(latest.current.state);
 
       // It watches the pointer only while you hover it, and for a little while after you hover
@@ -98,6 +102,7 @@ export function Mascot({
   }, []);
 
   useEffect(() => scene.current?.setSize(size), [size]);
+  useEffect(() => scene.current?.setShyHold(shyHold), [shyHold]);
   useEffect(() => scene.current?.setState(state), [state]);
   useEffect(() => {
     if (!onLevel || state !== "recording") return;

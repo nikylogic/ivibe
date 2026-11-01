@@ -16,6 +16,7 @@ import { Theme } from "@astryxdesign/core/theme";
 import type { ThemeMode } from "@astryxdesign/core/theme";
 import { ChevronRight, Monitor, Moon, Sun } from "lucide-react";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
+import type { MascotState } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import {
   FALLBACK_RELEASE,
   MAC_INSTALL,
@@ -303,7 +304,48 @@ function OtherPlatforms({ release }: { release: Release }) {
   );
 }
 
+/** How long the mascot's first hello stays shy beyond the app's, in seconds. */
+const SHY_HOLD = 3.4;
+
+/**
+ * The mascot's first hello on the site, one feeling after another: shy (turned away, blushing,
+ * peeking back), a smile, then it listens as if you were talking, thinks, and is pleased with the
+ * result. Times are when each starts, in ms; after the last it simply idles.
+ */
+const HELLO: { at: number; state: MascotState }[] = [
+  { at: 0, state: "shy" },
+  { at: 8_200 + 1_400, state: "recording" },
+  { at: 8_200 + 4_600, state: "writing" },
+  { at: 8_200 + 6_400, state: "done" },
+  { at: 8_200 + 8_400, state: "idle" },
+];
+
+/** Plays the first hello, unless the visitor prefers less motion. */
+function useHello(): MascotState {
+  const [state, setState] = useState<MascotState>("shy");
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timers = HELLO.slice(1).map(({ at, state }) => setTimeout(() => setState(state), at));
+    return () => timers.forEach(clearTimeout);
+  }, []);
+  return state;
+}
+
+/** A voice for the mascot to listen to while it plays at recording: phrases with soft gaps. */
+function pretendVoice(listener: (rms: number) => void): () => void {
+  let frame = 0;
+  const tick = (time: number) => {
+    const s = time / 1000;
+    const phrase = 0.5 + 0.5 * Math.sin(s * 1.7);
+    listener(0.004 + 0.03 * phrase * (0.6 + 0.4 * Math.abs(Math.sin(s * 7.3))));
+    frame = requestAnimationFrame(tick);
+  };
+  frame = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(frame);
+}
+
 function Hero() {
+  const mascot = useHello();
   const { index, leaving } = useRotatingLine();
   const release = useRelease();
   const detected = detectPlatform();
@@ -325,7 +367,9 @@ function Hero() {
             {/* A first hello: it blushes and glances away, then smiles back (scene.ts). */}
             <Mascot
               size={Math.round(Math.min(98, Math.max(60, window.innerWidth * 0.068)))}
-              state="shy"
+              state={mascot}
+              shyHold={SHY_HOLD}
+              onLevel={pretendVoice}
             />
           </span>
           , AI that
