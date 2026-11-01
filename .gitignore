@@ -36,3 +36,6 @@ Thumbs.db
 # OCR models and ONNX Runtime files (pnpm ocr:fetch)
 apps/desktop/src/renderer/public/ocr/
 spikes/fixtures/*.png
+
+# Private SEO notes
+SEO.md
