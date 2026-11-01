@@ -1847,7 +1847,297 @@ function PasteScene() {
   );
 }
 
-// 5. Meta's AI. Free with your key. ------------------------------------------------------------
+// 5. Talk in any language. ---------------------------------------------------------------------
+//
+// A sentence said the way people talk, Hindi and English mixed. When the pill is done every word
+// changes but one: the code name, which slides to its place in each language it is written in.
+
+/** A sentence as words; `null` is the code name, which is never translated. */
+type Sentence = (string | null)[];
+
+const CODE = "handleSave";
+const SPOKEN: Sentence = ["यार,", "ये", null, "वाला", "button", "काम", "ही", "नहीं", "कर", "रहा"];
+const WRITTEN: { name: string; words: Sentence }[] = [
+  { name: "English", words: ["The", null, "button", "isn’t", "working."] },
+  { name: "Español", words: ["El", "botón", null, "no", "funciona."] },
+  { name: "日本語", words: [null, "ボタンが動きません。"] },
+  { name: "हिन्दी", words: [null, "बटन", "काम", "नहीं", "कर", "रहा", "है।"] },
+];
+
+/** The story, in ms. */
+const L_APPEAR = 200;
+const L_SAY = 520;
+const L_STEP = 175;
+const L_STOP = L_SAY + SPOKEN.length * L_STEP + 200;
+const L_WRITE = L_STOP + 650;
+const L_HOLD = 1500;
+const L_OUT = L_WRITE + WRITTEN.length * L_HOLD + 300;
+const LANG_MS = L_OUT + 450;
+const L_SWAP_MS = 420;
+
+const L_BOX = { left: 50, width: 460, middle: 112 };
+const L_WORD: CSSProperties = {
+  fontSize: 25,
+  lineHeight: "38px",
+  fontWeight: 500,
+  letterSpacing: "-0.01em",
+};
+
+/** When each written version takes over. */
+const writtenAt = (index: number) => L_WRITE + index * L_HOLD;
+
+type Laid = { spots: Spot[]; top: number };
+
+/** Lays every version out once, hidden, and reads where each word sits. */
+function useLayouts() {
+  const boxes = useRef<(HTMLDivElement | null)[]>([]);
+  const [laid, setLaid] = useState<Laid[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void document.fonts.ready.then(() => {
+      if (!live) return;
+      setLaid(
+        boxes.current.map((box) => ({
+          spots: Array.from(box?.children ?? [], (child) => {
+            const element = child as HTMLElement;
+            return { x: element.offsetLeft, y: element.offsetTop };
+          }),
+          top: L_BOX.middle - (box?.offsetHeight ?? 0) / 2,
+        })),
+      );
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const measure = [SPOKEN, ...WRITTEN.map((written) => written.words)].map((words, index) => (
+    <div
+      key={index}
+      ref={(element) => {
+        boxes.current[index] = element;
+      }}
+      aria-hidden="true"
+      style={{
+        ...L_WORD,
+        position: "absolute",
+        left: L_BOX.left,
+        top: 0,
+        width: L_BOX.width,
+        textAlign: "center",
+        visibility: "hidden",
+      }}
+    >
+      {words.map((word, at) => (
+        <span key={at} style={{ display: "inline-block" }}>
+          {word === null ? <CodeChip /> : word}
+          {at < words.length - 1 ? " " : ""}
+        </span>
+      ))}
+    </div>
+  ));
+  return { laid, measure };
+}
+
+function CodeChip() {
+  return (
+    <span
+      style={{
+        fontFamily: MONO,
+        fontSize: 18,
+        fontWeight: 500,
+        padding: "3px 8px",
+        borderRadius: 7,
+        background: "color-mix(in srgb, var(--color-text-primary) 7%, transparent)",
+        boxShadow: "inset 0 0 0 1px var(--color-border)",
+        color: "var(--color-text-primary)",
+        verticalAlign: 2,
+      }}
+    >
+      {CODE}
+    </span>
+  );
+}
+
+function LanguageScene() {
+  const clock = useClock(LANG_MS, 300);
+  const t = still() ? writtenAt(0) + 900 : clock.t;
+  const { laid, measure } = useLayouts();
+  const shown = 1 - ease(t, L_OUT, 420);
+  let current = 0;
+  for (let index = 0; index < WRITTEN.length; index++) if (t >= writtenAt(index)) current = index;
+  const codeSpot = (layout: Laid, words: Sentence) => {
+    const spot = layout.spots[words.indexOf(null)]!;
+    return { x: L_BOX.left + spot.x, y: layout.top + spot.y };
+  };
+  const words = (layout: Laid, sentence: Sentence, spoken: boolean, from: number, to: number) =>
+    sentence.map((text, index) => {
+      if (text === null) return null;
+      // Spoken words arrive one at a time; written ones together, a touch apart.
+      const arrive = spoken ? L_SAY + index * L_STEP : from + 80 + index * 35;
+      const enter = ease(t, arrive, spoken ? 240 : L_SWAP_MS);
+      const leave = ease(t, to + index * 25, L_SWAP_MS * 0.7);
+      const amount = enter * (1 - leave);
+      if (amount <= 0.001) return null;
+      const spot = layout.spots[index]!;
+      return (
+        <span
+          key={`${from}-${index}`}
+          style={{
+            ...L_WORD,
+            position: "absolute",
+            left: 0,
+            top: 0,
+            whiteSpace: "nowrap",
+            color: "var(--color-text-primary)",
+            transform: `translate3d(${(L_BOX.left + spot.x).toFixed(2)}px, ${(layout.top + spot.y + (1 - enter) * 5 - leave * 4).toFixed(2)}px, 0)`,
+            opacity: amount * shown,
+            filter: amount < 0.999 ? `blur(${((1 - amount) * 6).toFixed(2)}px)` : undefined,
+          }}
+        >
+          {text}
+        </span>
+      );
+    });
+  // The code name: in place from the moment it's said, then gliding to its spot in each version.
+  let code = { x: 0, y: 0 };
+  if (laid) {
+    code = codeSpot(laid[0]!, SPOKEN);
+    WRITTEN.forEach((written, index) => {
+      const move = glide(t, writtenAt(index), 560);
+      if (move <= 0) return;
+      const to = codeSpot(laid[index + 1]!, written.words);
+      code = { x: mix(code.x, to.x, move), y: mix(code.y, to.y, move) };
+    });
+  }
+  const codeIn = ease(t, L_SAY + SPOKEN.indexOf(null) * L_STEP, 240);
+  const row = ease(t, L_WRITE - 150, 380) * shown;
+  return (
+    <Scene clock={clock} width={560} height={290}>
+      {measure}
+      {laid && (
+        <>
+          {words(laid[0]!, SPOKEN, true, 0, L_WRITE - 120)}
+          {WRITTEN.map((written, index) => (
+            <Fragment key={written.name}>
+              {words(
+                laid[index + 1]!,
+                written.words,
+                false,
+                writtenAt(index),
+                index < WRITTEN.length - 1 ? writtenAt(index + 1) - 140 : Infinity,
+              )}
+            </Fragment>
+          ))}
+          <span
+            style={{
+              ...L_WORD,
+              position: "absolute",
+              left: 0,
+              top: 0,
+              whiteSpace: "nowrap",
+              transform: `translate3d(${code.x.toFixed(2)}px, ${(code.y + (1 - codeIn) * 5).toFixed(2)}px, 0)`,
+              opacity: codeIn * shown,
+            }}
+          >
+            <CodeChip />
+          </span>
+        </>
+      )}
+      <LanguageRow t={t} active={current} shown={row} />
+      <TinyPill
+        t={t}
+        top={226}
+        rise={10}
+        appearAt={L_APPEAR}
+        speaking={[L_SAY - 60, L_STOP - 220]}
+        stopAt={L_STOP}
+        goneAt={L_WRITE - 250}
+        hue="Dictate"
+      />
+    </Scene>
+  );
+}
+
+/** The languages it can write in, with a hairline under the one it's writing. */
+function LanguageRow({ t, active, shown }: { t: number; active: number; shown: number }) {
+  const items = useRef<(HTMLSpanElement | null)[]>([]);
+  const [spots, setSpots] = useState<{ left: number; width: number }[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void document.fonts.ready.then(() => {
+      if (!live) return;
+      setSpots(
+        items.current.map((item) => ({
+          left: item?.offsetLeft ?? 0,
+          width: item?.offsetWidth ?? 0,
+        })),
+      );
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  // The hairline glides from name to name as each version takes over.
+  let line = spots?.[0] ?? { left: 0, width: 0 };
+  if (spots) {
+    for (let index = 1; index < WRITTEN.length; index++) {
+      const move = glide(t, writtenAt(index), 480);
+      if (move <= 0) break;
+      line = {
+        left: mix(line.left, spots[index]!.left, move),
+        width: mix(line.width, spots[index]!.width, move),
+      };
+    }
+  }
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: 232,
+        display: "flex",
+        justifyContent: "center",
+        opacity: shown,
+        transform: `translateY(${((1 - shown) * 6).toFixed(2)}px)`,
+      }}
+    >
+      <div style={{ position: "relative", display: "flex", gap: 22 }}>
+        {WRITTEN.map((written, index) => (
+          <span
+            key={written.name}
+            ref={(element) => {
+              items.current[index] = element;
+            }}
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              paddingBottom: 7,
+              color: index === active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+              opacity: index === active ? 1 : 0.65,
+              transition: "color 300ms ease, opacity 300ms ease",
+            }}
+          >
+            {written.name}
+          </span>
+        ))}
+        <span
+          style={{
+            position: "absolute",
+            left: line.left,
+            width: line.width,
+            bottom: 0,
+            height: 1.5,
+            borderRadius: 1,
+            background: "var(--color-text-primary)",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// 6. Meta's AI. Free with your key. ------------------------------------------------------------
 
 const MODELS = [
   { name: "Muse Voice", label: "Transcribing with Muse Voice…", from: 1600, to: 2700 },
@@ -1943,9 +2233,16 @@ export function Features() {
         <PasteScene />
       </Band>
       <Band
+        title="Talk in any language."
+        line="Mix 25 languages. Get back the one you want."
+        sceneLeft
+      >
+        <LanguageScene />
+      </Band>
+      <Band
         title="Meta's AI. Free with your key."
         line="Bring your Meta API key. No account, and no bill from us."
-        sceneLeft
+        alt
       >
         <MetaScene />
       </Band>
