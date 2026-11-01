@@ -109,6 +109,8 @@ export function Nav({ page }: { page: "home" | "download" }) {
   const [mood, setMood] = useState<MascotState>("idle");
   const [gaze, setGaze] = useState<{ x: number; y: number } | null>(null);
   const [tone, setTone] = useState<Tone>(currentTone);
+  // "How it works" is marked only until the features below the demo take over the screen.
+  const [inDemo, setInDemo] = useState(true);
   const [size] = useState(heroMascotSize);
   const narrow = useNarrow();
   const slot = useRef<HTMLDivElement>(null);
@@ -123,6 +125,8 @@ export function Nav({ page }: { page: "home" | "download" }) {
     const check = () => {
       frame = 0;
       setWant(pinned || window.scrollY > openAt());
+      const next = document.getElementById("features");
+      setInDemo(!next || next.getBoundingClientRect().top > window.innerHeight * 0.5);
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(check);
@@ -221,6 +225,23 @@ export function Nav({ page }: { page: "home" | "download" }) {
   };
   const lookAhead = () => setGaze(null);
 
+  // The features below ask it to look at the tile under the pointer.
+  useEffect(() => {
+    const onLook = (event: Event) => {
+      const at = (event as CustomEvent<{ x: number; y: number } | null>).detail;
+      const mascot = slot.current?.getBoundingClientRect();
+      if (!at || !mascot) return setGaze(null);
+      const dx = at.x - (mascot.left + mascot.width / 2);
+      const dy = at.y - (mascot.top + mascot.height / 2);
+      setGaze({
+        x: Math.max(-3, Math.min(3, dx / 160)),
+        y: Math.max(-1.5, Math.min(1.5, dy / 260)),
+      });
+    };
+    window.addEventListener("ivibe:look", onLook);
+    return () => window.removeEventListener("ivibe:look", onLook);
+  }, []);
+
   const hop = () => {
     setMood("done");
     window.setTimeout(() => setMood("idle"), 1900);
@@ -237,7 +258,7 @@ export function Nav({ page }: { page: "home" | "download" }) {
   }[] = [
     pinned
       ? { label: "How it works", href: "/#how" }
-      : { label: "How it works", onClick: scrollToDemo, active: true },
+      : { label: "How it works", onClick: scrollToDemo, active: inDemo },
     { label: "Changelog", href: `https://github.com/${REPO}/releases` },
     { label: "iVibe on GitHub", href: `https://github.com/${REPO}`, icon: githubMark },
   ];

@@ -14,16 +14,13 @@ import type { ThemeMode } from "@astryxdesign/core/theme";
 import { ChevronRight, Monitor, Moon, Sun } from "lucide-react";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import type { MascotState } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
-import {
-  FALLBACK_RELEASE,
-  detectPlatform,
-  latestRelease,
-} from "./release.ts";
+import { FALLBACK_RELEASE, detectPlatform, latestRelease } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
 import { scrollToDemo, Showcase } from "./demo/index.tsx";
 import { say, WORD_MS } from "./demo/voice.ts";
 import { ivibeTheme } from "./theme.ts";
 import { heroMascotSize, Nav } from "./nav.tsx";
+import { Features } from "./features.tsx";
 
 /** What the headline says iVibe does, one mode at a time. */
 const LINES = [
@@ -383,6 +380,7 @@ export function Home({
       <Nav page="home" />
       <main>
         <Showcase theme={mode} hero={<Hero release={release} />} onHeroDark={setHeroDark} />
+        <Features />
       </main>
     </div>
   );
