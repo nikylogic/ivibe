@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { currentTone, onTone, speech, TONES } from "./voice.ts";
+import type { Tone } from "./voice.ts";
 import type { ReactNode } from "react";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Spinner } from "@astryxdesign/core/Spinner";
@@ -380,6 +382,9 @@ export function CompactPill() {
   const parts = useRef<
     { top: HTMLSpanElement | null; mid: HTMLSpanElement | null; bottom: HTMLSpanElement | null }[]
   >(Array.from({ length: BARS }, () => ({ top: null, mid: null, bottom: null })));
+  const glow = useRef<HTMLSpanElement>(null);
+  const [tone, setTone] = useState<Tone>(currentTone);
+  useEffect(() => onTone(setTone), []);
   useEffect(() => {
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const shown = Array.from({ length: BARS }, () => 0.3);
@@ -388,7 +393,10 @@ export function CompactPill() {
     const paint = (time: number) => {
       const dt = Math.min(64, time - last) / 1000;
       last = time;
-      const level = still ? 0.6 : talking(time);
+      // A quiet hum, and the headline's words when it says one.
+      const spoken = still ? 0 : speech(time);
+      const level = still ? 0.6 : Math.min(1, Math.max(0.5, talking(time) * 0.85) + spoken * 0.5);
+      if (glow.current) glow.current.style.opacity = (0.55 + 0.45 * spoken).toFixed(3);
       for (let index = 0; index < BARS; index++) {
         // A ripple that travels across the bars, so neighbours move together like a real wave.
         const sway = still
@@ -397,7 +405,7 @@ export function CompactPill() {
             0.16 * Math.sin((time / 1000) * 1.9 - index * 0.55) +
             0.06 * Math.sin((time / 1000) * 3.1 + index * 1.7);
         const want = level * envelope(index, BARS) * sway;
-        shown[index]! += (want - shown[index]!) * (1 - Math.exp(-dt * 7));
+        shown[index]! += (want - shown[index]!) * (1 - Math.exp(-dt * (7 + 10 * spoken)));
         const stretch = Math.max(0, shown[index]! * TALLEST - BAR);
         const { top, mid, bottom } = parts.current[index]!;
         if (top)
@@ -435,17 +443,35 @@ export function CompactPill() {
         boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2)",
       }}
     >
-      {/* A still, soft glow behind the bars, instead of a glow on each moving bar. */}
+      {/*
+        The light inside the pill, behind the bars: tinted by the mode the headline shows, and
+        brighter while it speaks. Still layers that only fade, so they cost nothing per frame.
+      */}
       <span
         aria-hidden="true"
         style={{
           position: "absolute",
-          inset: "6px 10px",
-          borderRadius: 999,
-          background: "radial-gradient(closest-side, rgba(255, 214, 170, 0.14), transparent)",
-          opacity: "var(--wave, 1)",
+          inset: "-2px -4px",
+          // The light stays even where the hero dims the bars.
+          opacity: "calc(0.75 + 0.25 * var(--wave, 1))",
         }}
-      />
+      >
+        <span ref={glow} style={{ position: "absolute", inset: 0, opacity: 0.55 }}>
+          {(Object.keys(TONES) as Tone[]).map((name) => (
+            <span
+              key={name}
+              style={{
+                position: "absolute",
+                inset: 0,
+                borderRadius: 999,
+                background: `radial-gradient(ellipse closest-side, rgba(${TONES[name]}, 0.5), rgba(${TONES[name]}, 0.16) 55%, transparent)`,
+                opacity: name === tone ? 1 : 0,
+                transition: "opacity 1.4s ease",
+              }}
+            />
+          ))}
+        </span>
+      </span>
       {Array.from({ length: BARS }, (_, index) => {
         const slot = parts.current[index]!;
         return (

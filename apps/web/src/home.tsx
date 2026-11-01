@@ -27,16 +27,17 @@ import {
 } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
 import { Showcase } from "./demo/index.tsx";
+import { say, WORD_MS } from "./demo/voice.ts";
 import { ivibeTheme } from "./theme.ts";
 
 /** What the headline says iVibe does, one mode at a time. */
 const LINES = [
-  { mode: "Fix", text: "captures bugs as precise prompts" },
-  { mode: "Prompt", text: "turns rambling into clear prompts" },
-  { mode: "Dictate", text: "tidies up everything you say" },
+  { mode: "Fix" as const, text: "captures bugs as precise prompts" },
+  { mode: "Prompt" as const, text: "turns rambling into clear prompts" },
+  { mode: "Dictate" as const, text: "tidies up everything you say" },
 ];
 /** How long each line stays, and how long it takes to leave. */
-const LINE_MS = 2800;
+const LINE_MS = 3800;
 const LEAVE_MS = 260;
 
 const styles = stylex.create({
@@ -101,10 +102,12 @@ const styles = stylex.create({
     fontStyle: "italic",
     color: "var(--color-text-secondary)",
   },
-  lineIn: {
+  lineIn: { display: "inline-block" },
+  // Each word resolves as the pill says it, like a live transcription.
+  word: {
     display: "inline-block",
-    animationName: "ivibe-line-in",
-    animationDuration: "var(--motion-layout)",
+    animationName: "ivibe-word-in",
+    animationDuration: "420ms",
     animationTimingFunction: "var(--motion-ease)",
     animationFillMode: "both",
   },
@@ -340,6 +343,8 @@ function Hero() {
         ? ["windows", "mac"]
         : ["mac", "windows"];
   const line = LINES[index]!;
+  // Each new line is said aloud by the pill behind the hero while its words type in.
+  useEffect(() => say(line.text, line.mode), [line]);
 
   return (
     <section {...stylex.props(styles.hero)}>
@@ -363,7 +368,17 @@ function Hero() {
             {...stylex.props(leaving ? styles.lineOut : styles.lineIn)}
             aria-live="polite"
           >
-            {line.text}
+            {line.text.split(" ").map((word, position, words) => (
+              <span key={position}>
+                <span
+                  {...stylex.props(styles.word)}
+                  style={{ animationDelay: `${position * WORD_MS}ms` }}
+                >
+                  {word}
+                </span>
+                {position < words.length - 1 ? " " : null}
+              </span>
+            ))}
           </span>
         </span>
       </Heading>

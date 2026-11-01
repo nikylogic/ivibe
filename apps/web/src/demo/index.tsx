@@ -377,6 +377,11 @@ function geometry(vw: number, vh: number, env: Env, focus: number) {
   return { card, pill, inside, desktop, settled };
 }
 
+/** A tile of soft white noise, drawn once by the browser and repeated. */
+const GRAIN = `url("data:image/svg+xml;utf8,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(#n)'/></svg>",
+)}")`;
+
 /**
  * Plays one entrance when its children first appear: from `from` (a transform) to rest, with an
  * overshoot-free ease. It runs on the graphics card and is skipped for reduced motion.
@@ -838,18 +843,33 @@ export function Showcase({
             position: "absolute",
             inset: 0,
             paddingTop: NAV - 20,
-            // Keeps the middle quiet, so the headline and the downloads lead and the
-            // waveform only shows at the edges.
-            background:
-              "radial-gradient(ellipse 52% 46% at 50% 54%, rgba(16, 15, 14, 0.94) 0%, rgba(16, 15, 14, 0.72) 50%, transparent 100%)",
+            // Keeps the middle calm, so the headline and the downloads lead while the pill's
+            // light glows through, and sinks the corners into shadow.
+            background: [
+              "radial-gradient(ellipse 50% 44% at 50% 54%, rgba(16, 15, 14, 0.86) 0%, rgba(16, 15, 14, 0.58) 50%, transparent 100%)",
+              "radial-gradient(ellipse 85% 80% at 50% 50%, transparent 55%, rgba(8, 7, 6, 0.6) 100%)",
+            ].join(", "),
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Theme theme={ivibeTheme} mode="dark">
-            {hero}
-          </Theme>
+          {/* A fine film grain, so the dark reads as a surface and not a flat fill. */}
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              pointerEvents: "none",
+              opacity: 0.07,
+              backgroundImage: GRAIN,
+            }}
+          />
+          <div style={{ position: "relative" }}>
+            <Theme theme={ivibeTheme} mode="dark">
+              {hero}
+            </Theme>
+          </div>
         </div>
 
         {/* The modes, under the card. */}
