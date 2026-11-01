@@ -28,12 +28,31 @@ const styles = stylex.create({
     backgroundColor: "var(--color-background-surface)",
     color: "var(--color-text-primary)",
   },
+  // Two columns: who it is on the left, the downloads on the right; stacked on a phone.
   main: {
-    maxWidth: 520,
+    maxWidth: 960,
     marginInline: "auto",
-    paddingInline: 20,
-    paddingTop: { default: 128, "@media (max-width: 640px)": 104 },
+    paddingInline: 24,
+    paddingTop: { default: 136, "@media (max-width: 760px)": 104 },
     paddingBottom: 96,
+    display: "grid",
+    gridTemplateColumns: {
+      default: "minmax(220px, 320px) minmax(0, 500px)",
+      "@media (max-width: 760px)": "minmax(0, 1fr)",
+    },
+    justifyContent: "center",
+    columnGap: 72,
+    rowGap: 48,
+    alignItems: "start",
+  },
+  brand: {
+    position: { default: "sticky", "@media (max-width: 760px)": "static" },
+    top: 136,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: { default: "flex-start", "@media (max-width: 760px)": "center" },
+    textAlign: { default: "start", "@media (max-width: 760px)": "center" },
+    gap: 12,
   },
   title: {
     fontFamily: '"Instrument Serif", Georgia, serif',
@@ -196,18 +215,18 @@ export function DownloadPage({
       </Theme>
       <Nav page="download" />
       <main {...stylex.props(styles.main)}>
-        <VStack gap={8}>
-          <VStack gap={3} hAlign="center">
-            <Mascot size={104} state={mood} />
-            <Heading level={1} xstyle={styles.title}>
-              Get iVibe
-            </Heading>
-            <Text color="secondary">
-              {release.version ? `Version ${release.version}` : "The latest version"}, for Mac,
-              Windows and Linux.
-            </Text>
-          </VStack>
+        <div {...stylex.props(styles.brand)}>
+          <Mascot size={120} state={mood} />
+          <Heading level={1} xstyle={styles.title}>
+            Get iVibe
+          </Heading>
+          <Text color="secondary">
+            {release.version ? `Version ${release.version}` : "The latest version"}, for Mac,
+            Windows and Linux.
+          </Text>
+        </div>
 
+        <VStack gap={8}>
           <VStack gap={6}>
             {order.map((platform, index) => (
               <PlatformBlock
