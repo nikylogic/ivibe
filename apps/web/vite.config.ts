@@ -4,7 +4,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { astryxStylex } from "@astryxdesign/build/vite";
 
-// A static site: `pnpm --filter @ivibe/web build` writes dist/, which Cloudflare Pages serves.
+// A static site: `pnpm --filter @ivibe/web build` writes dist/, which a Cloudflare Worker serves (wrangler.jsonc).
 export default defineConfig({
   plugins: [...astryxStylex(), react()],
 });

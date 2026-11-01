@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "deploy": "pnpm build && npx wrangler@4.154.0 deploy",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json"

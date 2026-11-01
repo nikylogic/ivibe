@@ -1,0 +1,16 @@
+// The website: static files only, with no server code. Serving them is free on Workers.
+// Deploy: pnpm --filter @ivibe/web run deploy
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ivibe-web",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // /docs, /welcome and the rest are all served by the one page, which picks what to show.
+    "not_found_handling": "single-page-application",
+  },
+  "routes": [
+    { "pattern": "ivibe.tech", "custom_domain": true },
+    { "pattern": "www.ivibe.tech", "custom_domain": true },
+  ],
+}
