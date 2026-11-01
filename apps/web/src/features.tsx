@@ -806,7 +806,7 @@ const PROOF_MS = P_OUT + 450;
 const PROOF_STILL = P_OUT - 200;
 
 /** The prompt box and the text inside it, in the scene's pixels. */
-const PROMPT = { left: 30, top: 92, width: 500 };
+const PROMPT = { left: 30, top: 16, width: 500 };
 const TEXT = { left: PROMPT.left + 22, top: PROMPT.top + 50, width: 462 };
 const PROOF_TEXT: CSSProperties = {
   fontSize: 19,
@@ -1163,7 +1163,7 @@ function ProofScene() {
       </div>
       <TinyPill
         t={t}
-        top={24}
+        top={234}
         rise={10}
         appearAt={P_APPEAR}
         speaking={[P_SAY - 80, P_STOP - 150]}
