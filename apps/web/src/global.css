@@ -210,3 +210,60 @@ body {
     transform: translateY(0);
   }
 }
+
+/* The feature bands' extra motion. */
+.ivf-bob {
+  animation: ivf-bob 4.2s ease-in-out infinite alternate;
+}
+.ivf-tag {
+  animation: ivf-rise 320ms var(--motion-ease) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ivf-bob,
+  .ivf-tag {
+    animation: none !important;
+  }
+}
+@keyframes ivf-bob {
+  from {
+    transform: translateY(5px);
+  }
+  to {
+    transform: translateY(-5px);
+  }
+}
+@keyframes ivf-word {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+@keyframes ivf-drop {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(34px) rotate(16deg);
+  }
+}
+@keyframes ivf-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes ivf-cursor {
+  from {
+    opacity: 0;
+    transform: translate(110px, 70px);
+  }
+}
+@keyframes ivf-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+}
