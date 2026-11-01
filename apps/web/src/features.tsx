@@ -8,8 +8,8 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { Check, SendHorizontal } from "lucide-react";
-import { FIX_PROMPT, ProofConsole, ProofPage } from "./demo/apps.tsx";
+import { ArrowUp, Check, SendHorizontal } from "lucide-react";
+import { ProofPage } from "./demo/apps.tsx";
 import { APP_NAME, AppIcon } from "./demo/icons.tsx";
 import type { App } from "./demo/icons.tsx";
 import { Hud, Toast } from "./demo/hud.tsx";
@@ -531,11 +531,33 @@ const envelope = (index: number, count: number) => {
  * working, the voice settles into a line with light running along it; with the result it goes.
  * It rises out of the key that started it.
  */
-function TinyPill({ t }: { t: number }) {
-  const listening = t < STOP;
-  const appear = ease(t, EMERGE, 460);
-  const gone = ease(t, PASTED, 300);
-  const speaking = t > SAY - 80 && t < STOP - 200;
+function TinyPill({
+  t,
+  top,
+  rise,
+  appearAt,
+  speaking: [talkFrom, talkTo],
+  stopAt,
+  goneAt,
+  hue,
+}: {
+  t: number;
+  top: number;
+  /** How far below its place it starts (the key it rises out of). */
+  rise: number;
+  appearAt: number;
+  /** When the voice is heard. */
+  speaking: [number, number];
+  /** Listening ends: the waveform settles into the working line. */
+  stopAt: number;
+  /** The result has landed: the pill goes. */
+  goneAt: number;
+  hue: Tone;
+}) {
+  const listening = t < stopAt;
+  const appear = ease(t, appearAt, 460);
+  const gone = ease(t, goneAt, 300);
+  const speaking = t > talkFrom && t < talkTo;
   const voice = speaking
     ? 0.55 + 0.25 * Math.sin(t / 130) + 0.2 * Math.sin(t / 53 + 1.7)
     : 0.16 + 0.04 * Math.sin(t / 300);
@@ -546,11 +568,11 @@ function TinyPill({ t }: { t: number }) {
         position: "absolute",
         left: 0,
         right: 0,
-        top: PILL_TOP,
+        top,
         display: "flex",
         justifyContent: "center",
         opacity: appear * (1 - gone),
-        transform: `translateY(${((1 - appear) * (KEYS_TOP - PILL_TOP - 18) + gone * 6).toFixed(2)}px) scale(${(0.45 + 0.55 * appear).toFixed(3)})`,
+        transform: `translateY(${((1 - appear) * rise + gone * 6).toFixed(2)}px) scale(${(0.45 + 0.55 * appear).toFixed(3)})`,
       }}
     >
       <span
@@ -561,7 +583,7 @@ function TinyPill({ t }: { t: number }) {
           borderRadius: 999,
           background: "rgba(15, 14, 13, 0.94)",
           border: "1px solid rgba(255, 255, 255, 0.08)",
-          boxShadow: `0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2), 0 0 26px -4px ${tone("Dictate", 0.45)}`,
+          boxShadow: `0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2), 0 0 26px -4px ${tone(hue, 0.45)}`,
           transition: "width 225ms var(--motion-ease)",
         }}
       >
@@ -718,51 +740,437 @@ function TalkScene() {
       {/* The shortcut on a real keyboard, and the pill rising out of it. */}
       <Keyboard t={t} mac={mac} />
       <div style={{ position: "absolute", inset: 0, opacity: shown }}>
-        <TinyPill t={t} />
+        <TinyPill
+          t={t}
+          top={PILL_TOP}
+          rise={KEYS_TOP - PILL_TOP - 18}
+          appearAt={EMERGE}
+          speaking={[SAY - 80, STOP - 200]}
+          stopAt={STOP}
+          goneAt={PASTED}
+          hue="Dictate"
+        />
       </div>
     </Scene>
   );
 }
 
 // 2. Show the bug. Get proof. ------------------------------------------------------------------
+//
+// You describe the bug the way anyone would: vaguely. When you stop, every vague phrase gets a
+// wavy underline, the filler lifts away, and each vague phrase flips over like a card to show its
+// proof: a screenshot of the button, what actually happened, the exact error. The precise prompt
+// settles in Claude Code's box and the pill goes.
 
-const BUG: Segment[] = [
-  { text: "I change my bio and hit Save,", at: 500, final: 1300 },
-  { text: "and nothing happens.", at: 1400, final: 2100 },
-  { text: "The console says it can’t read map.", at: 2200, final: 3100 },
+type ProofKind = "save" | "nothing" | "error" | "in" | "file";
+
+/** One piece of the sentence: said (`raw`), and/or what it becomes (`proof`). */
+type Piece = { raw?: string; drop?: true; proof?: ProofKind };
+
+const PIECES: Piece[] = [
+  { raw: "ugh,", drop: true },
+  { raw: "the save button thing", proof: "save" },
+  { raw: "is broken again,", drop: true },
+  { raw: "it just", drop: true },
+  { raw: "doesn’t work,", proof: "nothing" },
+  { raw: "something about map", proof: "error" },
+  { raw: "I think", drop: true },
+  { proof: "in" },
+  { proof: "file" },
 ];
-const PROOF_MS = 10_500;
-const PROMPT_TEXT = FIX_PROMPT.map((row) => row.text).join("\n");
+
+const P_APPEAR = 200;
+const P_SAY = 650;
+const P_WORD = 175;
+/** When each said piece starts, word by word. */
+const SAID_AT = (() => {
+  let at = P_SAY;
+  return PIECES.map((piece) => {
+    const start = at;
+    if (piece.raw) at += piece.raw.split(" ").length * P_WORD;
+    return start;
+  });
+})();
+const P_STOP = SAID_AT[SAID_AT.length - 1]! + 300;
+const P_MARK = P_STOP + 150;
+const P_LIFT = P_MARK + 450;
+const P_FLIP = P_LIFT + 420;
+const P_FLIP_GAP = 440;
+const P_FLIP_MS = 380;
+const P_MOVE = P_FLIP + 3 * P_FLIP_GAP + 150;
+const P_MOVE_MS = 800;
+const P_FRESH = P_MOVE + P_MOVE_MS - 200;
+const P_SEND = P_FRESH + 500;
+const P_OUT = P_SEND + 2100;
+const PROOF_MS = P_OUT + 450;
+const PROOF_STILL = P_OUT - 200;
+
+/** The prompt box and the text inside it, in the scene's pixels. */
+const PROMPT = { left: 30, top: 92, width: 500 };
+const TEXT = { left: PROMPT.left + 22, top: PROMPT.top + 50, width: 462 };
+const PROOF_TEXT: CSSProperties = {
+  fontSize: 19,
+  lineHeight: "34px",
+  fontWeight: 500,
+  letterSpacing: "-0.01em",
+};
+
+/** A tiny screenshot, as attached: the page with Save boxed, or the console with the error. */
+function MiniShot({ kind }: { kind: "page" | "console" }) {
+  const page = kind === "page";
+  return (
+    <span
+      style={{
+        position: "relative",
+        display: "inline-block",
+        width: 30,
+        height: 21,
+        borderRadius: 4,
+        overflow: "hidden",
+        flexShrink: 0,
+        background: page ? "#ffffff" : "#1f1d1c",
+        boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.12)",
+      }}
+    >
+      {page ? (
+        <>
+          <span style={miniBar(4, 4, 14, 2, "#18181b")} />
+          <span style={miniBar(4, 8, 22, 3, "#e4e4e7")} />
+          <span style={miniBar(4, 15, 9, 3, "#5146e5")} />
+          <span
+            style={{
+              ...miniBar(2, 13, 13, 7, "transparent"),
+              boxShadow: `inset 0 0 0 1px ${tone("Fix")}`,
+            }}
+          />
+        </>
+      ) : (
+        <>
+          <span style={miniBar(3, 5, 20, 2, "#ff7b72")} />
+          <span style={miniBar(3, 9, 15, 2, "#ff7b72")} />
+          <span style={miniBar(3, 14, 10, 2, "rgba(255,255,255,0.3)")} />
+          <span
+            style={{
+              ...miniBar(1, 3, 26, 9, "transparent"),
+              boxShadow: `inset 0 0 0 1px ${tone("Fix")}`,
+            }}
+          />
+        </>
+      )}
+    </span>
+  );
+}
+
+const miniBar = (x: number, y: number, w: number, h: number, color: string): CSSProperties => ({
+  position: "absolute",
+  left: x,
+  top: y,
+  width: w,
+  height: h,
+  borderRadius: 1,
+  background: color,
+});
+
+const CHIP: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 7,
+  height: 30,
+  padding: "0 9px 0 4px",
+  borderRadius: 8,
+  verticalAlign: "middle",
+};
+
+/** What a vague phrase becomes. */
+function Proof({ kind }: { kind: ProofKind }) {
+  if (kind === "save")
+    return (
+      <span
+        style={{
+          ...CHIP,
+          background: "color-mix(in srgb, var(--color-text-primary) 6%, transparent)",
+        }}
+      >
+        <MiniShot kind="page" />
+        Save on Edit profile
+      </span>
+    );
+  if (kind === "error")
+    return (
+      <span
+        style={{
+          ...CHIP,
+          background: tone("Fix", 0.12),
+          color: "color-mix(in srgb, rgb(214, 74, 50) 80%, var(--color-text-primary))",
+          fontFamily: MONO,
+          fontSize: 13.5,
+          fontWeight: 500,
+        }}
+      >
+        <MiniShot kind="console" />
+        TypeError: can’t read ‘map’
+      </span>
+    );
+  if (kind === "file")
+    return (
+      <span
+        style={{
+          ...CHIP,
+          padding: "0 9px",
+          background: "color-mix(in srgb, var(--color-text-primary) 6%, transparent)",
+          fontFamily: MONO,
+          fontSize: 13.5,
+        }}
+      >
+        ProfileForm.tsx:41
+      </span>
+    );
+  return <span>{kind === "in" ? "in" : "does nothing."}</span>;
+}
+
+/** Lays out the said sentence and the proven one, hidden, and reads where each piece sits. */
+function useProofSpots() {
+  const raw = useRef<HTMLDivElement>(null);
+  const done = useRef<HTMLDivElement>(null);
+  const [spots, setSpots] = useState<{
+    raw: (Spot | null)[];
+    done: (Spot | null)[];
+  } | null>(null);
+  useEffect(() => {
+    let live = true;
+    const read = (box: HTMLDivElement | null) => {
+      const spans = Array.from(box?.querySelectorAll<HTMLElement>(":scope > span") ?? []);
+      return PIECES.map((_, index) => {
+        const element = spans.find((span) => span.dataset.piece === String(index));
+        return element ? { x: element.offsetLeft, y: element.offsetTop } : null;
+      });
+    };
+    void document.fonts.ready.then(() => {
+      if (live) setSpots({ raw: read(raw.current), done: read(done.current) });
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const measure = (
+    <>
+      <div
+        ref={raw}
+        style={{ ...PROOF_TEXT, ...at(TEXT), visibility: "hidden" }}
+        aria-hidden="true"
+      >
+        {PIECES.map((piece, index) =>
+          piece.raw ? (
+            <span key={index} data-piece={index} style={{ display: "inline-block" }}>
+              {piece.raw}&nbsp;
+            </span>
+          ) : null,
+        )}
+      </div>
+      <div
+        ref={done}
+        style={{ ...PROOF_TEXT, ...at(TEXT), visibility: "hidden" }}
+        aria-hidden="true"
+      >
+        {PIECES.map((piece, index) =>
+          piece.proof ? (
+            <span key={index} data-piece={index} style={{ display: "inline-block" }}>
+              <Proof kind={piece.proof} />
+              &nbsp;
+            </span>
+          ) : null,
+        )}
+      </div>
+    </>
+  );
+  return { spots, measure };
+}
 
 function ProofScene() {
-  const clock = useClock(PROOF_MS);
-  const { t } = clock;
-  const label = "Pasted into Claude Code · 2 screenshots";
-  const phase: HudPhase =
-    t < 3400
-      ? {
-          kind: "listening",
-          since: 0,
-          hint: "Listening. Describe the bug as you show it.",
-          segments: BUG,
-        }
-      : t < 4800
-        ? { kind: "working", label: "Writing your fix prompt for Claude Code…" }
-        : t < 5800
-          ? { kind: "pasted", label }
-          : {
-              kind: "expanded",
-              label,
-              title: "Your prompt",
-              shots: [
-                <ProofPage key="page" dark={false} />,
-                <ProofConsole key="console" dark={false} />,
-              ],
-              text: PROMPT_TEXT,
-            };
+  const clock = useClock(PROOF_MS, 600);
+  const t = still() ? PROOF_STILL : clock.t;
+  const { spots, measure } = useProofSpots();
+  const shown = 1 - ease(t, P_OUT, 420);
+  // The placeholder, until the first word and again once the prompt has gone.
+  const empty = Math.min(1, 1 - ease(t, P_SAY - 120, 140) + ease(t, P_OUT + 300, 260));
+  const send = ease(t, P_SEND, 300) * shown;
+  let flips = 0;
+  let drops = 0;
   return (
-    <Scene clock={clock} width={560} height={440} hue="Fix">
-      <PillAt phase={phase} t={t} pressed={t > 5600 && t < 5800} centred />
+    <Scene clock={clock} width={560} height={300}>
+      {measure}
+      {/* Claude Code's prompt box: always here. */}
+      <div
+        style={{
+          ...at(PROMPT),
+          height: 190,
+          borderRadius: 20,
+          background: "var(--color-background-card)",
+          boxShadow: "inset 0 0 0 1px var(--color-border), 0 18px 40px -28px rgba(0,0,0,0.45)",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            left: 22,
+            top: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            fontSize: 12.5,
+            fontWeight: 500,
+            color: "var(--color-text-secondary)",
+          }}
+        >
+          <AppIcon app="claude" size={16} os="mac" />
+          Claude Code
+        </span>
+        {/* Nothing typed yet: the placeholder and a blinking caret. */}
+        <span
+          style={{
+            position: "absolute",
+            left: 22,
+            top: 50,
+            ...PROOF_TEXT,
+            color: "var(--color-text-secondary)",
+            opacity: empty * 0.55,
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 2,
+              height: 20,
+              marginRight: 4,
+              verticalAlign: "-3px",
+              background: "var(--color-text-primary)",
+              opacity: Math.floor(t / 530) % 2 === 0 ? 1 : 0,
+            }}
+          />
+          Ask Claude Code…
+        </span>
+        <span
+          style={{
+            position: "absolute",
+            right: 14,
+            bottom: 14,
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            display: "grid",
+            placeItems: "center",
+            background: `color-mix(in srgb, ${tone("Fix")} ${send * 100}%, color-mix(in srgb, var(--color-text-primary) 10%, transparent))`,
+            color: send > 0.5 ? "#fff" : "var(--color-text-secondary)",
+            transform: `scale(${(1 + bump(t, P_SEND, 360) * 0.12).toFixed(3)})`,
+          }}
+        >
+          <ArrowUp size={17} strokeWidth={2.4} />
+        </span>
+      </div>
+      {/* The sentence, and its proof. */}
+      <div style={{ position: "absolute", inset: 0, perspective: 700 }}>
+        {spots &&
+          PIECES.map((piece, index) => {
+            const from = spots.raw[index];
+            const to = spots.done[index];
+            const said = ease(t, SAID_AT[index]!, 260);
+            const base: CSSProperties = {
+              ...PROOF_TEXT,
+              position: "absolute",
+              left: 0,
+              top: 0,
+              whiteSpace: "nowrap",
+            };
+            const parts: ReactNode[] = [];
+            if (piece.raw && from) {
+              const x = TEXT.left + from.x;
+              const y = TEXT.top + from.y;
+              if (piece.drop) {
+                const lift = ease(t, P_LIFT + drops++ * 60, 440);
+                parts.push(
+                  <span
+                    key="raw"
+                    style={{
+                      ...base,
+                      transform: `translate3d(${x}px, ${(y - lift * 14 + (1 - said) * 6).toFixed(2)}px, 0)`,
+                      opacity: said * (1 - lift) * shown,
+                      color: "var(--color-text-secondary)",
+                    }}
+                  >
+                    {piece.raw}
+                  </span>,
+                );
+              } else {
+                // Vague: underlined wavy, then flipped over to its proof.
+                const mark = ease(t, P_MARK, 300);
+                const flipAt = P_FLIP + flips * P_FLIP_GAP;
+                const out = ease(t, flipAt, P_FLIP_MS / 2);
+                parts.push(
+                  <span
+                    key="raw"
+                    style={{
+                      ...base,
+                      transform: `translate3d(${x}px, ${(y + (1 - said) * 6).toFixed(2)}px, 0) rotateX(${(out * 90).toFixed(1)}deg)`,
+                      opacity: said * (out < 1 ? 1 : 0) * shown,
+                      color: "var(--color-text-secondary)",
+                      textDecorationLine: "underline",
+                      textDecorationStyle: "wavy",
+                      textDecorationColor: tone("Fix", mark),
+                      textDecorationThickness: 1.5,
+                      textUnderlineOffset: 6,
+                    }}
+                  >
+                    {piece.raw}
+                  </span>,
+                );
+              }
+            }
+            if (piece.proof && to) {
+              let x = TEXT.left + to.x;
+              let y = TEXT.top + to.y;
+              let rotate = 0;
+              let opacity = shown;
+              if (from) {
+                // The proof is the back of the vague phrase's card, then it moves into place.
+                const flipAt = P_FLIP + flips++ * P_FLIP_GAP;
+                const back = ease(t, flipAt + P_FLIP_MS / 2, P_FLIP_MS / 2);
+                const move = glide(t, P_MOVE + index * 20, P_MOVE_MS);
+                x = mix(TEXT.left + from.x, x, move);
+                y = mix(TEXT.top + from.y, y, move);
+                rotate = (1 - back) * -90;
+                opacity *= back > 0 ? 1 : 0;
+              } else {
+                const fresh = ease(t, P_FRESH + (piece.proof === "file" ? 120 : 0), 380);
+                y += (1 - fresh) * 8;
+                opacity *= fresh;
+              }
+              parts.push(
+                <span
+                  key="proof"
+                  style={{
+                    ...base,
+                    transform: `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) rotateX(${rotate.toFixed(1)}deg)`,
+                    opacity,
+                    color: "var(--color-text-primary)",
+                  }}
+                >
+                  <Proof kind={piece.proof} />
+                </span>,
+              );
+            }
+            return <Fragment key={index}>{parts}</Fragment>;
+          })}
+      </div>
+      <TinyPill
+        t={t}
+        top={24}
+        rise={10}
+        appearAt={P_APPEAR}
+        speaking={[P_SAY - 80, P_STOP - 150]}
+        stopAt={P_STOP}
+        goneAt={P_SEND}
+        hue="Fix"
+      />
     </Scene>
   );
 }
@@ -996,7 +1404,7 @@ export function Features() {
       </Band>
       <Band
         title="Show the bug. Get proof."
-        line="A clear fix prompt, with screenshots marked where it broke."
+        line="Say it however you like. iVibe backs it up with proof."
         alt
       >
         <ProofScene />
