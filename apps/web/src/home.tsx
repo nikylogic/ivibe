@@ -78,14 +78,14 @@ const styles = stylex.create({
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: 36,
+    gap: 28,
     paddingInline: 16,
     paddingBottom: 72,
     textAlign: "center",
   },
   headline: {
-    fontSize: "clamp(44px, 7.2vw, 92px)",
-    lineHeight: 1.04,
+    fontSize: "clamp(34px, 4.4vw, 60px)",
+    lineHeight: 1.08,
     letterSpacing: "-0.015em",
     margin: 0,
   },
@@ -127,7 +127,7 @@ const styles = stylex.create({
     animationTimingFunction: "var(--motion-ease)",
     animationFillMode: "both",
   },
-  sub: { maxWidth: 560 },
+  sub: { maxWidth: 640, textWrap: "balance" },
   popover: { width: 340, textAlign: "start" },
   downloadRow: {
     display: "flex",
@@ -324,7 +324,7 @@ function Hero() {
           <span {...stylex.props(styles.mascot)} aria-hidden="true">
             {/* A first hello: it blushes and glances away, then smiles back (scene.ts). */}
             <Mascot
-              size={Math.round(Math.min(150, Math.max(78, window.innerWidth * 0.11)))}
+              size={Math.round(Math.min(98, Math.max(60, window.innerWidth * 0.068)))}
               state="shy"
             />
           </span>
@@ -361,10 +361,10 @@ function Hero() {
       </VStack>
 
       <VStack gap={1} hAlign="center" xstyle={styles.sub}>
-        <Text size="lg" weight="medium">
+        <Text size="base" weight="medium">
           Show the bug, say what&apos;s wrong, paste the prompt.
         </Text>
-        <Text size="lg" color="secondary">
+        <Text size="base" color="secondary">
           Screenshots that prove the bug, in Claude Code, Cursor, ChatGPT or any app you type in.
         </Text>
       </VStack>
