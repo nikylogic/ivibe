@@ -6,7 +6,15 @@ import * as stylex from "@stylexjs/stylex";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { ArrowUp, Cloud, Laptop, Lock, SendHorizontal } from "lucide-react";
+import {
+  ArrowUp,
+  Cloud,
+  Laptop,
+  Lock,
+  LockOpen,
+  MousePointer2,
+  SendHorizontal,
+} from "lucide-react";
 import { AppIcon } from "./demo/icons.tsx";
 import type { App } from "./demo/icons.tsx";
 import { Toast } from "./demo/hud.tsx";
@@ -2108,33 +2116,54 @@ function LanguageRow({ t, active, shown }: { t: number; active: number; shown: n
 
 // 6. Meta's AI. Free with your key. ------------------------------------------------------------
 //
-// A brass key slides into the sleeping pill and turns, and the pill wakes up. As it works, a paper
-// receipt prints out of it: each of Meta's models paid with your key, and nothing owed to iVibe.
+// You drag your API key over and drop it into the pill. Its characters turn to dots, a lock
+// closes, and the pill wakes up. As it works, a paper receipt prints out of it: each of Meta's
+// models paid with your key, and nothing owed to iVibe.
+
+const API_KEY = "meta_8fK2xQ9mW4tZ";
 
 /** The story, in ms. */
-const K_IN = 350;
-const K_IN_MS = 900;
-const K_TURN = K_IN + K_IN_MS + 100;
-const K_TURN_MS = 340;
-const K_AWAKE = K_TURN + K_TURN_MS;
+const K_CHIP = 200;
+const K_DRAG = 450;
+const K_DRAG_MS = 900;
+const K_OPEN = 950;
+const K_OPEN_MS = 340;
+const K_DROP = K_DRAG + K_DRAG_MS + 100;
+const K_DROP_MS = 230;
+const K_LAND = K_DROP + K_DROP_MS;
+const K_SEAL = K_LAND + 130;
+const K_SEAL_CHAR_MS = 32;
+const K_LOCK = K_SEAL + API_KEY.length * K_SEAL_CHAR_MS + 60;
+const K_CLOSE = K_LOCK + 750;
+const K_CLOSE_MS = 340;
+const K_AWAKE = K_CLOSE + K_CLOSE_MS;
 const K_STOP = K_AWAKE + 1050;
-const K_OPEN_MS = 480;
-const K_PRINT = K_STOP + K_OPEN_MS - 60;
+const K_SLOT_MS = 480;
+const K_PRINT = K_STOP + K_SLOT_MS - 60;
 const K_FEED_MS = 320;
 const K_DONE = K_PRINT + 2750;
-const K_OUT = K_DONE + 2300;
+const K_OUT = K_DONE + 2200;
 const META_MS = K_OUT + 450;
 
-const PILL_X = 340;
-const PILL_MIDDLE = 52;
-const BRASS = { width: 140, height: 46 };
-/** The pill's width: the small one, then a slot as wide as the paper. */
+const PILL_X = 280;
+const PILL_MIDDLE = 100;
+/** The pill's widths: small, open to take the key, and a slot as wide as the paper. */
 const PILL_SMALL = 104;
+const PILL_OPEN = 204;
 const PILL_SLOT = 292;
-/** Where the key rests against the small pill, its tip out of sight inside. */
-const KEY_LEFT = PILL_X - PILL_SMALL / 2 + 26 - BRASS.width;
+const PILL_FACE: CSSProperties = {
+  background: "rgba(15, 14, 13, 0.94)",
+  border: "1px solid rgba(255, 255, 255, 0.08)",
+  boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2)",
+};
+const KEY_CHIP = { height: 30, pad: 11, font: 12.5 };
+/** Where the key's text sits once it's inside the open pill. */
+const CHIP_REST_X = PILL_X - PILL_OPEN / 2 + 42 - KEY_CHIP.pad;
+const CHIP_REST_Y = PILL_MIDDLE - KEY_CHIP.height / 2;
+const CHIP_HOVER_Y = 22;
+const CHIP_FROM_X = 64;
 
-const PAPER = { width: 270, height: 204, top: 68, tooth: 10, depth: 5 };
+const PAPER = { width: 270, height: 204, top: PILL_MIDDLE + 16, tooth: 10, depth: 5 };
 const PAPER_INK = "#2a2622";
 const PAPER_FAINT = "#7d756a";
 const RECEIPT_ROWS = [
@@ -2167,68 +2196,45 @@ function paperEdge(height: number, torn: number) {
   return `polygon(${points.join(", ")})`;
 }
 
-/** The key: brass, seen from the side, its blade pointing into the pill. */
-function BrassKey() {
-  return (
-    <svg
-      width={BRASS.width}
-      height={BRASS.height}
-      viewBox={`0 0 ${BRASS.width} ${BRASS.height}`}
-      style={{ display: "block", overflow: "visible" }}
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fbe7b2" />
-          <stop offset="0.42" stopColor="#dcae5c" />
-          <stop offset="0.72" stopColor="#b98a3c" />
-          <stop offset="1" stopColor="#8d6526" />
-        </linearGradient>
-      </defs>
-      <path
-        fillRule="evenodd"
-        fill="url(#brass)"
-        d={[
-          // The bow, with its hole.
-          "M23 1a22 22 0 0 1 21.2 16H140v5l-5 6H122v-5h-5v7h-8v-7h-5v4h-8v-4H44.2A22 22 0 1 1 23 1Z",
-          "M16 23a7.5 7.5 0 1 0 15 0a7.5 7.5 0 1 0-15 0Z",
-        ].join(" ")}
-      />
-      {/* The groove along the blade, and the light along its top. */}
-      <path d="M50 21H136" stroke="#7c5820" strokeOpacity="0.55" strokeWidth="1.2" />
-      <path d="M46 18.2H139" stroke="#fff6da" strokeOpacity="0.7" strokeWidth="0.8" />
-      <path
-        d="M9 13a17.5 17.5 0 0 1 25-2"
-        fill="none"
-        stroke="#fff6da"
-        strokeOpacity="0.75"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 function MetaScene() {
   const clock = useClock(META_MS, 300);
   const t = still() ? K_DONE + 900 : clock.t;
   const shown = ease(t, 0, 380) * (1 - ease(t, K_OUT, 420));
-  const slide = glide(t, K_IN, K_IN_MS);
-  const turn = glide(t, K_TURN, K_TURN_MS);
-  const click = bump(t, K_AWAKE, 280);
-  const awake = ease(t, K_AWAKE - 40, 260);
-  const keyGone = ease(t, K_DONE - 60, 300);
-  const pillWidth = mix(PILL_SMALL, PILL_SLOT, glide(t, K_STOP, K_OPEN_MS));
-  const pushed = (pillWidth - PILL_SMALL) / 2;
-  // Free of the pill, the receipt tears off and settles toward the middle, a little crooked.
+
+  // The key: dragged across, held over the pill, then let go.
+  const drag = glide(t, K_DRAG, K_DRAG_MS);
+  const fall = Math.min(1, Math.max(0, (t - K_DROP) / K_DROP_MS)) ** 2;
+  const chipX = mix(CHIP_FROM_X, CHIP_REST_X, drag);
+  const chipY = mix(CHIP_HOVER_Y + 20 * (1 - drag), CHIP_REST_Y, fall);
+  const tilt = mix(-5, 0, Math.max(fall, drag * 0.6));
+  const inside = ease(t, K_LAND - 90, 180);
+  const sealed = Math.max(0, Math.min(API_KEY.length, Math.floor((t - K_SEAL) / K_SEAL_CHAR_MS)));
+  const keyText = "•".repeat(sealed) + API_KEY.slice(sealed);
+  const closing = glide(t, K_CLOSE, K_CLOSE_MS);
+  const contents = 1 - ease(t, K_CLOSE - 40, 200);
+  const cursor = ease(t, K_CHIP, 240) * (1 - ease(t, K_DROP + 60, 260));
+  const cursorAway = ease(t, K_DROP, 420);
+
+  // The pill: asleep, opening for the key, closing around it, and waking.
+  const opened = glide(t, K_OPEN, K_OPEN_MS);
+  const smallWidth = mix(mix(PILL_SMALL, PILL_OPEN, opened), PILL_SMALL, closing);
+  const landed = bump(t, K_LAND, 240);
+  const locked = t >= K_LOCK;
+  const click = bump(t, K_LOCK, 260);
+  const wake = bump(t, K_AWAKE, 300);
+  const awake = t >= K_AWAKE;
+  const slotWidth = mix(PILL_SMALL, PILL_SLOT, glide(t, K_STOP, K_SLOT_MS));
+  const note = ease(t, K_LOCK + 80, 260) * (1 - ease(t, K_CLOSE + 120, 240));
+
+  // The receipt: free of the pill, it tears off and settles, a little crooked.
   const torn = ease(t, K_DONE, 300);
   const settle = glide(t, K_DONE + 80, 620);
   let fed = 0;
   for (const step of FEED) fed = Math.max(fed, mix(fed, step.to, glide(t, step.at, K_FEED_MS)));
+
   return (
-    <Scene clock={clock} width={560} height={290}>
+    <Scene clock={clock} width={560} height={340}>
       <div style={{ position: "absolute", inset: 0, opacity: shown }}>
-        {/* The receipt, coming out from under the pill. */}
         {fed > 0 && (
           <div
             style={{
@@ -2238,7 +2244,7 @@ function MetaScene() {
               width: PAPER.width,
               height: PAPER.height,
               filter: "drop-shadow(0 12px 16px rgba(0,0,0,0.24))",
-              transform: `translate3d(${(settle * (280 - PILL_X)).toFixed(2)}px, ${(settle * -10).toFixed(2)}px, 0) rotate(${(settle * -1.6).toFixed(2)}deg)`,
+              transform: `translate3d(0, ${(settle * -46).toFixed(2)}px, 0) rotate(${(settle * -1.6).toFixed(2)}deg)`,
             }}
           >
             <div
@@ -2332,22 +2338,7 @@ function MetaScene() {
             </div>
           </div>
         )}
-        {/* The key: slides in, turns, and leaves with the pill. */}
-        <div
-          style={{
-            position: "absolute",
-            left: KEY_LEFT,
-            top: PILL_MIDDLE - BRASS.height / 2,
-            width: BRASS.width,
-            height: BRASS.height,
-            opacity: ease(t, K_IN - 150, 300) * (1 - keyGone),
-            filter: "drop-shadow(0 7px 8px rgba(0,0,0,0.3))",
-            transform: `translate3d(${((slide - 1) * 96 - pushed - keyGone * 18).toFixed(2)}px, 0, 0) perspective(420px) rotateX(${(turn * 58).toFixed(2)}deg)`,
-          }}
-        >
-          <BrassKey />
-        </div>
-        {/* The light as it starts. */}
+        {/* The light as it wakes. */}
         <span
           style={{
             position: "absolute",
@@ -2357,35 +2348,132 @@ function MetaScene() {
             height: 88,
             borderRadius: "50%",
             background: `radial-gradient(closest-side, ${tone("Prompt", 0.5)}, transparent)`,
-            opacity: click,
-            transform: `scale(${(0.7 + 0.5 * ease(t, K_AWAKE - 60, 420)).toFixed(3)})`,
+            opacity: Math.max(wake, click * 0.6),
+            transform: `scale(${(0.8 + 0.4 * Math.max(wake, click)).toFixed(3)})`,
           }}
         />
-        {/* The pill: asleep until the key turns. */}
-        <div
+        {/* The pill before it wakes: it opens to take the key, and closes around it. */}
+        {!awake && (
+          <span
+            style={{
+              position: "absolute",
+              left: PILL_X - smallWidth / 2,
+              top: PILL_MIDDLE - 18,
+              width: smallWidth,
+              height: 36,
+              borderRadius: 999,
+              boxSizing: "border-box",
+              ...PILL_FACE,
+              opacity: mix(0.72, 1, opened),
+              transform: `scale(${(1 + 0.05 * landed + 0.04 * click).toFixed(3)})`,
+            }}
+          >
+            {/* Where to drop it. */}
+            <span
+              style={{
+                position: "absolute",
+                inset: 4,
+                borderRadius: 999,
+                border: `1px dashed ${tone("Prompt", 0.75)}`,
+                opacity: ease(t, K_OPEN + 160, 200) * (1 - inside),
+              }}
+            />
+            <span
+              style={{
+                position: "absolute",
+                left: 13,
+                top: 8,
+                width: 18,
+                height: 18,
+                display: "grid",
+                placeItems: "center",
+                color: locked ? tone("Prompt") : "rgba(242, 239, 232, 0.6)",
+                opacity: ease(t, K_OPEN + 120, 200) * contents,
+                transform: `scale(${(1 + 0.25 * click).toFixed(3)})`,
+              }}
+            >
+              {locked ? (
+                <Lock size={14} strokeWidth={2.4} />
+              ) : (
+                <LockOpen size={14} strokeWidth={2.4} />
+              )}
+            </span>
+          </span>
+        )}
+        {/* Your API key: a chip you carry over, then just its text, sealed, inside the pill. */}
+        <span
           style={{
             position: "absolute",
-            left: PILL_X - 280,
+            left: 0,
             top: 0,
-            width: 560,
-            height: 100,
-            opacity: mix(0.55, 1, awake),
-            transform: `scale(${(1 + 0.06 * click).toFixed(3)})`,
-            transformOrigin: `50% ${PILL_MIDDLE}px`,
+            height: KEY_CHIP.height,
+            display: "flex",
+            alignItems: "center",
+            padding: `0 ${KEY_CHIP.pad}px`,
+            borderRadius: 9,
+            whiteSpace: "nowrap",
+            fontFamily: MONO,
+            fontSize: KEY_CHIP.font,
+            color: `color-mix(in srgb, #f2efe8 ${(inside * 100).toFixed(0)}%, var(--color-text-primary))`,
+            background: `color-mix(in srgb, var(--color-background-card) ${((1 - inside) * 100).toFixed(0)}%, transparent)`,
+            boxShadow: `inset 0 0 0 1px color-mix(in srgb, var(--color-border) ${((1 - inside) * 100).toFixed(0)}%, transparent), 0 ${(16 * (1 - fall)).toFixed(1)}px 28px -14px rgba(0,0,0,${(0.5 * (1 - inside)).toFixed(3)})`,
+            opacity: ease(t, K_CHIP, 240) * contents,
+            transform: `translate3d(${chipX.toFixed(2)}px, ${chipY.toFixed(2)}px, 0) rotate(${tilt.toFixed(2)}deg)`,
           }}
         >
-          <TinyPill
-            t={t}
-            top={PILL_MIDDLE - 18}
-            rise={0}
-            appearAt={-460}
-            speaking={[K_AWAKE + 120, K_STOP - 160]}
-            stopAt={K_STOP}
-            goneAt={K_DONE}
-            hue="Prompt"
-            width={pillWidth}
+          {keyText}
+        </span>
+        {/* The hand carrying it, which lets go. */}
+        <span
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            color: "var(--color-text-primary)",
+            opacity: cursor,
+            transform: `translate3d(${(chipX + 118 + cursorAway * 26).toFixed(2)}px, ${(CHIP_HOVER_Y + 20 * (1 - drag) + 16 - cursorAway * 10).toFixed(2)}px, 0)`,
+          }}
+        >
+          <MousePointer2
+            size={20}
+            fill="currentColor"
+            strokeWidth={1.4}
+            stroke="var(--color-background-card)"
           />
-        </div>
+        </span>
+        {/* Where it went. */}
+        <span
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: PILL_MIDDLE + 30,
+            textAlign: "center",
+            fontSize: 13,
+            fontWeight: 500,
+            color: "var(--color-text-secondary)",
+            opacity: note,
+            transform: `translateY(${((1 - note) * 4).toFixed(2)}px)`,
+          }}
+        >
+          Locked on this computer
+        </span>
+        {/* The pill, awake. */}
+        {awake && (
+          <div style={{ position: "absolute", inset: 0 }}>
+            <TinyPill
+              t={t}
+              top={PILL_MIDDLE - 18}
+              rise={0}
+              appearAt={-460}
+              speaking={[K_AWAKE + 120, K_STOP - 160]}
+              stopAt={K_STOP}
+              goneAt={K_DONE}
+              hue="Prompt"
+              width={slotWidth}
+            />
+          </div>
+        )}
       </div>
     </Scene>
   );
