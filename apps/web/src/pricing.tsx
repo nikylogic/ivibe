@@ -76,8 +76,9 @@ const PLANS: {
     href: "/download",
     rows: [
       { label: "Recordings", value: "unlimited" },
-      { label: "Modes", value: "all three" },
       { label: "Usage", value: "on your key" },
+      { label: "Free credits", value: "50 to start" },
+      { label: "Support", value: "community" },
     ],
     total: "Forever",
     amount: "$0",
@@ -90,6 +91,7 @@ const PLANS: {
       { label: "API key", value: "not needed" },
       { label: "Usage", value: "400 credits a month" },
       { label: "Backups", value: "encrypted" },
+      { label: "Support", value: "priority" },
     ],
     total: "Per month",
     amount: "$8",
@@ -103,6 +105,7 @@ const PLANS: {
       { label: "Models", value: "open source" },
       { label: "Runs on", value: "your servers" },
       { label: "Or", value: "hosted by us" },
+      { label: "Support", value: "dedicated" },
     ],
     total: "Price",
     amount: "Let's talk",
@@ -111,10 +114,11 @@ const PLANS: {
 
 /** How much of the paper has come out, and when: the rows stop-start, the total comes last. */
 const FEED = [
-  { at: 0, to: 0.24 },
-  { at: 420, to: 0.42 },
-  { at: 800, to: 0.6 },
-  { at: 1180, to: 1 },
+  { at: 0, to: 0.28 },
+  { at: 380, to: 0.4 },
+  { at: 720, to: 0.52 },
+  { at: 1060, to: 0.64 },
+  { at: 1400, to: 1 },
 ];
 const FEED_MS = 340;
 const PRINT_MS = FEED[FEED.length - 1]!.at + FEED_MS;
@@ -200,7 +204,7 @@ function Receipt({
           left: 0,
           right: 0,
           height: 44,
-          borderRadius: 999,
+          borderRadius: 17,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -312,7 +316,7 @@ export function Pricing() {
       </div>
       <div {...stylex.props(styles.after)}>
         <Text color="secondary">
-          Credits reset monthly. Not sure yet? Try free credits with GitHub.
+          Free credits need a GitHub sign-in. Pro credits reset monthly.
         </Text>
       </div>
     </section>
