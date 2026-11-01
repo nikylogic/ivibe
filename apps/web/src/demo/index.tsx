@@ -378,6 +378,43 @@ function geometry(vw: number, vh: number, env: Env, focus: number) {
 }
 
 /**
+ * Plays one entrance when its children first appear: from `from` (a transform) to rest, with an
+ * overshoot-free ease. It runs on the graphics card and is skipped for reduced motion.
+ */
+function Enter({
+  from,
+  delay = 0,
+  fade = false,
+  origin,
+  children,
+}: {
+  from: string;
+  delay?: number;
+  fade?: boolean;
+  origin?: string;
+  children: ReactNode;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = box.current;
+    if (!element || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animation = element.animate(
+      [
+        { transform: from, opacity: fade ? 0 : 1 },
+        { transform: "none", opacity: 1 },
+      ],
+      { duration: 520, delay, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "backwards" },
+    );
+    return () => animation.cancel();
+  }, [from, delay, fade]);
+  return (
+    <div ref={box} style={{ position: "absolute", inset: 0, transformOrigin: origin }}>
+      {children}
+    </div>
+  );
+}
+
+/**
  * The hero and the demo as one camera move, the way Superwhisper does it. The hero is the inside
  * of iVibe's pill: its waveform, huge and glowing, moving like a voice. Scrolling pulls the camera
  * back out of the pill until it is the small pill above the dock, then the desktop shrinks into a
@@ -414,9 +451,7 @@ export function Showcase({
   const card = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
   const words = useRef<HTMLDivElement>(null);
-  const desktopLayer = useRef<HTMLDivElement>(null);
   const invitation = useRef<HTMLDivElement>(null);
-  const veil = useRef<HTMLDivElement>(null);
   const controls = useRef<HTMLDivElement>(null);
   /** The eased scroll progress the camera is drawn at. */
   const shown = useRef(0);
@@ -487,9 +522,7 @@ export function Showcase({
       words.current.style.visibility = heroShown <= 0 ? "hidden" : "visible";
       words.current.style.pointerEvents = heroShown > 0.5 ? "auto" : "none";
     }
-    if (desktopLayer.current) desktopLayer.current.style.opacity = String(smooth(p, 0.3, 0.6));
     const settled = smooth(p, 0.86, 1);
-    if (veil.current) veil.current.style.opacity = String(settled);
     if (invitation.current) {
       invitation.current.style.opacity = String(settled);
       invitation.current.style.transform = `translate(${g.card.left + g.card.width / 2}px, ${
@@ -651,29 +684,36 @@ export function Showcase({
             {playing && (
               <div style={{ position: "absolute", inset: 0, opacity: fade }}>{now.windows(t)}</div>
             )}
-            <div ref={desktopLayer} style={{ position: "absolute", inset: 0, opacity: 0 }}>
-              {mac ? (
-                <>
-                  <MenuBar env={env} app={playing ? now.active(t) : "chrome"} />
-                  <Dock
-                    env={env}
-                    open={open}
-                    pressed={playing ? now.dockPressed?.(t) : undefined}
-                  />
-                </>
-              ) : (
-                <Taskbar
-                  env={env}
-                  open={open}
-                  active={playing ? now.active(t) : "chrome"}
-                  pressed={playing ? now.dockPressed?.(t) : undefined}
-                />
-              )}
-              {/*
-                The mascot sits still in the corner and nods with each key press; the shortcut
-                floats above it on its own layer, so showing it never moves the mascot.
-              */}
-              {stage.desktop && (
+            {/*
+              Until Play, the card is only the wallpaper, the pill and the invitation. Play
+              builds the desktop around the pill: the dock or taskbar rises, the menu bar drops
+              in, and the mascot pops up in its corner.
+            */}
+            {playing && (
+              <div style={{ position: "absolute", inset: 0 }}>
+                {mac ? (
+                  <>
+                    <Enter from="translateY(-100%)" delay={120}>
+                      <MenuBar env={env} app={now.active(t)} />
+                    </Enter>
+                    <Enter from="translateY(110px)">
+                      <Dock env={env} open={open} pressed={now.dockPressed?.(t)} />
+                    </Enter>
+                  </>
+                ) : (
+                  <Enter from="translateY(60px)">
+                    <Taskbar
+                      env={env}
+                      open={open}
+                      active={now.active(t)}
+                      pressed={now.dockPressed?.(t)}
+                    />
+                  </Enter>
+                )}
+                {/*
+                  The mascot sits still in the corner and nods with each key press; the shortcut
+                  floats above it on its own layer, so showing it never moves the mascot.
+                */}
                 <div
                   style={{
                     position: "absolute",
@@ -683,34 +723,18 @@ export function Showcase({
                     height: MASCOT,
                   }}
                 >
-                  <div
-                    style={{
-                      transform: `translateY(${nod * 3}px) scale(${1 + nod * 0.04}, ${1 - nod * 0.06})`,
-                      transformOrigin: "50% 100%",
-                    }}
-                  >
-                    <Mascot size={MASCOT} state={mascotState(phase)} />
-                  </div>
+                  <Enter from="translateY(16px) scale(0.6)" delay={260} fade origin="50% 100%">
+                    <div
+                      style={{
+                        transform: `translateY(${nod * 3}px) scale(${1 + nod * 0.04}, ${1 - nod * 0.06})`,
+                        transformOrigin: "50% 100%",
+                      }}
+                    >
+                      <Mascot size={MASCOT} state={mascotState(phase)} />
+                    </div>
+                  </Enter>
                 </div>
-              )}
-            </div>
-
-            {/*
-              Before the demo plays, the desktop goes soft behind a frosted veil, so only the
-              pill and the invitation to play stay sharp. The veil fades in as the card settles.
-            */}
-            {!playing && (
-              <div
-                ref={veil}
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  opacity: 0,
-                  backdropFilter: "blur(6px)",
-                  WebkitBackdropFilter: "blur(6px)",
-                }}
-              />
+              </div>
             )}
 
             {/* The pill, above the dock or taskbar where the app puts it. */}
