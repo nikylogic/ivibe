@@ -9,7 +9,7 @@ import { Spinner } from "@astryxdesign/core/Spinner";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { ArrowUp, Check, Cloud, Laptop, Lock, SendHorizontal } from "lucide-react";
-import { APP_NAME, AppIcon } from "./demo/icons.tsx";
+import { AppIcon } from "./demo/icons.tsx";
 import type { App } from "./demo/icons.tsx";
 import { Hud, Toast } from "./demo/hud.tsx";
 import type { HudPhase, Segment } from "./demo/hud.tsx";
@@ -94,7 +94,8 @@ function useClock(total: number, rest = 1800) {
     const start = performance.now();
     let raf = 0;
     const tick = (now: number) => {
-      setT(Math.min(total, (now - start) % (total + rest)));
+      // The first frame can be stamped a touch before the effect ran.
+      setT(Math.min(total, Math.max(0, now - start) % (total + rest)));
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -1602,63 +1603,246 @@ function SecretsScene() {
 }
 
 // 4. Paste where you type. ---------------------------------------------------------------------
+//
+// One caret that never moves. Around it the text box turns into Cursor's chat, Claude's, a Notion
+// page and WhatsApp in turn; each time the pill listens, works, and the words land right at the
+// caret, written for that app.
 
-const APPS: App[] = ["cursor", "claude", "notion", "whatsapp"];
-const EACH = 1700;
+type Field = {
+  app: App;
+  height: number;
+  radius: number;
+  /** The box itself; Notion has none, just a line on the page. */
+  box: CSSProperties;
+  ink: string;
+  hint: string;
+  caret: string;
+  said: ReactNode;
+  send?: ReactNode;
+};
+
+const FIELD_WIDTH = 420;
+const FIELD_LEFT = (560 - FIELD_WIDTH) / 2;
+const FIELD_MIDDLE = 128;
+const FIELD_PAD = 20;
+
+const sendButton = (background: string, color: string, icon: ReactNode, round: boolean) => (
+  <span
+    style={{
+      position: "absolute",
+      right: 10,
+      top: "50%",
+      width: 32,
+      height: 32,
+      marginTop: -16,
+      borderRadius: round ? 16 : 9,
+      display: "grid",
+      placeItems: "center",
+      background,
+      color,
+    }}
+  >
+    {icon}
+  </span>
+);
+
+const FIELDS: Field[] = [
+  {
+    app: "cursor",
+    height: 60,
+    radius: 12,
+    box: { background: "#1c1c1c", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)" },
+    ink: "#e8e8e8",
+    hint: "Plan, @ for context",
+    caret: "#e8e8e8",
+    said: (
+      <>
+        <span
+          style={{
+            fontFamily: MONO,
+            fontSize: 12.5,
+            padding: "3px 7px",
+            marginRight: 8,
+            borderRadius: 6,
+            background: "rgba(255,255,255,0.09)",
+            color: "#c9c9c9",
+          }}
+        >
+          @ProfileForm.tsx
+        </span>
+        save drops the edits
+      </>
+    ),
+    send: sendButton(
+      "rgba(255,255,255,0.14)",
+      "#e8e8e8",
+      <ArrowUp size={16} strokeWidth={2.4} />,
+      true,
+    ),
+  },
+  {
+    app: "claude",
+    height: 72,
+    radius: 20,
+    box: {
+      background: "#faf9f5",
+      boxShadow: "inset 0 0 0 1px #e3ded3, 0 10px 26px -18px rgba(0,0,0,0.35)",
+    },
+    ink: "#2b2a27",
+    hint: "How can I help you today?",
+    caret: "#2b2a27",
+    said: "Why does Save drop my edits?",
+    send: sendButton("#d97757", "#fff", <ArrowUp size={16} strokeWidth={2.4} />, false),
+  },
+  {
+    app: "notion",
+    height: 40,
+    radius: 6,
+    box: {},
+    ink: "var(--color-text-primary)",
+    hint: "Press ‘/’ for commands",
+    caret: "var(--color-text-primary)",
+    said: (
+      <>
+        <span style={{ marginRight: 10 }}>•</span>Fix: Save drops profile edits
+      </>
+    ),
+  },
+  {
+    app: "whatsapp",
+    height: 48,
+    radius: 24,
+    box: {
+      background: "var(--color-background-card)",
+      boxShadow: "inset 0 0 0 1px var(--color-border), 0 10px 26px -20px rgba(0,0,0,0.4)",
+    },
+    ink: "var(--color-text-primary)",
+    hint: "Type a message",
+    caret: "#25d366",
+    said: "found the save bug, fixing it now",
+    send: sendButton("#25d366", "#fff", <SendHorizontal size={15} strokeWidth={2.3} />, true),
+  },
+];
+
+/** Each app's turn, in ms. */
+const EACH = 2700;
+const MORPH_MS = 480;
+const W_APPEAR = 380;
+const W_STOP = 1250;
+const W_PASTE = 1650;
+const W_CLEAR = 2350;
+const W_EMPTY = 2600;
 
 function PasteScene() {
-  const clock = useClock(APPS.length * EACH, 0);
-  const { t } = clock;
-  const index = Math.min(APPS.length - 1, Math.floor(t / EACH));
+  const clock = useClock(FIELDS.length * EACH, 0);
+  const t = still() ? W_PASTE + 400 : clock.t;
+  const index = Math.min(FIELDS.length - 1, Math.floor(t / EACH));
   const local = t - index * EACH;
-  const name = APP_NAME[APPS[index]!];
-  const phase: HudPhase =
-    local < 600
-      ? { kind: "working", label: `Writing for ${name}…` }
-      : { kind: "pasted", label: `Pasted into ${name}` };
+  const field = FIELDS[index]!;
+  const previous = FIELDS[(index + FIELDS.length - 1) % FIELDS.length]!;
+  const morph = glide(local, 0, MORPH_MS);
+  const height = mix(previous.height, field.height, morph);
+  const radius = mix(previous.radius, field.radius, morph);
+  const pasted = local >= W_PASTE && local < W_EMPTY;
+  const words = ease(local, W_PASTE, 160) * (1 - ease(local, W_CLEAR, 240));
+  // The caret blinks while it waits and stays solid while text lands.
+  const blink = pasted || Math.floor(local / 530) % 2 === 0 ? 1 : 0.15;
+  const flip = morph < 0.5 ? previous : field;
+  const turn = morph < 0.5 ? morph * 180 : (morph - 1) * 180;
+  const layer = (shown: Field, opacity: number) => (
+    <span
+      key={shown.app}
+      style={{ position: "absolute", inset: 0, borderRadius: "inherit", opacity, ...shown.box }}
+    >
+      {shown.send}
+    </span>
+  );
   return (
-    <Scene clock={clock} width={560} height={240} hue="Prompt">
-      <div
+    <Scene clock={clock} width={560} height={260}>
+      {/* Which app you're in: its icon turns over as the box changes. */}
+      <span
         style={{
           position: "absolute",
           left: 0,
           right: 0,
-          top: 24,
+          top: 22,
           display: "flex",
           justifyContent: "center",
-          gap: 22,
+          perspective: 400,
         }}
       >
-        {APPS.map((app, at) => {
-          const on = at === index;
-          return (
+        <span style={{ display: "block", transform: `rotateY(${turn.toFixed(1)}deg)` }}>
+          <AppIcon app={flip.app} size={34} os="mac" />
+        </span>
+      </span>
+      {/* The text box, turning from one app's into the next. */}
+      <div
+        style={{
+          position: "absolute",
+          left: FIELD_LEFT,
+          top: FIELD_MIDDLE - height / 2,
+          width: FIELD_WIDTH,
+          height,
+          borderRadius: radius,
+        }}
+      >
+        {/* One look leaves before the next arrives, so dark and light never blur into grey. */}
+        {morph < 1 && layer(previous, 1 - ease(morph, 0, 0.45))}
+        {layer(field, ease(morph, 0.45, 0.55))}
+        <div
+          style={{
+            position: "absolute",
+            left: FIELD_PAD,
+            right: 56,
+            top: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            whiteSpace: "nowrap",
+            fontSize: 16,
+            color: field.ink,
+            opacity: ease(morph, 0.5, 0.5),
+          }}
+        >
+          {pasted && (
             <span
-              key={app}
               style={{
-                display: "flex",
-                flexDirection: "column",
+                display: "inline-flex",
                 alignItems: "center",
-                gap: 10,
-                opacity: on ? 1 : 0.32,
-                transform: on ? "translateY(-4px)" : "none",
-                transition: "opacity 360ms ease, transform 360ms var(--motion-ease)",
+                opacity: words,
+                transform: `translateY(${((1 - ease(local, W_PASTE, 220)) * 3).toFixed(2)}px)`,
               }}
             >
-              <AppIcon app={app} size={54} os="mac" />
-              <span
-                style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: 3,
-                  background: on ? "var(--color-text-primary)" : "transparent",
-                  transition: "background 360ms ease",
-                }}
-              />
+              {field.said}
             </span>
-          );
-        })}
+          )}
+          {/* The caret: the one thing that never moves between apps. */}
+          <span
+            style={{
+              width: 2,
+              height: 20,
+              marginLeft: pasted ? 2 : 0,
+              borderRadius: 1,
+              background: field.caret,
+              opacity: blink,
+              flexShrink: 0,
+            }}
+          />
+          {!pasted && (
+            <span style={{ marginLeft: 2, color: field.ink, opacity: 0.4 }}>{field.hint}</span>
+          )}
+        </div>
       </div>
-      <PillAt phase={phase} t={t} />
+      <TinyPill
+        t={local}
+        top={194}
+        rise={10}
+        appearAt={W_APPEAR}
+        speaking={[W_APPEAR + 150, W_STOP - 150]}
+        stopAt={W_STOP}
+        goneAt={W_PASTE}
+        hue="Prompt"
+      />
     </Scene>
   );
 }
@@ -1755,11 +1939,7 @@ export function Features() {
       >
         <SecretsScene />
       </Band>
-      <Band
-        title="Paste where you type."
-        line="Cursor, Claude, Notion, WhatsApp. Anywhere with a text box."
-        alt
-      >
+      <Band title="Paste where you type." line="Wherever your cursor blinks." alt>
         <PasteScene />
       </Band>
       <Band
