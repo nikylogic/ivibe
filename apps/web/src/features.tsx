@@ -125,7 +125,8 @@ function Scene({
   clock: ReturnType<typeof useClock>;
   width: number;
   height: number;
-  hue: Tone;
+  /** The mode's light behind the pill; left out where the scene can stand empty. */
+  hue?: Tone;
   children: ReactNode;
 }) {
   const frame = useRef<HTMLDivElement>(null);
@@ -156,17 +157,19 @@ function Scene({
             }}
           >
             {/* The mode's light, low behind the pill. */}
-            <span
-              style={{
-                position: "absolute",
-                left: "10%",
-                right: "10%",
-                bottom: -40,
-                height: 220,
-                background: `radial-gradient(50% 50% at 50% 60%, ${tone(hue, 0.16)}, transparent 70%)`,
-                pointerEvents: "none",
-              }}
-            />
+            {hue && (
+              <span
+                style={{
+                  position: "absolute",
+                  left: "10%",
+                  right: "10%",
+                  bottom: -40,
+                  height: 220,
+                  background: `radial-gradient(50% 50% at 50% 60%, ${tone(hue, 0.16)}, transparent 70%)`,
+                  pointerEvents: "none",
+                }}
+              />
+            )}
             {children}
           </div>
         </div>
@@ -492,7 +495,6 @@ function Keyboard({ t, mac }: { t: number; mac: boolean }) {
   // The shortcut sits at the centre of the scene, and the slice fades out around it.
   const focus = mac ? { x: 262, y: row(1) + 23 } : { x: 42, y: row(1) + 23 };
   const mask = `radial-gradient(ellipse 230px 78px at ${focus.x}px ${focus.y}px, #000 45%, transparent 100%)`;
-  const shown = ease(t, 0, 380);
   return (
     <div
       style={{
@@ -503,8 +505,7 @@ function Keyboard({ t, mac }: { t: number; mac: boolean }) {
         height: 160,
         maskImage: mask,
         WebkitMaskImage: mask,
-        opacity: shown,
-        transform: `translateY(${((1 - shown) * 10).toFixed(2)}px) scale(1.2)`,
+        transform: "scale(1.2)",
         transformOrigin: `${focus.x}px ${focus.y}px`,
       }}
     >
@@ -625,7 +626,7 @@ function TalkScene() {
   let kept = 0;
   let dropped = 0;
   return (
-    <Scene clock={clock} width={560} height={440} hue="Dictate">
+    <Scene clock={clock} width={560} height={440}>
       {measure}
       {/* WhatsApp's message box, appearing around the clean sentence. */}
       {spots && (
@@ -715,8 +716,8 @@ function TalkScene() {
           );
         })}
       {/* The shortcut on a real keyboard, and the pill rising out of it. */}
+      <Keyboard t={t} mac={mac} />
       <div style={{ position: "absolute", inset: 0, opacity: shown }}>
-        <Keyboard t={t} mac={mac} />
         <TinyPill t={t} />
       </div>
     </Scene>
