@@ -7,13 +7,16 @@
 
 <p>
   <a href="https://github.com/nikylogic/ivibe/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/nikylogic/ivibe?label=release&color=6f6a60"></a>
+  <a href="https://github.com/nikylogic/ivibe/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/nikylogic/ivibe/total?color=6f6a60"></a>
   <a href="https://github.com/nikylogic/ivibe/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/nikylogic/ivibe/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-6f6a60"></a>
 </p>
 
 <p>
   <a href="https://github.com/nikylogic/ivibe/releases/latest"><b>Download</b></a> ·
+  <a href="https://ivibe.tech"><b>Website</b></a> ·
   <a href="#how-it-works"><b>How it works</b></a> ·
+  <a href="#meta-hackathon-checklist"><b>Hackathon checklist</b></a> ·
   <a href="docs/architecture.md"><b>Architecture</b></a> ·
   <a href="CONTRIBUTING.md"><b>Contributing</b></a>
 </p>
@@ -24,9 +27,104 @@
 
 Press a shortcut, show what's wrong while you explain it, and press it again. iVibe hides secrets on your device, works out what you meant, and pastes the result into the app you were typing in. No report window, no copy-paste.
 
+<div align="center">
+  <img src="docs/readme/demo.webp" alt="The ivibe.tech demo playing through Fix, Prompt and Dictate" width="100%">
+  <br>
+  <sub>A recording of the interactive demo at <a href="https://ivibe.tech">ivibe.tech</a>. The website draws the desktop in it, so try it there or download the real app.</sub>
+</div>
+
+## You say it, iVibe pastes it
+
+These are the examples from the website demo.
+
+**Fix.** You show the broken page and say:
+
+> I change my bio and hit Save, and nothing happens. The console says it can't read map. It should save and show a toast.
+
+iVibe pastes this into your coding agent, with marked-up screenshots:
+
+```text
+Save on Edit profile does nothing
+
+Expected: saving shows a "Saved" toast and keeps the new bio.
+Actual: no request is sent. Console: TypeError: Cannot read properties of
+undefined (reading 'map') at saveProfile (ProfileForm.tsx:41).
+```
+
+**Prompt.** You ramble:
+
+> Uh, so I want, like, a dark mode toggle. It should remember my choice. Oh and, um, follow the system setting by default, I guess.
+
+iVibe pastes a prompt that an AI can act on:
+
+```text
+Add a dark mode toggle
+
+Goal: Let people switch between light and dark themes.
+Requirements:
+- Follow the system setting by default
+- Remember the choice across visits
+Done when: The choice survives a reload
+```
+
+**Dictate.** You talk:
+
+> Hey Asha, um, the demo is, uh, the demo is ready for tomorrow. So, like, let me know what you think.
+
+iVibe pastes what you meant to say:
+
+> Hey Asha, the demo is ready for tomorrow. Let me know what you think!
+
+## See it
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/readme/mode-fix.jpg" alt="Fix: the bug on screen, with the prompt iVibe wrote"></td>
+    <td width="33%"><img src="docs/readme/mode-prompt.jpg" alt="Prompt: a spoken idea turned into a structured prompt"></td>
+    <td width="33%"><img src="docs/readme/mode-dictate.jpg" alt="Dictate: speech cleaned up and pasted into a chat"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Fix</b></td>
+    <td align="center"><b>Prompt</b></td>
+    <td align="center"><b>Dictate</b></td>
+  </tr>
+</table>
+
+<sub>Scenes from the website's interactive demo.</sub>
+
+**The real desktop app**
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/readme/app-record.jpg" alt="iVibe's screen for starting a recording"></td>
+    <td width="50%"><img src="docs/readme/app-history.jpg" alt="iVibe's History page with sample entries"></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/readme/app-settings.jpg" alt="iVibe's settings: AI cleanup, editing selected text by voice, and the recording pill"></td>
+  </tr>
+</table>
+
+<sub>Windows screenshots of the app. History shows sample data.</sub>
+
+<details>
+<summary><b>On a phone, the website tells the story in steps</b></summary>
+<br>
+<p align="center">
+  <img src="docs/readme/phone-show.jpg" alt="Phone demo: show the bug" width="31%">
+  <img src="docs/readme/phone-write.jpg" alt="Phone demo: iVibe writes the prompt" width="31%">
+  <img src="docs/readme/phone-paste.jpg" alt="Phone demo: the clean message is pasted" width="31%">
+</p>
+</details>
+
+<details>
+<summary><b>The website</b></summary>
+<br>
+<a href="https://ivibe.tech"><img src="docs/readme/site-hero.jpg" alt="The ivibe.tech home page" width="100%"></a>
+</details>
+
 ## Download
 
-iVibe 0.1 is out for Windows, macOS and Linux. Get it from the [latest release](https://github.com/nikylogic/ivibe/releases/latest):
+iVibe 0.1.3 is out for Windows, macOS and Linux. Get it from the [latest release](https://github.com/nikylogic/ivibe/releases/latest):
 
 | Your computer                         | File                                    |
 | ------------------------------------- | --------------------------------------- |
@@ -60,6 +158,8 @@ iVibe keeps itself up to date. On Windows and Linux it downloads updates in the 
 | **Dictate** | Your voice               | Your own words, cleaned up: no "um", no false starts                              | Hold `Caps Lock`     | `⌥` + `Space`       | `Ctrl` + `Alt` + `D` |
 
 Every shortcut can be changed in Settings. On Windows, hold `Caps Lock` to talk, or double-press it for hands-free. Results land where you were typing: screenshots are pasted as images into chat apps and Claude Code, and as file paths into other terminal agents. If you switched apps meanwhile, the result waits on the clipboard and pastes into the next text field you click, or with `Ctrl` + `Alt` + `V`.
+
+Fix and Prompt record for up to 60 seconds, and Dictate for up to 5 minutes. In Dictate you can also select text in any app and say what to change, such as "make this more formal" or "translate to Hindi".
 
 ## Plans
 
@@ -97,18 +197,82 @@ flowchart LR
 | Live captions and the narration transcript                      | Muse Voice Transcribe |
 | Snap proof highlights to the UI element                         | SAM 3.1               |
 
-All calls use the Meta Model API with `store: false`. Muse Spark Open (an open-weight engine for iVibe Cloud) and Muse Wonder (optional deep analysis) are planned.
+All of this runs on the Meta Model API, and Muse Spark calls are sent with `store: false`. Runs on your own key and on Pro use `muse-spark-1.3`. Free trial runs use `muse-spark-1.3-contributor`, and Meta may use those requests to improve its models; iVibe tells you this when the trial starts. Muse Spark Open (an open-weight engine for iVibe Cloud) and Muse Wonder (optional deep analysis) are planned, not shipped.
 
 ## Privacy
 
-- **Secrets are hidden on your device.** Only redacted frames and your narration are sent for analysis. The app's self-test plants a GitHub token on screen and fails if it isn't painted over.
+- **Secrets are hidden on your device.** Only redacted frames and your narration are sent for analysis. [`packages/redact`](packages/redact) has its own tests, and the app's developer self-test records a fake app showing a planted GitHub-style token, to exercise OCR and redaction end to end.
+- **The free trial is the exception on training.** Meta may use trial requests to improve its models (see [above](#built-on-metas-models)). Use your own key or Pro to avoid that.
 - **Your key stays yours.** A Meta API key is encrypted with your system keychain and used only by the app's main process.
 - **History stays on your device.** The last 200 results and their screenshots are kept locally, can be turned off, and can be cleared in Settings.
 - **Backups are end-to-end encrypted.** Pro backups are encrypted on your device with a recovery key that only you hold; iVibe can't read them.
 
+## Meta hackathon checklist
+
+Every rule from the [Meta AI Developer Hackathon participant guide](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details), and where iVibe stands. Checked **Nov 2, 2026**. Unticked boxes aren't done yet.
+
+**The build**
+
+| Status | Rule                                                 | Where iVibe stands                                                                                                                                                                                                                                                                                        |
+| ------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅     | Fits a problem statement                             | **Build for Your World**: a tool for people who build with AI and lose time describing bugs and ideas to it                                                                                                                                                                                               |
+| ✅     | Uses Meta's models                                   | Muse Spark 1.3 ([`responses.ts`](packages/engine/src/responses.ts)), Muse Voice Transcribe ([`transcribe.ts`](packages/engine/src/transcribe.ts)) and SAM 3.1 ([`proof.ts`](packages/engine/src/proof.ts)), all through the Meta Model API                                                                |
+| ✅     | Public repository                                    | This repository, public under AGPL-3.0                                                                                                                                                                                                                                                                    |
+| ✅     | Teams of up to 4, solo allowed                       | Solo                                                                                                                                                                                                                                                                                                      |
+| ✅     | New work, built during the event                     | First commit Oct 27, 2026, the day building opened. The [full commit history](https://github.com/nikylogic/ivibe/commits/main) is public                                                                                                                                                                  |
+| ✅     | Judges can tell what was built during the event      | All of it: every commit and [release](https://github.com/nikylogic/ivibe/releases) is dated inside the build window                                                                                                                                                                                       |
+| ✅     | Not on the anti-project list                         | Not medical advice, basic RAG, a simple image analyzer, an education chatbot, a job screener, a nutrition coach, a personality analyzer, a sports coach or political. It's a desktop developer tool                                                                                                       |
+| ✅     | Doesn't break legal, ethical or platform policies    | Secrets are removed on the device, the trial's data use is disclosed, and the [privacy section](#privacy) says what leaves your computer                                                                                                                                                                  |
+| ⚠️     | Only uses code, data and assets it has the rights to | The dependency license check in [`scripts/`](scripts/) passes except for Remotion, whose license it can't classify, and that also turns the CI badge red. Remotion is used only in `apps/video`, isn't in the app, and is free for individuals under [its license](https://www.remotion.dev/docs/license) |
+
+**The submission** (due Nov 4, 2026, 9:00 PM EST, which is Nov 5, 7:30 AM IST)
+
+| Status | Rule                                                     | Where iVibe stands                       |
+| ------ | -------------------------------------------------------- | ---------------------------------------- |
+| ⬜     | Three-minute demo video of what was built                | Not finished                             |
+| ⬜     | The demo only shows features built during the hackathon  | Depends on the final video               |
+| ⬜     | Video link opens for anyone                              | Waiting on the video                     |
+| ⬜     | Submitted on the Cerebral Valley platform, once per team | Not submitted yet                        |
+| ⬜     | Representative chosen, and everyone on the team listed   | Solo, to be confirmed on the form        |
+| ⬜     | Repository still public at submission                    | Public today, to be rechecked on the day |
+
+**Optional extras**
+
+| Status | Prize          | Where iVibe stands                     |
+| ------ | -------------- | -------------------------------------- |
+| ⬜     | Most Viral     | Needs an X post linked on the platform |
+| ⬜     | Community Vote | Winner named on Nov 16                 |
+
+<details>
+<summary><b>How iVibe lines up with the judging rubric</b></summary>
+<br>
+
+| Criterion                     | Weight | What to look at                                                                                                                                        |
+| ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Impact                        | 30%    | A real, installable app for three operating systems ([releases](https://github.com/nikylogic/ivibe/releases)), with a free plan                        |
+| Use of Meta AI tooling        | 25%    | Three Meta models in one pipeline, each doing a different job: voice, writing and vision ([how it works](#how-it-works))                               |
+| Technical depth and execution | 20%    | On-device OCR and redaction, proof screenshots, encrypted backups and automatic updates. Decisions are in [docs/architecture.md](docs/architecture.md) |
+| Demo                          | 25%    | The [interactive demo](https://ivibe.tech) is live. The three-minute video is still to come                                                            |
+
+</details>
+
+<details>
+<summary><b>Hackathon timeline</b></summary>
+<br>
+
+| Date (2026)        | What happens                                |
+| ------------------ | ------------------------------------------- |
+| Oct 27 – Nov 4     | Building. iVibe's first commit is on Oct 27 |
+| Nov 4, 9:00 PM EST | Submissions close                           |
+| Nov 5 – 8          | Judging                                     |
+| Nov 9, 12:00 PM ET | Closing, with the top 10 (5 per track)      |
+| Nov 16             | Community vote winner                       |
+
+</details>
+
 ## Status
 
-Updated **Oct 29, 2026**, when 0.1 was released. iVibe is being built in public for the [Meta Global AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon) (Oct 27 – Nov 4, 2026). The full breakdown is in [docs/architecture.md](docs/architecture.md).
+Updated **Nov 2, 2026**. The latest release is [0.1.3](https://github.com/nikylogic/ivibe/releases/latest). iVibe is being built in public for the [Meta AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details) (Oct 27 – Nov 4, 2026). The full breakdown is in [docs/architecture.md](docs/architecture.md).
 
 **Shipped**
 
@@ -117,6 +281,7 @@ Updated **Oct 29, 2026**, when 0.1 was released. iVibe is being built in public 
 - [x] Paste into the app you were in, click-to-paste and History
 - [x] Installers for Windows, macOS and Linux, with automatic updates
 - [x] iVibe Cloud: GitHub sign-in, free trial credits, iVibe Pro and encrypted backups
+- [x] [ivibe.tech](https://ivibe.tech): website, docs and an interactive demo for desktop and phone
 
 **Being verified by hand**
 
@@ -156,11 +321,13 @@ pnpm spike spikes/meta/s10-models.ts
 ```text
 apps/desktop   Electron app: recorder, pill, app window, tray, updater, OS helpers
 apps/api       iVibe Cloud on Cloudflare Workers: sign-in, credits, Pro billing, backups
+apps/web       ivibe.tech: the website, docs, blog and interactive demo
 apps/demo-bug  A small React app with a planted bug, for demos
-packages/      capture · vision · ocr · redact · encode · engine (Meta API, prompts, proof)
+apps/video     The demo film, made with Remotion. Private, and not part of the app
+packages/      capture · vision · ocr · redact · encode · imageops · bundle · agent · ui · config · types · engine (Meta API, prompts, proof)
 logo/          every logo file, generated from one mascot drawing (logo/README.md)
 spikes/        experiments that verify API and platform facts before building on them
-docs/          architecture, spike results, the Vibes and prompts plan
+docs/          architecture, spike results, the Vibes and prompts plan, README images
 scripts/       repository tooling (OCR model download, dependency license check)
 ```
 
@@ -183,5 +350,5 @@ The iVibe name and logo are not covered by the code license; see [TRADEMARKS.md]
 ---
 
 <div align="center">
-<sub>Built for the Meta Global AI Developer Hackathon. iVibe is an independent project and is not affiliated with or endorsed by Meta.</sub>
+<sub>Built for the Meta AI Developer Hackathon. iVibe is an independent project and is not affiliated with or endorsed by Meta.</sub>
 </div>
