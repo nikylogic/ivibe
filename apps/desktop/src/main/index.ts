@@ -88,6 +88,7 @@ import {
   listHistory,
 } from "./history.ts";
 import { seedSession, startBackupSelfTest } from "./backup-selftest.ts";
+import { setPasteShortcutControl } from "./deliver.ts";
 import { RecordingController } from "./recording.ts";
 import {
   createHudWindow,
@@ -1197,7 +1198,13 @@ void app.whenReady().then(() => {
   if (!SELF_TEST) startUpdater();
 
   registerShortcuts();
-  globalShortcut.register(PASTE_SHORTCUT, () => void pasteLastResult());
+  const registerPasteShortcut = () =>
+    globalShortcut.register(PASTE_SHORTCUT, () => void pasteLastResult());
+  registerPasteShortcut();
+  setPasteShortcutControl({
+    off: () => globalShortcut.unregister(PASTE_SHORTCUT),
+    on: registerPasteShortcut,
+  });
 
   if (SELF_TEST) {
     recorderWindow.webContents.once("did-finish-load", runSelfTest);

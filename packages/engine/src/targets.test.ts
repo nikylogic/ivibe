@@ -8,6 +8,7 @@ describe("classifyTarget", () => {
     ["WindowsTerminal", "✳ Claude Code", "terminal-agent", "Claude Code"],
     ["iTerm2", "claude — ~/app", "terminal-agent", "Claude Code"],
     ["pwsh", "codex", "terminal-agent", "Codex"],
+    ["WindowsTerminal", "muse", "terminal-agent", "Muse Code"],
     ["gnome-terminal-server", "~/projects", "terminal", "the terminal"],
     ["C:\\Program Files\\cursor\\Cursor.exe", "app.tsx — shop", "editor", "Cursor"],
     ["Code", "index.ts - api - Visual Studio Code", "editor", "VS Code"],

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { ClipboardItem, clipboard } from "electron";
+import { MUSE_CODE } from "@ivibe/engine";
 import type { TargetApp } from "@ivibe/engine";
 import { focusedWindow, isOwnWindow, pasteInto } from "./os-bridge.ts";
 import type { FocusedWindow, PasteKind } from "./os-bridge.ts";
@@ -26,6 +27,15 @@ export interface DeliverRequest {
 }
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Muse Code's image paste on Windows is the same keys as iVibe's "paste last result" shortcut, so
+ * that shortcut steps aside while the keystroke goes out, or it would catch it.
+ */
+let pasteShortcut = { off: () => {}, on: () => {} };
+export function setPasteShortcutControl(control: typeof pasteShortcut): void {
+  pasteShortcut = control;
+}
 
 /**
  * How long the app gets to read the clipboard before it changes again. Chat apps upload a pasted
@@ -92,8 +102,15 @@ export async function deliver({
     else if (part) await clipboard.writeText(part);
     else continue;
 
-    const kind: PasteKind = isTerminal ? (isImage ? "terminal-image" : "terminal-text") : "text";
-    if (!(await pasteInto(window, kind))) {
+    const imageKind = target.name === MUSE_CODE ? "muse-image" : "terminal-image";
+    const kind: PasteKind = isTerminal ? (isImage ? imageKind : "terminal-text") : "text";
+    if (kind === "muse-image") pasteShortcut.off();
+    const pasted = await pasteInto(window, kind);
+    if (kind === "muse-image") {
+      await pause(TEXT_SETTLE_MS);
+      pasteShortcut.on();
+    }
+    if (!pasted) {
       // The whole result goes on the clipboard, with screenshots as file paths.
       await clipboard.writeText(fallbackText);
       return "copied";

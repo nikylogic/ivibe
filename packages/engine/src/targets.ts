@@ -28,8 +28,11 @@ const TERMINALS =
   /^(windowsterminal|wt|openconsole|conhost|powershell|pwsh|cmd|bash|mintty|wezterm(-gui)?|alacritty|kitty|ghostty|warp|hyper|tabby|iterm2?|terminal|gnome-terminal(-server)?|konsole|xterm|tilix|terminator|foot)$/i;
 const BROWSERS = /^(chrome|msedge|firefox|brave|arc|opera|vivaldi|safari|chromium|zen)$/i;
 
+export const MUSE_CODE = "Muse Code";
+
 const AGENTS_IN_TITLE: [RegExp, string][] = [
   [/claude/i, "Claude Code"],
+  [/\bmuse\b/i, "Muse Code"],
   [/\bcodex\b/i, "Codex"],
   [/\bgemini\b/i, "Gemini CLI"],
   [/\baider\b/i, "Aider"],
@@ -75,6 +78,11 @@ const baseName = (process: string) =>
     .pop()!
     .replace(/\.(exe|app)$/i, "");
 
+/** A terminal known to be running Muse Code, whose window title doesn't say so. */
+export function asMuseCode(target: TargetApp): TargetApp {
+  return { ...target, kind: "terminal-agent", name: MUSE_CODE };
+}
+
 export function classifyTarget(rawProcess: string, title: string): TargetApp {
   const process = baseName(rawProcess);
   const base = { process, title };
@@ -104,7 +112,9 @@ export function classifyTarget(rawProcess: string, title: string): TargetApp {
  * and when the result is only copied.
  */
 export function imageDelivery(target: TargetApp): "paste" | "paths" {
-  if (target.kind === "terminal-agent") return target.name === "Claude Code" ? "paste" : "paths";
+  if (target.kind === "terminal-agent") {
+    return target.name === "Claude Code" || target.name === MUSE_CODE ? "paste" : "paths";
+  }
   if (target.kind === "chat" || target.kind === "editor" || target.kind === "browser")
     return "paste";
   return "paths";

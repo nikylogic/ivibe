@@ -97,7 +97,25 @@ while ($null -ne ($request = [Console]::In.ReadLine())) {
         [IVibe.Win32]::keybd_event(0x14, 0x3a, 2, [System.UIntPtr]::Zero)
       }
       $out = @{ toggled = $on }
-    } elseif ($line -match '^paste (\d+) (ctrl|alt)$') {
+    } elseif ($line -match '^muse (\d+)$') {
+      # Whether Muse Code runs under this window's terminal: its title only shows the folder.
+      $windowPid = [uint32]0
+      [void][IVibe.Win32]::GetWindowThreadProcessId([System.IntPtr][int64]$Matches[1], [ref]$windowPid)
+      $parents = @{}
+      $muse = @()
+      foreach ($p in Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name) {
+        $parents[[uint32]$p.ProcessId] = [uint32]$p.ParentProcessId
+        if ($p.Name -like 'muse-bin*') { $muse += [uint32]$p.ProcessId }
+      }
+      $found = $false
+      foreach ($current in $muse) {
+        for ($depth = 0; $depth -lt 12 -and $parents.ContainsKey($current); $depth++) {
+          if ($current -eq $windowPid) { $found = $true; break }
+          $current = $parents[$current]
+        }
+      }
+      $out = @{ muse = $found }
+    } elseif ($line -match '^paste (\d+) (ctrl|alt|ctrlalt)$') {
       $target = [System.IntPtr][int64]$Matches[1]
       if ([IVibe.Win32]::GetForegroundWindow() -ne $target) {
         [void][IVibe.Win32]::SetForegroundWindow($target)
@@ -107,11 +125,11 @@ while ($null -ne ($request = [Console]::In.ReadLine())) {
       if ($focused) {
         # Release modifiers the shortcut may have left down, then Ctrl+V (Alt+V: image into Claude Code).
         foreach ($vk in 0x10, 0x11, 0x12, 0x5B) { [IVibe.Win32]::keybd_event($vk, 0, 2, [System.UIntPtr]::Zero) }
-        $modifier = if ($Matches[2] -eq 'alt') { 0x12 } else { 0x11 }
-        [IVibe.Win32]::keybd_event($modifier, 0, 0, [System.UIntPtr]::Zero)
+        $modifiers = switch ($Matches[2]) { 'alt' { @(0x12) } 'ctrlalt' { @(0x11, 0x12) } default { @(0x11) } }
+        foreach ($vk in $modifiers) { [IVibe.Win32]::keybd_event($vk, 0, 0, [System.UIntPtr]::Zero) }
         [IVibe.Win32]::keybd_event(0x56, 0, 0, [System.UIntPtr]::Zero)
         [IVibe.Win32]::keybd_event(0x56, 0, 2, [System.UIntPtr]::Zero)
-        [IVibe.Win32]::keybd_event($modifier, 0, 2, [System.UIntPtr]::Zero)
+        foreach ($vk in $modifiers) { [IVibe.Win32]::keybd_event($vk, 0, 2, [System.UIntPtr]::Zero) }
       }
       $out = @{ pasted = $focused }
     } else {
@@ -325,9 +343,20 @@ export async function fieldState(): Promise<FieldState | null> {
 
 /**
  * What is being pasted where: text into an app, text into a terminal, or an image into Claude
- * Code, which reads the clipboard image on its own shortcut (Alt+V on Windows, Ctrl+V elsewhere).
+ * Code, which reads the clipboard image on its own shortcut (Alt+V on Windows, Ctrl+V elsewhere),
+ * or into Muse Code (Ctrl+Alt+V on Windows, where the terminal keeps Ctrl+V and Alt+V is voice).
  */
-export type PasteKind = "text" | "terminal-text" | "terminal-image";
+export type PasteKind = "text" | "terminal-text" | "terminal-image" | "muse-image";
+
+/** Windows: whether this terminal window is running Muse Code. */
+export async function runsMuseCode(window: FocusedWindow): Promise<boolean> {
+  if (!windows) return false;
+  try {
+    return (await windows.request<{ muse?: boolean }>(`muse ${window.handle}`))?.muse === true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Focuses the target window if needed and sends the platform's paste shortcut.
@@ -336,7 +365,8 @@ export type PasteKind = "text" | "terminal-text" | "terminal-image";
 export async function pasteInto(target: FocusedWindow, kind: PasteKind): Promise<boolean> {
   try {
     if (windows) {
-      const modifier = kind === "terminal-image" ? "alt" : "ctrl";
+      const modifier =
+        kind === "muse-image" ? "ctrlalt" : kind === "terminal-image" ? "alt" : "ctrl";
       const result = await windows.request<{ pasted?: boolean }>(
         `paste ${target.handle} ${modifier}`,
       );
@@ -351,7 +381,7 @@ export async function pasteInto(target: FocusedWindow, kind: PasteKind): Promise
           "-e",
           "delay 0.1",
           "-e",
-          `tell application "System Events" to keystroke "v" using ${kind === "terminal-image" ? "control" : "command"} down`,
+          `tell application "System Events" to keystroke "v" using ${kind === "terminal-image" || kind === "muse-image" ? "control" : "command"} down`,
         ],
         { timeout: 4000 },
       );

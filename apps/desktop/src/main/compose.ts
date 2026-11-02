@@ -4,6 +4,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { app, nativeImage, net } from "electron";
 import {
+  MUSE_CODE,
+  asMuseCode,
   classifyTarget,
   cleanUpDictation,
   imageDelivery,
@@ -30,7 +32,7 @@ import { cloudCompose } from "./cloud.ts";
 import type { MetaAccess } from "./cloud.ts";
 import { deliver } from "./deliver.ts";
 import type { Part } from "./deliver.ts";
-import { focusedWindow, isOwnWindow } from "./os-bridge.ts";
+import { focusedWindow, isOwnWindow, runsMuseCode } from "./os-bridge.ts";
 import type { FocusedWindow } from "./os-bridge.ts";
 import { maskSecrets, restoreSecrets } from "@ivibe/redact";
 import { asSentence } from "../shared/transcript.ts";
@@ -57,7 +59,13 @@ const CLIPBOARD: TargetApp = { kind: "other", name: "the clipboard", process: ""
 export async function detectDestination(): Promise<Destination> {
   const window = await focusedWindow();
   if (!window || isOwnWindow(window)) return { window: null, target: CLIPBOARD };
-  return { window, target: classifyTarget(window.process, window.title) };
+  return { window, target: await classifyWindow(window) };
+}
+
+/** What a window is, looking inside plain terminals for Muse Code. */
+export async function classifyWindow(window: FocusedWindow): Promise<TargetApp> {
+  const target = classifyTarget(window.process, window.title);
+  return target.kind === "terminal" && (await runsMuseCode(window)) ? asMuseCode(target) : target;
 }
 
 export interface ComposeRequest {
@@ -172,6 +180,17 @@ export function fallbackText({ text, proof }: Payload): string {
 export function partsFor(target: TargetApp, payload: Payload): Part[] {
   if (payload.proof.length === 0 || imageDelivery(target) !== "paste") {
     return [fallbackText(payload)];
+  }
+  // Muse Code takes a paste that starts with a line break as Enter, which would send the prompt
+  // early, so its screenshots follow each other on one line.
+  if (target.name === MUSE_CODE) {
+    const [first, ...rest] = payload.proof;
+    const parts: Part[] = [
+      `${payload.text}\n\nProof (annotated screenshots):\n${first!.line} `,
+      first!.png,
+    ];
+    for (const shot of rest) parts.push(` ${shot.line} `, shot.png);
+    return parts;
   }
   const parts: Part[] = [`${payload.text}\n\nProof (annotated screenshots):`];
   for (const shot of payload.proof) parts.push(`\n${shot.line} `, shot.png);

@@ -124,7 +124,7 @@ iVibe pastes what you meant to say:
 
 ## Download
 
-iVibe 0.1.4 is out for Windows, macOS and Linux. Get it from the [latest release](https://github.com/nikylogic/ivibe/releases/latest):
+iVibe 0.1.5 is out for Windows, macOS and Linux. Get it from the [latest release](https://github.com/nikylogic/ivibe/releases/latest):
 
 | Your computer                         | File                                    |
 | ------------------------------------- | --------------------------------------- |
@@ -272,7 +272,7 @@ Every rule from the [Meta AI Developer Hackathon participant guide](https://cere
 
 ## Status
 
-Updated **Nov 2, 2026**. The latest release is [0.1.4](https://github.com/nikylogic/ivibe/releases/latest). iVibe is being built in public for the [Meta AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details) (Oct 27 – Nov 4, 2026). The full breakdown is in [docs/architecture.md](docs/architecture.md).
+Updated **Nov 3, 2026**. The latest release is [0.1.5](https://github.com/nikylogic/ivibe/releases/latest). iVibe is being built in public for the [Meta AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details) (Oct 27 – Nov 4, 2026). The full breakdown is in [docs/architecture.md](docs/architecture.md).
 
 **Shipped**
 

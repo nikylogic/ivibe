@@ -17,8 +17,7 @@ import type {
   Settings,
   TranscriptSegment,
 } from "../shared/ipc.ts";
-import { classifyTarget } from "@ivibe/engine";
-import { compose, deliverPayload, detectDestination } from "./compose.ts";
+import { classifyWindow, compose, deliverPayload, detectDestination } from "./compose.ts";
 import { selectedText } from "./os-bridge.ts";
 import type { Destination, Payload } from "./compose.ts";
 import type { FocusedWindow } from "./os-bridge.ts";
@@ -275,7 +274,7 @@ export class RecordingController extends EventEmitter<{
   async pasteResult(window: FocusedWindow): Promise<boolean> {
     const result = this.#status.result;
     if (!this.#payload || !result) return false;
-    const target = classifyTarget(window.process, window.title);
+    const target = await classifyWindow(window);
     const outcome = await deliverPayload(this.#payload, window, target, true);
     if (this.#status.result !== result) return outcome.delivery === "pasted";
     this.#set({ result: { ...result, ...outcome, waiting: false } });
