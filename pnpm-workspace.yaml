@@ -1,5 +1,6 @@
 packages:
   - "apps/*"
+  - "!apps/video"
   - "packages/*"
 
 # Install scripts: Electron and ONNX Runtime for Node (OCR tests) download binaries.

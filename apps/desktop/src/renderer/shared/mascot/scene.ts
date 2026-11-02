@@ -326,7 +326,7 @@ export class MascotScene {
   /** Where the key settles when it stops: facing front again. Unset while it turns. */
   #keyRest: number | null = 0;
   /**
-   * Driven frame by frame (the demo video, apps/video): the time of the frame being drawn, in ms.
+   * Driven frame by frame (when rendering a video): the time of the frame being drawn, in ms.
    * Null in the app, where the toy runs on the real clock.
    */
   #manualNow: number | null = null;
