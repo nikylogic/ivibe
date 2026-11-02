@@ -12,8 +12,8 @@ import { Theme } from "@astryxdesign/core/theme";
 import type { ThemeMode } from "@astryxdesign/core/theme";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import { fetchAccount, OPEN_APP_URL } from "./account.ts";
-import { Footer } from "./finale.tsx";
-import { TopBar } from "./home.tsx";
+import { Footer } from "./footer.tsx";
+import { TopBar } from "./top-bar.tsx";
 import { Nav } from "./nav.tsx";
 import { usePageMeta } from "./seo.ts";
 import { ivibeTheme } from "./theme.ts";
@@ -116,7 +116,7 @@ export function WelcomePage({
       <Theme theme={ivibeTheme} mode={mode}>
         <TopBar mode={mode} onModeChange={onModeChange} />
       </Theme>
-      <Nav page="legal" />
+      <Nav page="legal" mode={mode} onModeChange={onModeChange} />
       <main {...stylex.props(styles.main)}>
         <VStack gap={5} hAlign="center">
           <Mascot size={120} state={stage.name === "pro" ? "done" : "idle"} />

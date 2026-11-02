@@ -1,0 +1,28 @@
+# iVibe
+
+> iVibe is an open-source desktop app for Windows, macOS and Linux that turns your voice, and your screen when it helps, into text pasted where you were typing. Show a bug and say what's wrong, and it writes a prompt for your coding agent, with marked-up screenshots as proof. Licensed AGPL-3.0.
+
+It needs the internet, because speech and cleanup run on Meta's models. It's free with your own Meta key or 50 free credits. Pro is $8 a month for 400 credits.
+
+## Docs
+
+- [What is iVibe?](https://ivibe.tech/docs): the three modes and where to start
+- [Install](https://ivibe.tech/docs/install): Windows, macOS and Linux
+- [Fix](https://ivibe.tech/docs/fix): turn a bug on screen into a prompt
+- [Prompt](https://ivibe.tech/docs/prompt): turn a spoken idea into a prompt
+- [Dictate](https://ivibe.tech/docs/dictate): clean voice typing in any app
+- [Plans and credits](https://ivibe.tech/docs/plans): keys, credits and Pro
+- [Privacy and security](https://ivibe.tech/docs/privacy): what's hidden and what reaches Meta
+
+## Guides
+
+- [Voice to prompt for Claude Code and Cursor](https://ivibe.tech/voice-to-prompt)
+- [Open-source dictation](https://ivibe.tech/open-source-dictation)
+- [iVibe compared with Wispr Flow](https://ivibe.tech/compare/wispr-flow)
+- [iVibe compared with Superwhisper](https://ivibe.tech/compare/superwhisper)
+
+## Optional
+
+- [Source code](https://github.com/nikylogic/ivibe)
+- [How iVibe hides your secrets](https://ivibe.tech/blog/how-ivibe-hides-your-secrets)
+- [From "it's broken" to proof](https://ivibe.tech/blog/from-its-broken-to-proof)

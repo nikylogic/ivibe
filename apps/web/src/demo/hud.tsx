@@ -39,7 +39,7 @@ function level(t: number, segments: Segment[]): number {
 }
 
 /** The full pill's waveform: the last 26 levels scrolling left, like useLevelHistory. */
-function Waveform({ t, segments }: { t: number; segments: Segment[] }) {
+export function Waveform({ t, segments }: { t: number; segments: Segment[] }) {
   const bars = 26;
   const step = 90;
   const now = Math.floor(t / step) * step;
@@ -438,8 +438,9 @@ export function CompactPill() {
         paddingInline: 14,
         borderRadius: 999,
         background:
-          "radial-gradient(120% 140% at 50% 30%, rgba(255, 244, 228, 0.07), transparent 60%), rgb(15, 14, 13)",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
+          "radial-gradient(120% 140% at 50% 30%, rgba(255, 244, 228, 0.07), transparent 60%) border-box, rgb(15, 14, 13)",
+        // Fades as the hero scales it up, where 1px would be a wide grey band.
+        border: "1px solid rgba(255, 255, 255, calc(0.08 * var(--rim, 1)))",
         boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2)",
       }}
     >

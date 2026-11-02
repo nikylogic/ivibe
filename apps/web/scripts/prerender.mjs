@@ -69,8 +69,16 @@ function capture() {
     description: document.head.querySelector('meta[name="description"]')?.content ?? "",
     canonical: document.head.querySelector('link[rel="canonical"]')?.href ?? "",
     noindex: !!document.head.querySelector('meta[name="robots"]'),
+    modified: JSON.parse(document.getElementById("seo-json-ld")?.textContent ?? "[]").find(
+      (item) => item.dateModified,
+    )?.dateModified,
     h1: root.querySelectorAll("h1").length,
     links: [...document.querySelectorAll("a[href]")].map((link) => link.href),
+    // This page's own code, except the mascot's 3D scene, which comes in after the page shows.
+    scripts: performance
+      .getEntriesByType("resource")
+      .map((entry) => new URL(entry.name).pathname)
+      .filter((path) => path.endsWith(".js") && !path.includes("/scene-")),
   };
 }
 
@@ -136,10 +144,17 @@ if (problems.length) {
   process.exit(1);
 }
 
+/** Fetches a page's code alongside the HTML, not one layer of imports at a time. */
+const preloads = (scripts) =>
+  scripts
+    .filter((script) => !template.includes(script))
+    .map((script) => `<link rel="modulepreload" crossorigin href="${script}">\n    `)
+    .join("");
+
 for (const [path, page] of pages) {
   const html = template
     .replace(HEAD_TAGS, "")
-    .replace("</head>", `  ${page.head}\n    ${HIDE}\n  </head>`)
+    .replace("</head>", () => `  ${page.head}\n    ${preloads(page.scripts)}${HIDE}\n  </head>`)
     .replace(
       '<div id="root"></div>',
       () => `<div id="root"><div data-snapshot>${page.body}</div></div>`,
@@ -150,12 +165,19 @@ for (const [path, page] of pages) {
   await writeFile(join(DIST, file), html);
 }
 
-const listed = [...pages].filter(([, page]) => !page.noindex).map(([path]) => `${SITE}${path}`);
+// Only pages that know their real date say so: a build date on every page would teach search
+// engines to ignore it.
+const listed = [...pages]
+  .filter(([, page]) => !page.noindex)
+  .map(
+    ([path, page]) =>
+      `<loc>${SITE}${path}</loc>${page.modified ? `<lastmod>${page.modified}</lastmod>` : ""}`,
+  );
 await writeFile(
   join(DIST, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${listed.map((url) => `  <url><loc>${url}</loc></url>`).join("\n")}
+${listed.map((entry) => `  <url>${entry}</url>`).join("\n")}
 </urlset>
 `,
 );

@@ -1,22 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { Heading } from "@astryxdesign/core/Heading";
-import { Link } from "@astryxdesign/core/Link";
-import { Text } from "@astryxdesign/core/Text";
 import { Theme } from "@astryxdesign/core/theme";
-import type { ThemeMode } from "@astryxdesign/core/theme";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import type { MascotState } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import { AsciiWave } from "./demo/ascii-wave.tsx";
 import type { Camera } from "./demo/ascii-wave.tsx";
-import { scrollToDemo } from "./demo/index.tsx";
 import { Awake } from "./pricing.tsx";
-import { REPO } from "./release.ts";
 import { ivibeTheme } from "./theme.ts";
-import { ThemeSwitch } from "./theme-switch.tsx";
 
 /**
  * The page began inside the pill, and it ends by going back in. A small pill, listening, opens as
@@ -82,42 +76,6 @@ const styles = stylex.create({
     letterSpacing: "-0.015em",
     margin: 0,
   },
-  footer: {
-    backgroundColor: "var(--color-background-surface)",
-    paddingTop: { default: 56, "@media (max-width: 720px)": 40 },
-    paddingBottom: 28,
-    paddingInline: { default: 32, "@media (max-width: 640px)": 16 },
-  },
-  footerInner: {
-    maxWidth: 1040,
-    marginInline: "auto",
-    display: "grid",
-    gridTemplateColumns: {
-      default: "minmax(0, 1fr) auto auto auto",
-      "@media (max-width: 720px)": "minmax(0, 1fr) minmax(0, 1fr)",
-    },
-    columnGap: 64,
-    rowGap: 32,
-    alignItems: "start",
-  },
-  brand: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    gridColumn: { default: "auto", "@media (max-width: 720px)": "1 / -1" },
-  },
-  links: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10 },
-  fine: {
-    maxWidth: 1040,
-    marginInline: "auto",
-    marginTop: 40,
-    display: "flex",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  fineLinks: { display: "flex", flexWrap: "wrap", gap: 16 },
 });
 
 export function Finale({ children }: { children: ReactNode }) {
@@ -128,6 +86,12 @@ export function Finale({ children }: { children: ReactNode }) {
   const listening = useRef<HTMLDivElement>(null);
   const words = useRef<HTMLDivElement>(null);
   const camera = useRef<Camera>({ x: 0, y: 0, k: 1, p: 0 });
+  /** Where the words really are: their box fills the stage, to centre them. */
+  const contentBox = useCallback(() => {
+    const first = words.current?.firstElementChild?.getBoundingClientRect();
+    const last = words.current?.lastElementChild?.getBoundingClientRect();
+    return first && last ? { top: first.top, bottom: last.bottom } : null;
+  }, []);
   const [size, setSize] = useState({ width: 0, height: 0 });
   // The waveform and the mascot only exist once the section is close.
   const [near, setNear] = useState(false);
@@ -242,7 +206,7 @@ export function Finale({ children }: { children: ReactNode }) {
       <div ref={sticky} {...stylex.props(styles.sticky)}>
         <div ref={stage} {...stylex.props(styles.stage)}>
           {near && size.width > 0 && (
-            <AsciiWave camera={camera} width={size.width} height={size.height} />
+            <AsciiWave camera={camera} width={size.width} height={size.height} quiet={contentBox} />
           )}
           <div {...stylex.props(styles.quiet)} />
           <div ref={listening} aria-hidden="true" {...stylex.props(styles.listening)}>
@@ -260,88 +224,5 @@ export function Finale({ children }: { children: ReactNode }) {
         </div>
       </div>
     </section>
-  );
-}
-
-export function Footer({
-  mode,
-  onModeChange,
-  home = false,
-}: {
-  mode: ThemeMode;
-  onModeChange: (mode: ThemeMode) => void;
-  /** Only the home page's switch has left the top of the screen by the time you get here. */
-  home?: boolean;
-}) {
-  const github = `https://github.com/${REPO}`;
-  return (
-    <footer {...stylex.props(styles.footer)}>
-      <div {...stylex.props(styles.footerInner)}>
-        <div {...stylex.props(styles.brand)}>
-          <Mascot size={40} state="idle" />
-          <div>
-            <Text weight="medium">iVibe</Text>
-            <br />
-            <Text size="sm" color="secondary">
-              Made in the open.
-            </Text>
-          </div>
-        </div>
-        <nav aria-label="Product" {...stylex.props(styles.links)}>
-          {home ? (
-            <Link size="sm" onClick={scrollToDemo}>
-              How it works
-            </Link>
-          ) : (
-            <Link href="/#how" size="sm">
-              How it works
-            </Link>
-          )}
-          <Link href={home ? "#pricing" : "/#pricing"} size="sm">
-            Pricing
-          </Link>
-          <Link href="/docs" size="sm">
-            Docs
-          </Link>
-          <Link href="/blog" size="sm">
-            Blog
-          </Link>
-          <Link href={`${github}/releases`} size="sm">
-            Changelog
-          </Link>
-          <Link href="/download" size="sm">
-            Download
-          </Link>
-        </nav>
-        <nav aria-label="Community" {...stylex.props(styles.links)}>
-          <Link href={github} size="sm">
-            GitHub
-          </Link>
-          <Link href={`${github}/discussions`} size="sm">
-            Suggest a feature
-          </Link>
-          <Link href="mailto:business@ivibe.tech" size="sm">
-            business@ivibe.tech
-          </Link>
-        </nav>
-        {home && <ThemeSwitch mode={mode} onModeChange={onModeChange} />}
-      </div>
-      <div {...stylex.props(styles.fine)}>
-        <Text size="sm" color="secondary">
-          © 2026 iVibe. Open source under AGPL-3.0.
-        </Text>
-        <nav aria-label="Legal" {...stylex.props(styles.fineLinks)}>
-          <Link href="/privacy" size="sm">
-            Privacy
-          </Link>
-          <Link href="/terms" size="sm">
-            Terms
-          </Link>
-          <Link href="/refunds" size="sm">
-            Refunds
-          </Link>
-        </nav>
-      </div>
-    </footer>
   );
 }

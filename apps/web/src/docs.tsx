@@ -23,8 +23,8 @@ import {
   defaultShortcuts,
   PASTE_SHORTCUT,
 } from "../../desktop/src/shared/shortcuts.ts";
-import { Footer } from "./finale.tsx";
-import { TopBar } from "./home.tsx";
+import { Footer } from "./footer.tsx";
+import { TopBar } from "./top-bar.tsx";
 import { Nav } from "./nav.tsx";
 import { breadcrumbs, usePageMeta } from "./seo.ts";
 import { detectPlatform, MAC_INSTALL, RELEASES_URL, REPO } from "./release.ts";
@@ -41,6 +41,7 @@ import { ivibeTheme } from "./theme.ts";
 const MONO = '"Cascadia Code", "SF Mono", Menlo, Consolas, monospace';
 const OS_KEY = "ivibe.docs.os";
 const OS_ELECTRON: Record<Platform, string> = { windows: "win32", mac: "darwin", linux: "linux" };
+const OS_NAME: Record<Platform, string> = { windows: "Windows", mac: "Mac", linux: "Linux" };
 
 const OsContext = createContext<Platform>("windows");
 const GoContext = createContext<(path: string) => void>(() => undefined);
@@ -109,7 +110,7 @@ const styles = stylex.create({
   },
   pageLink: {
     display: "block",
-    paddingBlock: 6,
+    paddingBlock: { default: 6, "@media (pointer: coarse)": 12 },
     paddingInline: 10,
     borderRadius: 8,
     fontSize: 14,
@@ -261,10 +262,37 @@ function Shortcut({ mode }: { mode: Mode }) {
   return <Keys accelerator={defaultShortcuts(OS_ELECTRON[os])[mode]} />;
 }
 
-/** Text for one computer only. */
+/**
+ * Text for one computer. The others' text stays in the page, hidden, so search engines can read
+ * all three whichever computer they appear to be.
+ */
 function On({ os, children }: { os: Platform | Platform[]; children: ReactNode }) {
   const current = useContext(OsContext);
-  return [os].flat().includes(current) ? <>{children}</> : null;
+  const list = [os].flat();
+  if (list.includes(current)) return <>{children}</>;
+  return (
+    <OsContext.Provider value={list[0]!}>
+      <span hidden>
+        On {list.map((item) => OS_NAME[item]).join(" and ")}: {children}{" "}
+      </span>
+    </OsContext.Provider>
+  );
+}
+
+/** A mode's shortcut on the computer picked, with the other computers' hidden as above. */
+function ShortcutOnEach({ mode }: { mode: Mode }) {
+  const current = useContext(OsContext);
+  const others = (Object.keys(OS_NAME) as Platform[]).filter((os) => os !== current);
+  return (
+    <>
+      <Shortcut mode={mode} />
+      {others.map((os) => (
+        <On key={os} os={os}>
+          <Shortcut mode={mode} />
+        </On>
+      ))}
+    </>
+  );
 }
 
 function To({ page, children }: { page: string; children: ReactNode }) {
@@ -303,9 +331,9 @@ function ModeShortcuts() {
   return (
     <Rows
       rows={[
-        { label: "Fix", value: <Shortcut mode="fix" /> },
-        { label: "Prompt", value: <Shortcut mode="prompt" /> },
-        { label: "Dictate", value: <Shortcut mode="dictate" /> },
+        { label: "Fix", value: <ShortcutOnEach mode="fix" /> },
+        { label: "Prompt", value: <ShortcutOnEach mode="prompt" /> },
+        { label: "Dictate", value: <ShortcutOnEach mode="dictate" /> },
         { label: "Paste the last result", value: <Keys accelerator={PASTE_SHORTCUT} /> },
       ]}
     />
@@ -584,7 +612,11 @@ const PAGES: DocPage[] = [
           <P>
             The screen under your cursor and your microphone. Keys, tokens and passwords are painted
             over before anything leaves your computer: see{" "}
-            <To page="privacy">Privacy and security</To>.
+            <To page="privacy">Privacy and security</To>. For what happens to a recording, read{" "}
+            <Link hasUnderline href="/blog/from-its-broken-to-proof">
+              From “it&apos;s broken” to proof
+            </Link>
+            .
           </P>
         ),
       },
@@ -943,6 +975,11 @@ const PAGES: DocPage[] = [
             <P>
               Every frame is read on your computer, and API keys, tokens, <code>.env</code> lines
               and password managers are painted over with solid boxes before anything can leave.
+              Read{" "}
+              <Link hasUnderline href="/blog/how-ivibe-hides-your-secrets">
+                how iVibe hides your secrets
+              </Link>{" "}
+              for the details.
             </P>
             <Banner
               status="warning"
@@ -1241,7 +1278,7 @@ export function DocsPage({
           <Theme theme={ivibeTheme} mode={mode}>
             <TopBar mode={mode} onModeChange={onModeChange} />
           </Theme>
-          <Nav page="docs" />
+          <Nav page="docs" mode={mode} onModeChange={onModeChange} />
           <div {...stylex.props(styles.layout)}>
             <aside {...stylex.props(styles.side)}>
               {searchButton}

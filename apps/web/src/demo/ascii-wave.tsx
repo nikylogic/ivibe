@@ -19,6 +19,9 @@ import type { Tone } from "./voice.ts";
  *
  * Under the cursor the noise tidies up: the drifting letters settle into straight lines of plain
  * words, which is what iVibe does to a voice. They never light up behind the hero's own text.
+ *
+ * On an upright phone the same idea has far less width, so the letters are finer, the wave stays
+ * inside the screen, and it parts around the text: a wave above and below, a clean band between.
  */
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
@@ -47,6 +50,23 @@ const ALL_COLUMNS = BARS * BAR_PERIOD - COLUMNS;
 const FINE_PERIOD = 4;
 const FRAME_MS = 33;
 const CREAM = "#f4f1ea";
+/** An upright phone's letters, as a share of their size elsewhere, and how often they're drawn. */
+const PHONE_LETTERS = 0.72;
+const PHONE_FRAME_MS = 50;
+/**
+ * The clean band has no edge to see. Past a margin around the text the letters fade in slowly, over
+ * this share of the room the wave has, and the fade arches away from the text at the middle.
+ */
+const CLEAR_MARGIN = 10;
+const CLEAR_FADE = 0.45;
+const CLEAR_ARCH = 0.18;
+/** What the wave leaves free above it (the frame) and below it (the frame and the scroll hint). */
+const ROOM_ABOVE = 40;
+const ROOM_BELOW = 76;
+/** How often the text is measured, in ms. */
+const MEASURE_MS = 400;
+
+export const uprightPhone = (width: number, height: number) => width < 700 && height > width;
 
 /** Gone by the time the camera has pulled far back enough for the real bars to read. */
 export const asciiFade = (p: number) => {
@@ -76,10 +96,16 @@ export function AsciiWave({
   camera,
   width,
   height,
+  clipPath,
+  quiet,
 }: {
   camera: RefObject<Camera>;
   width: number;
   height: number;
+  /** The shape the characters stay inside. */
+  clipPath?: string;
+  /** On an upright phone: where the text is on screen, which the letters stay clear of. */
+  quiet?: () => { top: number; bottom: number } | null;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
@@ -88,7 +114,12 @@ export function AsciiWave({
     const context = element?.getContext("2d");
     if (!element || !context) return;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const scale = Math.min(1.5, window.devicePixelRatio || 1);
+    const phone = uprightPhone(width, height);
+    // Finer letters need the sharper canvas to stay letters.
+    const scale = Math.min(phone ? 2 : 1.5, window.devicePixelRatio || 1);
+    const frameMs = phone ? PHONE_FRAME_MS : FRAME_MS;
+    let clear: { top: number; bottom: number } | null = null;
+    let measured = Number.NEGATIVE_INFINITY;
     element.width = Math.round(width * scale);
     element.height = Math.round(height * scale);
     // The characters in cream, and in each mode's colour for the light that passes through them.
@@ -101,6 +132,9 @@ export function AsciiWave({
     let strips: Record<"cream" | Tone, HTMLCanvasElement> = drawStrips();
     void document.fonts.ready.then(() => {
       strips = drawStrips();
+      // The text may have moved as the fonts arrived; a still frame has to be drawn again.
+      measured = Number.NEGATIVE_INFINITY;
+      if (still) raf = requestAnimationFrame(paint);
     });
 
     const levels = Array.from({ length: BARS }, () => 0.3);
@@ -133,11 +167,23 @@ export function AsciiWave({
 
     const paint = (time: number) => {
       if (!still) raf = requestAnimationFrame(paint);
-      if (!still && (!onScreen || time - last < FRAME_MS)) return;
+      if (!still && (!onScreen || time - last < frameMs)) return;
       const dt = Math.min(100, time - last) / 1000;
       last = time;
 
-      const { x, y, k, p } = camera.current;
+      const { x, y, k: cameraK, p } = camera.current;
+      // 1 right inside the pill, where the fine waveform shows; 0 once they're the 13 true bars.
+      const inside = 1 - smooth(p, 0, 0.16);
+      const k = phone ? cameraK * mix(1, PHONE_LETTERS, inside) : cameraK;
+      if (phone && quiet && p < 0.02 && time - measured > MEASURE_MS) {
+        measured = time;
+        const text = quiet();
+        const box = element.getBoundingClientRect();
+        clear = text && {
+          top: text.top - box.top - CLEAR_MARGIN,
+          bottom: text.bottom - box.top + CLEAR_MARGIN,
+        };
+      }
       const fade = asciiFade(p);
       if (fade <= 0) {
         if (!wiped) context.clearRect(0, 0, element.width, element.height);
@@ -162,11 +208,9 @@ export function AsciiWave({
       const cellH = CELL_H * k;
       const size = cellW * 1.25;
       const firstBar = -((BARS - 1) * BAR);
-      // 1 right inside the pill, where the fine waveform shows; 0 once they're the 13 true bars.
-      const inside = 1 - smooth(p, 0, 0.16);
       // The words of the hero need a calm middle, until they've gone.
       const words = 1 - smooth(p, 0.12, 0.26);
-      const brightest = mix(0.62, 0.27, inside);
+      const brightest = mix(0.62, phone ? 0.62 : 0.27, inside);
       const tone = currentTone();
       const follow = 1 - Math.exp(-dt * 9);
       soft.x += (cursor.x - soft.x) * follow;
@@ -185,6 +229,7 @@ export function AsciiWave({
         context.globalAlpha = 0.07 * inside * fade;
         for (let sx = startX; sx < width; sx += stepX) {
           for (let sy = startY; sy < height; sy += stepY) {
+            if (clear && sy > clear.top && sy < clear.bottom) continue;
             context.fillRect(sx, sy, dot, dot);
           }
         }
@@ -200,6 +245,9 @@ export function AsciiWave({
         levels[bar]! += (want - levels[bar]!) * (1 - Math.exp(-dt * (7 + 10 * spoken)));
       }
 
+      // How far a bar could reach out from the clean band, above it and below it.
+      const roomAbove = clear ? Math.max(0, clear.top - ROOM_ABOVE) : 0;
+      const roomBelow = clear ? Math.max(0, height - clear.bottom - ROOM_BELOW) : 0;
       const leftEdge = firstBar - BAR / 2;
       for (let column = 0; column < ALL_COLUMNS; column++) {
         const onBar = column % BAR_PERIOD < COLUMNS;
@@ -211,14 +259,18 @@ export function AsciiWave({
         // The outline: tallest mid-screen, tapering to almost nothing, so the corners stay empty.
         const fine = Math.floor(column / FINE_PERIOD);
         const across = Math.min(1, Math.abs((sx - width / 2) / (width * 0.48)));
-        const lens = (1 - across * across) ** 0.8;
+        const lens = (1 - across * across) ** (phone ? 0.5 : 0.8);
         const rough = 0.5 + 0.5 * Math.sin(fine * 12.9898);
         const voiced =
           0.56 +
           0.2 * Math.sin(seconds * 0.8 - fine * 0.3) +
           0.08 * Math.sin(seconds * 1.5 + fine * 1.1) +
           0.2 * rough;
-        const fineReach = (height * (0.012 + 0.62 * lens * voiced)) / k;
+        const fineReach = clear
+          ? Math.max(y - clear.top + roomAbove, clear.bottom - y + roomBelow) / k
+          : (height * (0.012 + 0.62 * lens * voiced)) / k;
+        // On a phone the bars start at the clean band, so the whole wave shows around the text.
+        const share = 0.08 + 0.92 * Math.min(1, lens * voiced);
 
         const bar = Math.min(BARS - 1, Math.floor(column / BAR_PERIOD));
         const barReach = Math.max(BAR / 2, (levels[bar]! * TALLEST) / 2);
@@ -237,9 +289,23 @@ export function AsciiWave({
         // Each column drifts at its own place in the text.
         const offset = column * 29 + (column % 2 ? scroll : -scroll);
         for (let row = -rows; row <= rows; row++) {
-          const along = Math.abs(row * CELL_H) / reach;
+          let along = Math.abs(row * CELL_H) / reach;
           const sy = y + row * cellH;
           if (sy < -cellH || sy > height + cellH) continue;
+          let calm: number;
+          if (clear) {
+            const beyond = Math.max(clear.top - sy, sy - clear.bottom);
+            const fullRoom = sy < clear.top ? roomAbove : roomBelow;
+            const arch = fullRoom * CLEAR_ARCH * (1 - across * across);
+            calm = 1 - words * (1 - smooth(beyond - arch, 0, fullRoom * CLEAR_FADE));
+            const room = fullRoom * share;
+            along = mix(along, beyond > 0 ? beyond / Math.max(1, room) : 0, inside);
+          } else {
+            const fromMiddle =
+              ((sx - width / 2) / (width * 0.22)) ** 2 + ((sy - height / 2) / (height * 0.26)) ** 2;
+            calm = 1 - words * (1 - clamp01((fromMiddle - 0.65) / 0.55));
+          }
+          if (calm <= 0.01) continue;
           // Nearest the cursor every letter has tidied; further out only some have, in no order.
           const fromCursor = nearby ? Math.hypot(sx - soft.x, sy - soft.y) : TIDY_RADIUS;
           const tidy = tidying * (1 - smooth(fromCursor, TIDY_RADIUS * 0.3, TIDY_RADIUS));
@@ -261,15 +327,14 @@ export function AsciiWave({
           const place = column / BAR_PERIOD;
           // A slow swell of light rising through the bar.
           const swell = 0.8 + 0.2 * Math.sin(seconds * 0.7 - row * 0.12 + place * 0.8);
-          const fromMiddle =
-            ((sx - width / 2) / (width * 0.22)) ** 2 + ((sy - height / 2) / (height * 0.26)) ** 2;
-          const calm = 1 - words * (1 - clamp01((fromMiddle - 0.65) / 0.55));
-          if (calm <= 0.01) continue;
           const alpha = tidied
             ? mix(0.34, 0.72, tidy)
             : (1 - along * along * 0.65) * side * swell * brightest * lit;
           // The mode's colour moves through the letters as a slow, thin band of light.
-          const band = smooth(Math.sin(seconds * 0.42 - place * 0.33 - row * 0.03), 0.86, 0.995);
+          // On a phone it keeps to the tall bars, or it shows as specks at the wave's thin ends.
+          const band =
+            smooth(Math.sin(seconds * 0.42 - place * 0.33 - row * 0.03), 0.86, 0.995) *
+            (phone ? smooth(lens, 0.5, 0.85) : 1);
           const coloured = band > 0.04 && !tidied;
           context.globalAlpha =
             (coloured ? mix(alpha, Math.max(alpha, 0.58 * side * lit), band) : alpha) * fade * calm;
@@ -290,8 +355,9 @@ export function AsciiWave({
     };
     raf = requestAnimationFrame(paint);
     if (still) {
-      // Reduced motion: one frame, and again whenever the page scrolls.
-      const again = () => requestAnimationFrame(paint);
+      // Reduced motion: one frame, and again whenever the page scrolls. A frame later, because the
+      // camera moves on the same scroll, and this would otherwise paint where it was.
+      const again = () => requestAnimationFrame(() => requestAnimationFrame(paint));
       window.addEventListener("scroll", again, { passive: true });
       return () => {
         window.removeEventListener("scroll", again);
@@ -307,13 +373,20 @@ export function AsciiWave({
       visibility.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [camera, width, height]);
+  }, [camera, width, height, quiet]);
 
   return (
     <canvas
       ref={canvas}
       aria-hidden="true"
-      style={{ position: "absolute", inset: 0, width, height, pointerEvents: "none" }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        width,
+        height,
+        pointerEvents: "none",
+        clipPath,
+      }}
     />
   );
 }

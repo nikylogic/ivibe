@@ -16,8 +16,9 @@ import { Theme } from "@astryxdesign/core/theme";
 import type { ThemeMode } from "@astryxdesign/core/theme";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import type { MascotState } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
-import { appleIcon, linuxIcon, TopBar, useRelease, windowsIcon } from "./home.tsx";
-import { Footer } from "./finale.tsx";
+import { Footer } from "./footer.tsx";
+import { appleIcon, linuxIcon, useRelease, windowsIcon } from "./release-ui.tsx";
+import { TopBar } from "./top-bar.tsx";
 import { Nav } from "./nav.tsx";
 import { detectPlatform, MAC_INSTALL, REPO, RELEASES_URL } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
@@ -221,7 +222,7 @@ export function DownloadPage({
       <Theme theme={ivibeTheme} mode={mode}>
         <TopBar mode={mode} onModeChange={onModeChange} />
       </Theme>
-      <Nav page="download" />
+      <Nav page="download" mode={mode} onModeChange={onModeChange} />
       <main {...stylex.props(styles.main)}>
         <div {...stylex.props(styles.brand)}>
           <Mascot size={120} state={mood} />

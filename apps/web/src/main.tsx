@@ -11,25 +11,36 @@ import "@fontsource/instrument-serif";
 import "@fontsource/instrument-serif/400-italic.css";
 import "./global.css";
 import { ivibeTheme } from "./theme.ts";
-import { Home } from "./home.tsx";
-import { BlogPage, hasBlogPage } from "./blog.tsx";
-import { DocsPage, hasDocsPage } from "./docs.tsx";
-import { DownloadPage } from "./download.tsx";
-import { LegalPage } from "./legal.tsx";
-import { NotFoundPage } from "./not-found.tsx";
-import { WelcomePage } from "./welcome.tsx";
 import type { LegalPageName } from "./legal.tsx";
+import type { PageComponent } from "./page.ts";
 
 const path = window.location.pathname.replace(/\/+$/, "");
-const onDownload = path === "/download";
-const onWelcome = path === "/welcome";
-const onDocs = path === "/docs" || path.startsWith("/docs/");
-const onBlog = path === "/blog" || path.startsWith("/blog/");
-const onHome = path === "";
-const legalPage: LegalPageName | null =
-  path === "/privacy" || path === "/terms" || path === "/refunds"
-    ? (path.slice(1) as LegalPageName)
-    : null;
+
+const notFound = async (): Promise<PageComponent> => (await import("./not-found.tsx")).NotFoundPage;
+
+/** Only this page's code. Rendering waits for it, so the page never flashes empty. */
+async function loadPage(): Promise<PageComponent> {
+  if (path === "") return (await import("./home.tsx")).Home;
+  if (path === "/download") return (await import("./download.tsx")).DownloadPage;
+  if (path === "/welcome") return (await import("./welcome.tsx")).WelcomePage;
+  if (path === "/docs" || path.startsWith("/docs/")) {
+    const { DocsPage, hasDocsPage } = await import("./docs.tsx");
+    return hasDocsPage(path) ? DocsPage : notFound();
+  }
+  if (path === "/blog" || path.startsWith("/blog/")) {
+    const { BlogPage, hasBlogPage } = await import("./blog.tsx");
+    return hasBlogPage(path) ? BlogPage : notFound();
+  }
+  if (path === "/privacy" || path === "/terms" || path === "/refunds") {
+    const { LegalPage } = await import("./legal.tsx");
+    const name = path.slice(1) as LegalPageName;
+    return function Legal(props) {
+      return <LegalPage name={name} {...props} />;
+    };
+  }
+  const { GuidePage, hasGuidePage } = await import("./guides.tsx");
+  return hasGuidePage(path) ? GuidePage : notFound();
+}
 
 const MODE_KEY = "ivibe.theme";
 
@@ -42,7 +53,7 @@ function readMode(): ThemeMode {
   }
 }
 
-function App() {
+function App({ Page }: { Page: PageComponent }) {
   const [mode, setMode] = useState<ThemeMode>(readMode);
   useEffect(() => {
     try {
@@ -53,29 +64,17 @@ function App() {
   }, [mode]);
   return (
     <Theme theme={ivibeTheme} mode={mode}>
-      {legalPage ? (
-        <LegalPage name={legalPage} mode={mode} onModeChange={setMode} />
-      ) : onBlog && hasBlogPage(path) ? (
-        <BlogPage mode={mode} onModeChange={setMode} />
-      ) : onDocs && hasDocsPage(path) ? (
-        <DocsPage mode={mode} onModeChange={setMode} />
-      ) : onWelcome ? (
-        <WelcomePage mode={mode} onModeChange={setMode} />
-      ) : onDownload ? (
-        <DownloadPage mode={mode} onModeChange={setMode} />
-      ) : onHome ? (
-        <Home mode={mode} onModeChange={setMode} />
-      ) : (
-        <NotFoundPage mode={mode} onModeChange={setMode} />
-      )}
+      <Page mode={mode} onModeChange={setMode} />
     </Theme>
   );
 }
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing #root element");
-createRoot(root).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+void loadPage().then((Page) => {
+  createRoot(root).render(
+    <StrictMode>
+      <App Page={Page} />
+    </StrictMode>,
+  );
+});

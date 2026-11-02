@@ -12,8 +12,8 @@ import { Theme } from "@astryxdesign/core/theme";
 import type { ThemeMode } from "@astryxdesign/core/theme";
 import { ArrowLeft } from "lucide-react";
 import { TONES } from "./demo/voice.ts";
-import { Footer } from "./finale.tsx";
-import { TopBar } from "./home.tsx";
+import { Footer } from "./footer.tsx";
+import { TopBar } from "./top-bar.tsx";
 import { Nav } from "./nav.tsx";
 import { breadcrumbs, SITE, usePageMeta } from "./seo.ts";
 import { REPO } from "./release.ts";
@@ -271,6 +271,8 @@ type Post = {
   seoTitle: string;
   summary: string;
   date: string;
+  /** Set when a post changes after it's published. */
+  updated?: string;
   tone: keyof typeof TONES;
   source: string;
   body: ReactNode;
@@ -379,6 +381,13 @@ const POSTS: Post[] = [
           This is automatic, and it can miss things. It looks for secrets, so a private message or a
           customer&apos;s name on screen isn&apos;t hidden. Keep anything you&apos;d never share off
           screen while you record.
+        </P>
+        <P>
+          Next:{" "}
+          <Link hasUnderline href="/blog/from-its-broken-to-proof">
+            what happens to the redacted frames
+          </Link>
+          .
         </P>
       </>
     ),
@@ -578,6 +587,7 @@ function PostPage({ post }: { post: Post }) {
         headline: post.title,
         description: post.summary,
         datePublished: isoDate(post.date),
+        dateModified: isoDate(post.updated ?? post.date),
         url: `${SITE}${path}`,
         image: `${SITE}/og-light.png`,
         author: { "@type": "Organization", name: "iVibe", url: SITE },
@@ -645,7 +655,7 @@ export function BlogPage({
       <Theme theme={ivibeTheme} mode={mode}>
         <TopBar mode={mode} onModeChange={onModeChange} />
       </Theme>
-      <Nav page="blog" />
+      <Nav page="blog" mode={mode} onModeChange={onModeChange} />
       {post ? <PostPage post={post} /> : <PostList />}
       <Footer mode={mode} onModeChange={onModeChange} />
     </div>

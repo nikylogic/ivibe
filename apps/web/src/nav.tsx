@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { siGithub } from "simple-icons";
-import { Download as DownloadIcon } from "lucide-react";
+import { Download as DownloadIcon, Menu } from "lucide-react";
 import { Button } from "@astryxdesign/core/Button";
 import { Link } from "@astryxdesign/core/Link";
 import { Theme } from "@astryxdesign/core/theme";
+import type { ThemeMode } from "@astryxdesign/core/theme";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import type { MascotState } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
-import { scrollToDemo } from "./demo/index.tsx";
+import { scrollToDemo } from "./demo/scroll.ts";
 import { currentTone, onTone, TONES } from "./demo/voice.ts";
 import type { Tone } from "./demo/voice.ts";
 import { REPO } from "./release.ts";
@@ -31,7 +32,13 @@ const PILL = "rgba(15, 14, 13, 0.92)";
 
 /** The headline mascot's size; the navbar's mascot renders at it, so the handoff stays crisp. */
 export function heroMascotSize(): number {
-  return Math.round(Math.min(98, Math.max(60, window.innerWidth * 0.068)));
+  // The headline's own size (home.tsx), so the mascot stays in proportion on every screen.
+  const width = window.innerWidth;
+  const headline =
+    width < 560
+      ? Math.min(44, width * 0.105, window.innerHeight * 0.095)
+      : Math.min(84, width * 0.024 + 26, window.innerHeight * 0.095);
+  return Math.round(Math.max(60, headline * 1.63));
 }
 
 type Phase = "away" | "landing" | "open" | "leaving";
@@ -53,7 +60,7 @@ function fromHero(slot: HTMLElement): string | null {
 }
 
 function useNarrow(): boolean {
-  const query = "(max-width: 640px)";
+  const query = "(max-width: 899px)";
   const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
     const media = window.matchMedia(query);
@@ -101,7 +108,28 @@ function Here({ tone }: { tone: Tone }) {
   );
 }
 
-export function Nav({ page }: { page: "home" | "download" | "legal" | "docs" | "blog" }) {
+export type NavLink = {
+  label: string;
+  /** The menu's wording, where the bar's label names an icon. */
+  menuLabel?: string;
+  href?: string;
+  onClick?: () => void;
+  active?: boolean;
+  icon?: ReactNode;
+};
+
+/** Loaded on first open, so pages don't carry the sheet for visitors who never use it. */
+const NavMenu = lazy(() => import("./nav-menu.tsx"));
+
+export function Nav({
+  page,
+  mode,
+  onModeChange,
+}: {
+  page: "home" | "download" | "legal" | "docs" | "blog";
+  mode: ThemeMode;
+  onModeChange: (mode: ThemeMode) => void;
+}) {
   // Away from the home page there is no headline mascot to borrow: the bar is simply open.
   const pinned = page !== "home";
   const [want, setWant] = useState(() => pinned || window.scrollY > openAt());
@@ -113,6 +141,8 @@ export function Nav({ page }: { page: "home" | "download" | "legal" | "docs" | "
   const [inDemo, setInDemo] = useState(true);
   const [size] = useState(heroMascotSize);
   const narrow = useNarrow();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuLoaded, setMenuLoaded] = useState(false);
   const slot = useRef<HTMLDivElement>(null);
   /** The open state the bar last moved to, so the handoff runs only on a real change. */
   const settled = useRef<boolean | null>(null);
@@ -249,13 +279,7 @@ export function Nav({ page }: { page: "home" | "download" | "legal" | "docs" | "
     else window.scrollTo({ top: 0, behavior: reduced() ? "auto" : "smooth" });
   };
 
-  const links: {
-    label: string;
-    href?: string;
-    onClick?: () => void;
-    active?: boolean;
-    icon?: ReactNode;
-  }[] = [
+  const links: NavLink[] = [
     pinned
       ? { label: "How it works", href: "/#how" }
       : { label: "How it works", onClick: scrollToDemo, active: inDemo },
@@ -270,12 +294,18 @@ export function Nav({ page }: { page: "home" | "download" | "legal" | "docs" | "
         },
     { label: "Docs", href: "/docs" },
     { label: "Blog", href: "/blog" },
-    { label: "iVibe on GitHub", href: `https://github.com/${REPO}`, icon: githubMark },
+    {
+      label: "iVibe on GitHub",
+      menuLabel: "GitHub",
+      href: `https://github.com/${REPO}`,
+      icon: githubMark,
+    },
   ];
 
   return (
     <nav
       aria-label="iVibe"
+      className="touch-area"
       style={{
         position: "fixed",
         top: 12,
@@ -407,9 +437,33 @@ export function Nav({ page }: { page: "home" | "download" | "legal" | "docs" | "
                 />
               </span>
             )}
+            {narrow && (
+              <Button
+                label="Menu"
+                variant="ghost"
+                size="sm"
+                isIconOnly
+                icon={<Menu size={17} strokeWidth={2} aria-hidden="true" />}
+                onClick={() => {
+                  setMenuLoaded(true);
+                  setMenuOpen(true);
+                }}
+              />
+            )}
           </div>
         </div>
       </Theme>
+      {menuLoaded && (
+        <Suspense fallback={null}>
+          <NavMenu
+            isOpen={menuOpen && narrow}
+            onOpenChange={setMenuOpen}
+            links={links}
+            mode={mode}
+            onModeChange={onModeChange}
+          />
+        </Suspense>
+      )}
     </nav>
   );
 }

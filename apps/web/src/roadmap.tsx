@@ -30,7 +30,9 @@ const RELEASES = [
   { tag: "v0.1.3", date: "Oct 31", line: "Dependable pill, one-step Mac install" },
 ];
 const COLUMNS = RELEASES.length + 1;
-const DRAW_MS = 1800;
+const DRAW_MS = 1100;
+/** The cards start just before the mascot arrives, so nothing waits on a finished line. */
+const CARDS_MS = 800;
 const SERIF = '"Instrument Serif", Georgia, serif';
 const NARROW = "(max-width: 760px)";
 const HAIRLINE = "color-mix(in srgb, var(--color-text-primary) 26%, transparent)";
@@ -943,10 +945,14 @@ export function Roadmap() {
   const { box, cards, seen } = useSeen();
   const narrow = useNarrow();
   const [arrived, setArrived] = useState(false);
+  const [cardsShown, setCardsShown] = useState(false);
   useEffect(() => {
     if (!seen) return;
-    const timer = window.setTimeout(() => setArrived(true), DRAW_MS);
-    return () => window.clearTimeout(timer);
+    const timers = [
+      window.setTimeout(() => setCardsShown(true), CARDS_MS),
+      window.setTimeout(() => setArrived(true), DRAW_MS),
+    ];
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [seen]);
 
   const mascot = (
@@ -1016,12 +1022,19 @@ export function Roadmap() {
           </ol>
         </div>
 
-        <div aria-hidden="true" {...stylex.props(styles.path)} style={{ opacity: arrived ? 1 : 0 }}>
+        <div
+          aria-hidden="true"
+          {...stylex.props(styles.path)}
+          style={{ opacity: cardsShown ? 1 : 0 }}
+        >
           <span {...stylex.props(styles.pathAcross)} />
           <span {...stylex.props(styles.pathDown)} />
         </div>
 
-        <div ref={cards} {...stylex.props(styles.cards, arrived ? styles.shown : styles.waiting)}>
+        <div
+          ref={cards}
+          {...stylex.props(styles.cards, cardsShown ? styles.shown : styles.waiting)}
+        >
           <article {...stylex.props(styles.card)}>
             <VStack gap={2}>
               <CardLabel>Next</CardLabel>

@@ -2,20 +2,21 @@
 
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { Link } from "@astryxdesign/core/Link";
 import * as stylex from "@stylexjs/stylex";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
-import { HStack } from "@astryxdesign/core/HStack";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { Theme } from "@astryxdesign/core/theme";
 import type { ThemeMode } from "@astryxdesign/core/theme";
-import { ChevronRight, Monitor } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Mascot } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
 import type { MascotState } from "../../desktop/src/renderer/shared/mascot/mascot.tsx";
-import { FALLBACK_RELEASE, REPO, detectPlatform, latestRelease } from "./release.ts";
+import { REPO, detectPlatform } from "./release.ts";
 import type { Download, Platform, Release } from "./release.ts";
-import { scrollToDemo, Showcase } from "./demo/index.tsx";
+import { Showcase } from "./demo/index.tsx";
+import { scrollToDemo } from "./demo/scroll.ts";
 import { say, WORD_MS } from "./demo/voice.ts";
 import { ivibeTheme } from "./theme.ts";
 import { heroMascotSize, Nav } from "./nav.tsx";
@@ -25,8 +26,10 @@ import { Roadmap } from "./roadmap.tsx";
 import { SITE, usePageMeta } from "./seo.ts";
 import type { PageMeta } from "./seo.ts";
 import { Pricing } from "./pricing.tsx";
-import { Finale, Footer } from "./finale.tsx";
-import { ThemeSwitch } from "./theme-switch.tsx";
+import { Finale } from "./finale.tsx";
+import { Footer } from "./footer.tsx";
+import { appleIcon, linuxIcon, useRelease, windowsIcon } from "./release-ui.tsx";
+import { TopBar } from "./top-bar.tsx";
 
 /** What the headline says iVibe does, one mode at a time. */
 const LINES = [
@@ -38,6 +41,14 @@ const LINES = [
 const LINE_MS = 3800;
 const LEAVE_MS = 260;
 
+/** A phone on its side: the hero has to fit without its second line. */
+const SHORT = "@media (max-height: 479px)";
+/** A phone held upright: the rotating line always takes two lines, and the headline can be larger. */
+const PHONE = "@media (max-width: 559px)";
+/** Large screens: what's under the headline grows in step with it (60, then 72, then 84 px). */
+const LARGE = "@media (min-width: 1800px) and (min-height: 900px)";
+const LARGEST = "@media (min-width: 2400px) and (min-height: 1200px)";
+
 const styles = stylex.create({
   page: {
     minHeight: "100vh",
@@ -47,31 +58,22 @@ const styles = stylex.create({
     color: "var(--color-text-primary)",
   },
   // Floats over the hero's desktop and the demo card.
-  bar: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    display: "flex",
-    alignItems: "center",
-    // No brand on the left: the hero names iVibe. Just GitHub and the theme, on the right.
-    justifyContent: "flex-end",
-    paddingBlock: 14,
-    paddingInline: { default: 32, "@media (max-width: 640px)": 16 },
-  },
   hero: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: 28,
+    gap: { default: 24, [SHORT]: 12 },
     paddingInline: 16,
-    paddingBottom: 72,
+    paddingBottom: { default: 72, [SHORT]: 8 },
     textAlign: "center",
   },
   headline: {
-    fontSize: "clamp(34px, 4.4vw, 60px)",
+    // heroMascotSize (nav.tsx) follows this too.
+    fontSize: {
+      default: "clamp(30px, min(2.4vw + 26px, 9.5vh), 84px)",
+      [PHONE]: "clamp(30px, min(10.5vw, 9.5vh), 44px)",
+    },
     lineHeight: 1.08,
     letterSpacing: "-0.015em",
     margin: 0,
@@ -96,7 +98,10 @@ const styles = stylex.create({
   // Holds the tallest line, so the page under it never moves as lines change.
   rotating: {
     display: "block",
-    minHeight: "1.1em",
+    minHeight: { default: "1.1em", [PHONE]: "2.2em" },
+    maxWidth: { default: "none", [PHONE]: "8.6em" },
+    marginInline: "auto",
+    textWrap: "balance",
     fontStyle: "italic",
     color: "var(--color-text-secondary)",
   },
@@ -116,35 +121,45 @@ const styles = stylex.create({
     animationTimingFunction: "var(--motion-ease)",
     animationFillMode: "both",
   },
+  // Everything under the headline, sized as one.
+  lower: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: { default: 24, [SHORT]: 12 },
+    zoom: { default: 1, [LARGE]: 1.2, [LARGEST]: 1.4 },
+  },
   sub: { maxWidth: 640, textWrap: "balance" },
+  subMore: { display: { default: "block", [SHORT]: "none", [PHONE]: "none" } },
+  // Every button as wide as the widest.
+  buttons: {
+    display: "grid",
+    gridAutoFlow: "column",
+    gridAutoColumns: "1fr",
+    gap: 12,
+    width: "fit-content",
+  },
 });
-
-export const appleIcon = (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M16.37 12.6c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.47.83-.72 0-1.82-.81-2.99-.79-1.54.02-2.96.9-3.75 2.27-1.6 2.78-.41 6.89 1.15 9.14.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.77.74 2.98.72 1.23-.02 2.02-1.12 2.77-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.39-.92-2.41-3.66zM14.1 5.86c.63-.77 1.06-1.83.94-2.89-.91.04-2.02.61-2.67 1.37-.58.67-1.1 1.76-.96 2.8 1.02.08 2.06-.52 2.69-1.28z" />
-  </svg>
-);
-
-export const windowsIcon = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-    <path d="M2 4.4 10 3.3v8.1H2zm9-1.2L22 1.6v9.8H11zM2 12.6h8v8.1l-8-1.1zm9 0h11v9.8l-11-1.5z" />
-  </svg>
-);
-
-export const linuxIcon = <Monitor size={15} strokeWidth={1.75} aria-hidden="true" />;
 
 const PLATFORM_BUTTONS: Record<
   Platform,
-  { label: string; icon: ReactNode; pick: (release: Release) => Download }
+  { label: string; short: string; icon: ReactNode; pick: (release: Release) => Download }
 > = {
-  mac: { label: "Download for Mac", icon: appleIcon, pick: (release) => release.macArm },
+  mac: {
+    label: "Download for Mac",
+    short: "Mac",
+    icon: appleIcon,
+    pick: (release) => release.macArm,
+  },
   windows: {
     label: "Download for Windows",
+    short: "Windows",
     icon: windowsIcon,
     pick: (release) => release.windows,
   },
   linux: {
     label: "Download for Linux",
+    short: "Linux",
     icon: linuxIcon,
     pick: (release) => release.linuxAppImage,
   },
@@ -169,49 +184,6 @@ function useRotatingLine(): { index: number; leaving: boolean } {
     };
   }, []);
   return { index, leaving };
-}
-
-export function useRelease(): Release {
-  const [release, setRelease] = useState<Release>(FALLBACK_RELEASE);
-  useEffect(() => {
-    latestRelease().then(setRelease, () => undefined);
-  }, []);
-  return release;
-}
-
-export function TopBar({
-  mode,
-  onModeChange,
-}: {
-  mode: ThemeMode;
-  onModeChange: (mode: ThemeMode) => void;
-}) {
-  // The theme switch rests here through the hero and the demo, and leaves below the demo (the
-  // footer has it there).
-  const [below, setBelow] = useState(false);
-  useEffect(() => {
-    const check = () => {
-      const demo = document.getElementById("modes");
-      setBelow(!!demo && demo.getBoundingClientRect().bottom < window.innerHeight - 1);
-    };
-    check();
-    window.addEventListener("scroll", check, { passive: true });
-    return () => window.removeEventListener("scroll", check);
-  }, []);
-  return (
-    <header
-      {...stylex.props(styles.bar)}
-      style={{
-        opacity: below ? 0 : 1,
-        pointerEvents: below ? "none" : undefined,
-        transition: "opacity 300ms ease",
-      }}
-    >
-      <HStack gap={2} vAlign="center">
-        <ThemeSwitch mode={mode} onModeChange={onModeChange} />
-      </HStack>
-    </header>
-  );
 }
 
 /** How long the mascot's first hello stays shy beyond the app's, in seconds. */
@@ -254,10 +226,23 @@ function pretendVoice(listener: (rms: number) => void): () => void {
   return () => cancelAnimationFrame(frame);
 }
 
+function usePhoneWidth(): boolean {
+  const query = "(max-width: 559px)";
+  const [phone, setPhone] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setPhone(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  return phone;
+}
+
 /** The downloads, in the hero and again at the end of the page. */
 function DownloadButtons({ release }: { release: Release }) {
   const detected = detectPlatform();
-  // The visitor's own platform first and filled; Mac and Windows always show.
+  const phone = usePhoneWidth();
+  // The visitor's own platform first; Mac and Windows always show, and two fit on a phone.
   const order: Platform[] =
     detected === "linux"
       ? ["linux", "mac", "windows"]
@@ -265,29 +250,31 @@ function DownloadButtons({ release }: { release: Release }) {
         ? ["windows", "mac"]
         : ["mac", "windows"];
   return (
-    <VStack gap={3} hAlign="center">
-      <HStack gap={3} hAlign="center" wrap="wrap">
-        {order.map((platform, position) => {
+    <VStack gap={3} hAlign="center" className="touch-area">
+      <div {...stylex.props(styles.buttons)}>
+        {(phone ? order.slice(0, 2) : order).map((platform, position) => {
           const button = PLATFORM_BUTTONS[platform];
           return (
             <Button
               key={platform}
-              label={button.label}
+              label={phone ? button.short : button.label}
+              aria-label={button.label}
               size="lg"
-              variant={position === 0 && detected ? "primary" : "secondary"}
+              variant={position === 0 ? "primary" : "secondary"}
               icon={button.icon}
               href={button.pick(release).url}
             />
           );
         })}
-      </HStack>
-      <Button
-        label="Other platforms and versions"
-        variant="ghost"
-        size="sm"
-        href="/download"
-        endContent={<ChevronRight size={14} strokeWidth={1.75} />}
-      />
+      </div>
+      <Link href="/download" size="sm" color="secondary">
+        Other platforms and versions
+        <ChevronRight
+          size={13}
+          strokeWidth={1.75}
+          style={{ display: "inline", verticalAlign: "-2px", marginInlineStart: 4 }}
+        />
+      </Link>
     </VStack>
   );
 }
@@ -337,16 +324,15 @@ function Hero({ release }: { release: Release }) {
         </span>
       </Heading>
 
-      <DownloadButtons release={release} />
-
-      <VStack gap={1} hAlign="center" xstyle={styles.sub}>
-        <Text size="base" weight="medium">
-          Show the bug, say what&apos;s wrong, paste the prompt.
-        </Text>
-        <Text size="base" color="secondary">
-          Screenshots that prove the bug, in Claude Code, Cursor, ChatGPT or any app you type in.
-        </Text>
-      </VStack>
+      <div {...stylex.props(styles.lower)}>
+        <VStack gap={1} hAlign="center" xstyle={styles.sub}>
+          <Text size="base">Show the bug, say what&apos;s wrong, paste the prompt.</Text>
+          <Text size="base" color="secondary" xstyle={styles.subMore}>
+            Screenshots that prove the bug, in Claude Code, Cursor, ChatGPT or any app you type in.
+          </Text>
+        </VStack>
+        <DownloadButtons release={release} />
+      </div>
     </section>
   );
 }
@@ -369,7 +355,18 @@ const HOME_META: PageMeta = {
       license: "https://www.gnu.org/licenses/agpl-3.0.html",
       offers: [
         { "@type": "Offer", name: "Free", price: "0", priceCurrency: "USD" },
-        { "@type": "Offer", name: "Pro", price: "8", priceCurrency: "USD" },
+        {
+          "@type": "Offer",
+          name: "Pro",
+          price: "8",
+          priceCurrency: "USD",
+          priceSpecification: {
+            "@type": "UnitPriceSpecification",
+            price: "8",
+            priceCurrency: "USD",
+            unitCode: "MON",
+          },
+        },
       ],
     },
     {
@@ -418,7 +415,7 @@ export function Home({
       <Theme theme={ivibeTheme} mode={heroDark ? "dark" : mode}>
         <TopBar mode={mode} onModeChange={onModeChange} />
       </Theme>
-      <Nav page="home" />
+      <Nav page="home" mode={mode} onModeChange={onModeChange} />
       <main>
         <Showcase theme={mode} hero={<Hero release={release} />} onHeroDark={setHeroDark} />
         <Features />

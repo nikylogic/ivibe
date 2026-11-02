@@ -8,14 +8,16 @@ import { Monitor, Moon, Sun } from "lucide-react";
 export function ThemeSwitch({
   mode,
   onModeChange,
+  size = "sm",
 }: {
   mode: ThemeMode;
   onModeChange: (mode: ThemeMode) => void;
+  size?: "sm" | "lg";
 }) {
   return (
     <SegmentedControl
       label="Appearance"
-      size="sm"
+      size={size}
       value={mode}
       onChange={(value) => onModeChange(value as ThemeMode)}
     >

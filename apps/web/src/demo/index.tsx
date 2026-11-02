@@ -33,13 +33,17 @@ import {
   Taskbar,
   Wallpaper,
 } from "./desktop.tsx";
-import { AsciiWave } from "./ascii-wave.tsx";
+import { AsciiWave, uprightPhone } from "./ascii-wave.tsx";
 import type { Camera } from "./ascii-wave.tsx";
 import { CompactPill, Hud, Toast } from "./hud.tsx";
+import { LABELS, ORDER, SAID } from "./said.ts";
+import type { Mode } from "./said.ts";
+import { RUN } from "./scroll.ts";
+import { Story, STORY_MS, StoryDots } from "./story.tsx";
 import { holdTone } from "./voice.ts";
 import type { Tone } from "./voice.ts";
 import { Play, RotateCcw } from "lucide-react";
-import type { HudPhase, Segment } from "./hud.tsx";
+import type { HudPhase } from "./hud.tsx";
 import type { App } from "./icons.tsx";
 import { between, bump, Cursor, ease, H, Keys, launch, MONO, top, W } from "./kit.tsx";
 import type { Env, Stop } from "./kit.tsx";
@@ -49,11 +53,6 @@ import type { Env, Stop } from "./kit.tsx";
  * way the app does it, with the app's own pill. Everything is a function of one clock (`t`, ms
  * into the current mode), so a frame can be reproduced exactly.
  */
-
-type Mode = "fix" | "prompt" | "dictate";
-
-const LABELS: Record<Mode, string> = { fix: "Fix", prompt: "Prompt", dictate: "Dictate" };
-const ORDER: Mode[] = ["fix", "prompt", "dictate"];
 
 // Kbd draws ctrl and alt as Mac glyphs; a word joiner keeps them as the words Windows prints.
 const KEYS: Record<Env["os"], Record<Mode, string>> = {
@@ -86,8 +85,6 @@ type Script = {
   dockPressed?: (t: number) => App | undefined;
   pointer: Stop[];
   clicks: number[];
-  /** Which part of the desktop matters, for the phone-sized crop. */
-  focus: (t: number) => number;
   windows: (t: number) => ReactNode;
 };
 
@@ -101,12 +98,7 @@ function script(mode: Mode, env: Env): Script {
     const error = { x: chrome.left + CONSOLE_ERROR.x, y: chrome.top + CONSOLE_ERROR.y };
     const terminalIcon = dockSpot(env, "terminal");
     const terminal = { left: 430, top: top(env, 64) };
-    const segments: Segment[] = [
-      { text: "I change my bio and hit Save,", at: 2600, final: 3400 },
-      { text: "and nothing happens.", at: 3500, final: 4300 },
-      { text: "The console says it can’t read map.", at: 4500, final: 5600 },
-      { text: "It should save and show a toast.", at: 6000, final: 7100 },
-    ];
+    const segments = SAID.fix;
     return {
       ms: 16_500,
       keys: [
@@ -151,12 +143,6 @@ function script(mode: Mode, env: Env): Script {
         { from: 11_300, at: 12_000, x: viewButton.x, y: viewButton.y },
       ],
       clicks: [1100, 3400, 8700, 12_050],
-      focus: (t) =>
-        t < 8750
-          ? chrome.left + CHROME.width / 2
-          : t < 12_150
-            ? 730
-            : 730 + (520 - 730) * ease(t, 12_150, 500),
       windows: (t) => (
         <>
           <ChromeWindow env={env} t={t} clicks={[1100, 3400]} style={{ ...chrome, ...CHROME }} />
@@ -179,12 +165,7 @@ function script(mode: Mode, env: Env): Script {
   if (mode === "prompt") {
     const claude = { left: 150, top: top(env, 22) };
     const input = { x: 500, y: claude.top + 262 };
-    const segments: Segment[] = [
-      { text: "Uh, so I want, like, a dark mode toggle.", at: 1400, final: 2400 },
-      { text: "It should remember my choice.", at: 2600, final: 3500 },
-      { text: "Oh and, um, follow the system setting", at: 3700, final: 4600 },
-      { text: "by default, I guess.", at: 4700, final: 5500 },
-    ];
+    const segments = SAID.prompt;
     return {
       ms: 11_500,
       keys: [
@@ -211,7 +192,6 @@ function script(mode: Mode, env: Env): Script {
         { from: 8300, at: 8900, x: 700, y: claude.top + 420 },
       ],
       clicks: [700],
-      focus: () => 546,
       windows: (t) => (
         <ClaudeAppWindow
           env={env}
@@ -226,11 +206,7 @@ function script(mode: Mode, env: Env): Script {
 
   const whatsapp = { left: 110, top: top(env, 22) };
   const composer = { x: 640, y: whatsapp.top + 390 - 26 };
-  const segments: Segment[] = [
-    { text: "Hey Asha, um, the demo is, uh,", at: 1400, final: 2300 },
-    { text: "the demo is ready for tomorrow.", at: 2400, final: 3300 },
-    { text: "So, like, let me know what you think.", at: 3500, final: 4500 },
-  ];
+  const segments = SAID.dictate;
   return {
     ms: 11_500,
     keys: [
@@ -258,7 +234,6 @@ function script(mode: Mode, env: Env): Script {
       { from: 7000, at: 7500, x: 860, y: whatsapp.top + 200 },
     ],
     clicks: [700],
-    focus: () => 520,
     windows: (t) => (
       <WhatsAppWindow
         env={env}
@@ -308,13 +283,43 @@ function frozenFrame(): { mode: Mode; t: number } | null {
 
 const MASCOT = 92;
 
-/** On a phone the whole desktop is too small to read, so it shows a part of it this wide. */
-const NARROW_VIEW = 600;
+/** Under this height the desktop demo drops its caption, to give the card the room. */
+const SHORT = 700;
+/** The desktop's scale limits: under the least its 12px text can't be read, over the most it's soft. */
+const LEAST_SCALE = 0.75;
+const MOST_SCALE = 1.8;
+
+/** The desktop card's width: as big as the screen allows, leaving margins on large screens. */
+function desktopWidth(vw: number, vh: number): number {
+  const room = vh < SHORT ? vh - NAV_SHORT - CONTROLS_SHORT : vh - NAV - CONTROLS;
+  return Math.min(vw - 32, Math.max(W, vw * 0.8), (room * W) / H, W * MOST_SCALE);
+}
+
+/** Where a whole desktop would be too small to read, the demo is told as a story (story.tsx). */
+const tellsStory = (vw: number, vh: number) =>
+  vw < 900 || vh < 480 || desktopWidth(vw, vh) / W < LEAST_SCALE;
+/** The story's room: its card's widest, under the navbar, with the modes and dots below it. */
+const STORY_CARD = { width: 560, height: 560 };
+const STORY_NAV = 62;
+const STORY_CONTROLS = 104;
+/** On a phone on its side, the modes sit to the card's right. */
+const STORY_RAIL = 204;
 /** Room for the site's top bar above the card, and for the mode controls under it. */
 const NAV = 76;
 const CONTROLS = 132;
+const NAV_SHORT = 64;
+/** When the dark behind the hero's words has gone, before the pill's shape can stack up with it. */
+const BACKDROP_GONE = 0.14;
+/** The scale at which the pill's rim starts to fade, and has gone. */
+const RIM_FULL = 2;
+const RIM_GONE = 6;
+/** The settled card's corners. */
+const CARD_CORNER = 22;
+/** The hero's frame: the same gap and corners as the download section at the end of the page. */
+const HERO_GAP = 12;
+const HERO_CORNER = 28;
+const CONTROLS_SHORT = 84;
 /** How far you scroll, in viewport heights, from the hero to the settled card. */
-const RUN = 1.6;
 /** Where the camera stops pulling out of the pill and starts shrinking the desktop. */
 const PULL_BACK = 0.55;
 /** Prototype: `?waves` shows the hero's old waveform, to compare with the characters. */
@@ -329,14 +334,30 @@ const smooth = (value: number, from: number, to: number) => {
 };
 const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
 
-function useViewport(): { vw: number; vh: number } {
-  const read = () => ({ vw: document.documentElement.clientWidth, vh: window.innerHeight });
+/** A phone's address bar changes the height by less than this; turning the phone by more. */
+const BAR_MOVE = 140;
+/** Extra scroll on touch screens, so the demo stays pinned to the end with the bar either way. */
+const TOUCH_SLACK = 120;
+const touchScreen = () => window.matchMedia("(pointer: coarse)").matches;
+
+/**
+ * The screen, and `runVh`: the height the scroll is measured by. It ignores a phone's address bar
+ * sliding in and out, or the page would change height and jump under the visitor's thumb.
+ */
+function useViewport(): { vw: number; vh: number; runVh: number } {
+  const read = () => {
+    const vh = window.innerHeight;
+    return { vw: document.documentElement.clientWidth, vh, runVh: vh };
+  };
   const [size, setSize] = useState(read);
   useEffect(() => {
     const update = () =>
       setSize((was) => {
         const next = read();
-        return next.vw === was.vw && next.vh === was.vh ? was : next;
+        const barOnly =
+          touchScreen() && next.vw === was.vw && Math.abs(next.vh - was.runVh) < BAR_MOVE;
+        if (barOnly) next.runVh = was.runVh;
+        return next.vw === was.vw && next.vh === was.vh && next.runVh === was.runVh ? was : next;
       });
     // The page's width also changes without a resize, when the scrollbar appears after load.
     const observer = new ResizeObserver(update);
@@ -351,22 +372,43 @@ function useViewport(): { vw: number; vh: number } {
 }
 
 /** Everything the camera needs, from the viewport and where the demo is looking. */
-function geometry(vw: number, vh: number, env: Env, focus: number) {
-  const availableHeight = Math.max(240, vh - NAV - CONTROLS);
-  const fitWidth = Math.min(W, vw - 32, (availableHeight * W) / H);
-  const narrow = fitWidth < 640;
-  const view = narrow ? NARROW_VIEW : W;
-  const cardWidth = Math.min(narrow ? vw - 32 : fitWidth, (availableHeight * view) / H);
-  const cardHeight = (cardWidth * H) / view;
-  // On whole pixels, so the settled card's edges are crisp.
-  const card = {
-    left: Math.round((vw - cardWidth) / 2),
-    top: Math.round(NAV + Math.max(0, (availableHeight - cardHeight) / 2)),
-    width: Math.round(cardWidth),
-    height: Math.round(cardHeight),
-  };
+function geometry(vw: number, vh: number, env: Env) {
+  const story = tellsStory(vw, vh);
+  const sideways = story && vh < 480;
+  let card: { left: number; top: number; width: number; height: number };
+  let controls: { left: number; right: number; top: number };
+  if (sideways) {
+    const height = vh - STORY_NAV - 12;
+    const width = vw - 32 - STORY_RAIL - 12;
+    card = { left: 16, top: STORY_NAV, width, height };
+    controls = { left: 16 + width + 12, right: 16, top: STORY_NAV };
+  } else if (story) {
+    const width = Math.min(STORY_CARD.width, vw - 32);
+    const room = vh - STORY_NAV - STORY_CONTROLS;
+    const height = Math.min(STORY_CARD.height, room);
+    card = {
+      left: Math.round((vw - width) / 2),
+      top: Math.round(STORY_NAV + (room - height) / 2),
+      width,
+      height,
+    };
+    controls = { left: 16, right: 16, top: card.top + height + 10 };
+  } else {
+    const short = vh < SHORT;
+    const nav = short ? NAV_SHORT : NAV;
+    const room = vh - nav - (short ? CONTROLS_SHORT : CONTROLS);
+    const cardWidth = desktopWidth(vw, vh);
+    const cardHeight = (cardWidth * H) / W;
+    // On whole pixels, so the settled card's edges are crisp.
+    card = {
+      left: Math.round((vw - cardWidth) / 2),
+      top: Math.round(nav + Math.max(0, (room - cardHeight) / 2)),
+      width: Math.round(cardWidth),
+      height: Math.round(cardHeight),
+    };
+    controls = { left: 16, right: 16, top: card.top + card.height + (short ? 10 : 18) };
+  }
   const pill = { x: W / 2, y: H - pillBottom(env) - 18 };
-  const pan = narrow ? Math.min(W - view, Math.max(0, focus - view / 2)) : 0;
   // Three camera positions, each a scale and the screen point where the pill's centre lands.
   const inside = {
     k: Math.max((vw * 0.92) / WAVE.width, (vh * 1.08) / WAVE.height),
@@ -375,22 +417,17 @@ function geometry(vw: number, vh: number, env: Env, focus: number) {
   };
   const coverK = Math.max(vw / W, vh / H) * 1.04;
   const desktop = { k: coverK, x: vw / 2, y: pill.y * coverK + vh - H * coverK };
+  // In a story's taller card the desktop is only a backdrop, so it covers the card, pill low.
+  const settledK = story ? Math.max(card.width / W, card.height / H) : card.width / W;
   const settled = {
-    k: cardWidth / view,
-    x: card.left + (pill.x - pan) * (cardWidth / view),
-    y: card.top + pill.y * (cardWidth / view),
+    k: settledK,
+    x: card.left + card.width / 2,
+    y: story ? card.top + card.height - 44 : card.top + pill.y * settledK,
   };
-  return { card, pill, inside, desktop, settled };
+  return { card, controls, pill, inside, desktop, settled, story, sideways };
 }
 
 /** Scrolls to where the demo sits settled in its card, as "How it works" does. */
-export function scrollToDemo(): void {
-  const section = document.getElementById("modes");
-  if (!section) return;
-  const top = section.getBoundingClientRect().top + window.scrollY;
-  window.scrollTo({ top: top + window.innerHeight * RUN, behavior: "smooth" });
-}
-
 const TONE_OF: Record<Mode, Tone> = { fix: "Fix", prompt: "Prompt", dictate: "Dictate" };
 
 /**
@@ -576,10 +613,14 @@ export function Showcase({
   const [finished, setFinished] = useState(false);
   const [t, setT] = useState(0);
   const [stage, setStage] = useState({ desktop: false, settled: false });
-  const { vw, vh } = useViewport();
+  const { vw, vh, runVh } = useViewport();
   const still = useRef(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   const now = script(mode, env);
-  const duration = now.ms;
+  const layout = geometry(vw, vh, env);
+  const story = layout.story;
+  const duration = story ? STORY_MS[mode] : now.ms;
+  /** Where the clock is, so a story's dots can move it. */
+  const elapsed = useRef(0);
 
   const section = useRef<HTMLElement>(null);
   const shadow = useRef<HTMLDivElement>(null);
@@ -590,19 +631,28 @@ export function Showcase({
   const invitation = useRef<HTMLDivElement>(null);
   const hint = useRef<HTMLDivElement>(null);
   const controls = useRef<HTMLDivElement>(null);
+  const storyBox = useRef<HTMLDivElement>(null);
+  const backdrop = useRef<HTMLDivElement>(null);
+  /** From the top of the headline to the bottom of what's under it. */
+  const heroText = useCallback(() => {
+    const hero = words.current?.querySelector("section");
+    const first = hero?.firstElementChild?.getBoundingClientRect();
+    const last = hero?.lastElementChild?.getBoundingClientRect();
+    return first && last ? { top: first.top, bottom: last.bottom } : null;
+  }, []);
   /** The eased scroll progress the camera is drawn at. */
   const shown = useRef(0);
   const camera = useRef<Camera>({ x: 0, y: 0, k: 1, p: 0 });
   const heroDark = useRef<boolean | null>(null);
 
   // What the camera loop reads; refreshed on every render.
-  const live = useRef({ vw, vh, env, focus: W / 2, onHeroDark });
-  live.current = { vw, vh, env, focus: playing ? now.focus(t) : W / 2, onHeroDark };
+  const live = useRef({ vw, vh, runVh, env, onHeroDark });
+  live.current = { vw, vh, runVh, env, onHeroDark };
 
   /** Draws the camera at progress p: 0 is inside the pill, 1 is the settled card. */
   const draw = useCallback((p: number) => {
-    const { vw, vh, env, focus, onHeroDark } = live.current;
-    const g = geometry(vw, vh, env, focus);
+    const { vw, vh, env, onHeroDark } = live.current;
+    const g = geometry(vw, vh, env);
     const a = smooth(p, 0, PULL_BACK);
     const b = smooth(p, PULL_BACK, 1);
     const from = b > 0 ? g.desktop : g.inside;
@@ -612,18 +662,18 @@ export function Showcase({
     let k = from.k * (to.k / from.k) ** amount;
     let x = mix(from.x, to.x, amount);
     let y = mix(from.y, to.y, amount);
-    // The visible part of the screen: all of it in the hero, the card once settled.
-    const left = g.card.left * b;
-    const top = g.card.top * b;
-    const width = mix(vw, g.card.width, b);
-    const height = mix(vh, g.card.height, b);
+    // The visible part of the screen: all but a small gap in the hero, the card once settled.
+    const left = mix(HERO_GAP, g.card.left, b);
+    const top = mix(HERO_GAP, g.card.top, b);
+    const width = mix(vw - HERO_GAP * 2, g.card.width, b);
+    const height = mix(vh - HERO_GAP * 2, g.card.height, b);
     const rect = {
       left,
       top,
       right: Math.max(0, vw - left - width),
       bottom: Math.max(0, vh - top - height),
     };
-    const radius = 22 * b;
+    const radius = mix(HERO_CORNER, CARD_CORNER, b);
     // The desktop always fills the visible window, edge to edge, so nothing shows around it
     // while the window shrinks into the card: only its corners round.
     if (b > 0) {
@@ -641,6 +691,11 @@ export function Showcase({
       // With the characters, the real bars only appear as the characters leave.
       const wave = ASCII_HERO ? smooth(p, 0.16, 0.34) : 0.14 + 0.86 * smooth(p, 0.05, 0.4);
       world.current.style.setProperty("--wave", String(wave));
+      // The pill's hairline rim is only a hairline near its own size.
+      world.current.style.setProperty(
+        "--rim",
+        String(clamp01((RIM_GONE - k) / (RIM_GONE - RIM_FULL))),
+      );
       // Inside the pill the colour lives in the characters, so there's no glare behind them.
       if (ASCII_HERO) world.current.style.setProperty("--wave-light", String(smooth(p, 0.1, 0.34)));
       camera.current = { x, y, k, p };
@@ -660,6 +715,11 @@ export function Showcase({
       });
     }
     const heroShown = 1 - smooth(p, 0.02, 0.2);
+    if (backdrop.current) {
+      const left = 1 - smooth(p, 0.02, BACKDROP_GONE);
+      backdrop.current.style.opacity = String(left);
+      backdrop.current.style.visibility = left <= 0 ? "hidden" : "visible";
+    }
     if (words.current) {
       words.current.style.opacity = String(heroShown);
       words.current.style.transform = `translateY(${-p * 140}px) scale(${1 - 0.06 * clamp01(p * 4)})`;
@@ -680,7 +740,18 @@ export function Showcase({
     }
     if (controls.current) {
       controls.current.style.opacity = String(settled);
-      controls.current.style.transform = `translateY(${rect.top + (vh - rect.top - rect.bottom) + 18}px)`;
+      controls.current.style.left = `${g.controls.left}px`;
+      controls.current.style.right = `${g.controls.right}px`;
+      controls.current.style.transform = `translateY(${g.controls.top}px)`;
+    }
+    if (storyBox.current) {
+      Object.assign(storyBox.current.style, {
+        left: `${g.card.left}px`,
+        top: `${g.card.top}px`,
+        width: `${g.card.width}px`,
+        height: `${g.card.height}px`,
+        opacity: String(settled),
+      });
     }
 
     // The top bar sits on the pill's dark inside until the pill's top edge passes under it.
@@ -703,7 +774,7 @@ export function Showcase({
     const target = () => {
       const element = section.current;
       if (!element) return 0;
-      return clamp01(-element.getBoundingClientRect().top / (live.current.vh * RUN));
+      return clamp01(-element.getBoundingClientRect().top / (live.current.runVh * RUN));
     };
     const tick = (time: number) => {
       const dt = Math.min(64, time - last);
@@ -734,12 +805,27 @@ export function Showcase({
   // A resize, a new theme or the demo looking elsewhere (on a phone) moves the camera too.
   useLayoutEffect(() => draw(shown.current));
 
+  // A rotation changes how long the scroll is. Inside the demo, stay at the same point of it,
+  // or a shorter section would leave the reader past its end.
+  const lastRun = useRef(runVh);
+  useLayoutEffect(() => {
+    const was = lastRun.current * RUN;
+    const next = runVh * RUN;
+    lastRun.current = runVh;
+    const element = section.current;
+    if (!element || was === next) return;
+    const into = -element.getBoundingClientRect().top;
+    if (into <= 0 || into > was) return;
+    window.scrollTo({ top: window.scrollY + (into / was) * next - into, behavior: "instant" });
+  }, [runVh]);
+
   // Scrolling back up to the hero puts the demo away; it starts over from Play.
   useEffect(() => {
     if (!stage.settled && playing && !frozen) {
       setPlaying(false);
       setFinished(false);
       setMode("fix");
+      elapsed.current = 0;
       setT(0);
     }
   }, [stage.settled, playing, frozen]);
@@ -753,21 +839,24 @@ export function Showcase({
       return;
     }
     if (still.current) {
-      setT(duration - 600);
+      // Without motion, a story stays on a step until its dots move it.
+      setT(story ? elapsed.current : duration - 600);
       return;
     }
     let visible = true;
     let raf = 0;
     let last = performance.now();
-    let elapsed = 0;
     const observer = new IntersectionObserver(([entry]) => {
       visible = entry?.isIntersecting ?? true;
     });
     observer.observe(element);
     const tick = (time: number) => {
-      if (visible && document.visibilityState === "visible") elapsed += Math.min(100, time - last);
+      if (visible && document.visibilityState === "visible") {
+        elapsed.current += Math.min(100, time - last);
+      }
       last = time;
-      if (elapsed >= duration) {
+      if (elapsed.current >= duration) {
+        elapsed.current = 0;
         setT(0);
         const next = ORDER.indexOf(mode) + 1;
         if (next < ORDER.length) setMode(ORDER[next]!);
@@ -779,7 +868,7 @@ export function Showcase({
         }
         return;
       }
-      setT(elapsed);
+      setT(elapsed.current);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -787,9 +876,18 @@ export function Showcase({
       cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, [mode, duration, frozen, playing]);
+  }, [mode, duration, frozen, playing, story]);
 
+  const jump = (to: number) => {
+    elapsed.current = to;
+    setT(to);
+  };
+
+  const desktopPlaying = playing && !story;
+  const sharpness = Math.max(1, Math.ceil(layout.settled.k));
   const fade = playing ? ease(t, 0, 350) * (1 - ease(t, duration - 450, 400)) : 0;
+  // Without motion a story's clock stands still on each step, so it can't fade in by it.
+  const storyShown = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : fade;
   const phase = playing ? now.hud(t) : null;
   const nod = playing ? Math.max(0, ...now.keys.map((press) => bump(t, press.at - 60))) : 0;
   const mac = env.os === "mac";
@@ -802,6 +900,7 @@ export function Showcase({
   }, [playing, mode]);
 
   const start = (next: Mode) => {
+    elapsed.current = 0;
     setT(0);
     setMode(next);
     setFinished(false);
@@ -813,7 +912,10 @@ export function Showcase({
       ref={section}
       id="modes"
       aria-label="iVibe"
-      style={{ position: "relative", height: vh * (1 + RUN) }}
+      style={{
+        position: "relative",
+        height: runVh * (1 + RUN) + (touchScreen() ? TOUCH_SLACK : 0),
+      }}
     >
       <div style={{ position: "sticky", top: 0, height: vh, overflow: "hidden" }}>
         <div
@@ -836,6 +938,7 @@ export function Showcase({
         >
           <div
             ref={world}
+            data-world="desktop"
             aria-hidden="true"
             style={{
               position: "absolute",
@@ -847,7 +950,7 @@ export function Showcase({
             }}
           >
             <Wallpaper env={env} />
-            {playing && (
+            {desktopPlaying && (
               <div style={{ position: "absolute", inset: 0, opacity: fade }}>{now.windows(t)}</div>
             )}
             {/*
@@ -855,7 +958,7 @@ export function Showcase({
               builds the desktop around the pill: the dock or taskbar rises, the menu bar drops
               in, and the mascot pops up in its corner.
             */}
-            {playing && (
+            {desktopPlaying && (
               <div style={{ position: "absolute", inset: 0 }}>
                 {mac ? (
                   <>
@@ -896,7 +999,17 @@ export function Showcase({
                         transformOrigin: "50% 100%",
                       }}
                     >
-                      <Mascot size={MASCOT} state={mascotState(phase)} />
+                      {/* Drawn at the card's scale and shrunk back, so it stays sharp. */}
+                      <div
+                        style={{
+                          width: MASCOT,
+                          height: MASCOT,
+                          transform: `scale(${1 / sharpness})`,
+                          transformOrigin: "0 0",
+                        }}
+                      >
+                        <Mascot size={MASCOT * sharpness} state={mascotState(phase)} />
+                      </div>
                     </div>
                   </Enter>
                 </div>
@@ -916,7 +1029,7 @@ export function Showcase({
                 gap: 8,
               }}
             >
-              {playing ? (
+              {desktopPlaying ? (
                 <div
                   style={{
                     display: "flex",
@@ -938,7 +1051,7 @@ export function Showcase({
               )}
             </div>
 
-            {playing && (
+            {desktopPlaying && (
               <>
                 <div
                   style={{
@@ -983,9 +1096,35 @@ export function Showcase({
           }}
         />
 
+        {/* The story, in real text, outside the card's picture so screen readers can read it. */}
+        <div
+          ref={storyBox}
+          style={{
+            position: "absolute",
+            borderRadius: 22,
+            overflow: "hidden",
+            display: story && playing ? "block" : "none",
+            pointerEvents: stage.settled ? "auto" : "none",
+          }}
+        >
+          {story && playing && (
+            <div style={{ position: "absolute", inset: 0, opacity: storyShown }}>
+              <Story
+                mode={mode}
+                t={t}
+                env={env}
+                width={layout.card.width}
+                height={layout.card.height}
+                sideways={layout.sideways}
+              />
+            </div>
+          )}
+        </div>
+
         {/* Once the desktop has settled into its card: the invitation to watch. */}
         <div
           ref={invitation}
+          className="touch-area"
           style={{
             position: "absolute",
             left: 0,
@@ -1002,9 +1141,11 @@ export function Showcase({
             pointerEvents: stage.settled && !playing ? "auto" : "none",
           }}
         >
-          <Text size="xl" weight="semibold">
-            {finished ? "Fix, Prompt and Dictate, in one pill." : "Ready to see how it works?"}
-          </Text>
+          <div style={{ textAlign: "center" }}>
+            <Text size="xl" weight="semibold">
+              {finished ? "Fix, Prompt and Dictate, in one pill." : "Ready to see how it works?"}
+            </Text>
+          </div>
           <Button
             label={finished ? "Replay demo" : "Play demo"}
             variant="primary"
@@ -1019,7 +1160,51 @@ export function Showcase({
           />
         </div>
 
-        {ASCII_HERO && <AsciiWave camera={camera} width={vw} height={vh} />}
+        {ASCII_HERO && (
+          <AsciiWave
+            camera={camera}
+            width={vw}
+            height={vh}
+            clipPath={`inset(${HERO_GAP}px round ${HERO_CORNER}px)`}
+            quiet={heroText}
+          />
+        )}
+
+        {/*
+          A calm, dark middle so the eye goes straight to the downloads: the waveform and its light
+          show only towards the sides, and the corners sink into shadow. It fills the hero's frame and
+          never moves, so no edge of it can show as the pill shrinks away inside.
+        */}
+        <div
+          ref={backdrop}
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: HERO_GAP,
+            pointerEvents: "none",
+            overflow: "hidden",
+            borderRadius: HERO_CORNER,
+            // An upright phone's letters part around the text, so there it only needs the corners.
+            background: [
+              ...(uprightPhone(vw, vh)
+                ? []
+                : [
+                    "radial-gradient(ellipse 44% 46% at 50% 54%, rgba(16, 15, 14, 0.97) 0%, rgba(16, 15, 14, 0.93) 48%, rgba(16, 15, 14, 0.6) 75%, transparent 100%)",
+                  ]),
+              "radial-gradient(ellipse 85% 80% at 50% 50%, transparent 55%, rgba(8, 7, 6, 0.6) 100%)",
+            ].join(", "),
+          }}
+        >
+          {/* A fine film grain, so the dark reads as a surface and not a flat fill. */}
+          <span
+            style={{
+              position: "absolute",
+              inset: 0,
+              opacity: 0.07,
+              backgroundImage: GRAIN,
+            }}
+          />
+        </div>
 
         {/* The hero's words, over the inside of the pill; they leave as the camera pulls back. */}
         <div
@@ -1028,28 +1213,11 @@ export function Showcase({
             position: "absolute",
             inset: 0,
             paddingTop: NAV - 20,
-            // A calm, dark middle so the eye goes straight to the downloads: the waveform and its
-            // light show only towards the sides. The corners sink into shadow.
-            background: [
-              "radial-gradient(ellipse 44% 46% at 50% 54%, rgba(16, 15, 14, 0.97) 0%, rgba(16, 15, 14, 0.93) 48%, rgba(16, 15, 14, 0.6) 75%, transparent 100%)",
-              "radial-gradient(ellipse 85% 80% at 50% 50%, transparent 55%, rgba(8, 7, 6, 0.6) 100%)",
-            ].join(", "),
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          {/* A fine film grain, so the dark reads as a surface and not a flat fill. */}
-          <span
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              pointerEvents: "none",
-              opacity: 0.07,
-              backgroundImage: GRAIN,
-            }}
-          />
           <div style={{ position: "relative" }}>
             <Theme theme={ivibeTheme} mode="dark">
               {hero}
@@ -1062,6 +1230,7 @@ export function Showcase({
         {/* The modes, under the card. */}
         <div
           ref={controls}
+          className="touch-area"
           style={{
             position: "absolute",
             left: 16,
@@ -1083,6 +1252,7 @@ export function Showcase({
               <VStack gap={2} hAlign="center">
                 <SegmentedControl
                   label="Mode"
+                  size={story ? "lg" : "md"}
                   value={mode}
                   onChange={(value) => start(value as Mode)}
                 >
@@ -1090,13 +1260,19 @@ export function Showcase({
                     <SegmentedControlItem key={item} value={item} label={LABELS[item]} />
                   ))}
                 </SegmentedControl>
-                <Steps mode={mode} progress={playing ? t / duration : 0} />
+                {story ? (
+                  <StoryDots mode={mode} t={t} onJump={jump} />
+                ) : (
+                  <Steps mode={mode} progress={playing ? t / duration : 0} />
+                )}
               </VStack>
-              <div style={{ maxWidth: 560, textAlign: "center" }}>
-                <Text color="secondary" size="sm">
-                  {SUMMARY[mode]}
-                </Text>
-              </div>
+              {!story && vh >= SHORT && (
+                <div style={{ maxWidth: 560, textAlign: "center" }}>
+                  <Text color="secondary" size="sm">
+                    {SUMMARY[mode]}
+                  </Text>
+                </div>
+              )}
             </VStack>
           </div>
         </div>
