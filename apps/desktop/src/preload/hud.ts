@@ -16,8 +16,14 @@ const api = {
   dismiss: (): Promise<void> => ipcRenderer.invoke(Channels.hudDismiss),
   copyResult: (): Promise<void> => ipcRenderer.invoke(Channels.resultCopy),
   openProof: (index: number): Promise<void> => ipcRenderer.invoke(Channels.proofOpen, index),
-  setInteractive: (interactive: boolean): void =>
-    ipcRenderer.send(Channels.hudInteractive, interactive),
+  /** Where the pill is in its window, so main can tell when the pointer is over it. */
+  setPillRect: (rect: { x: number; y: number; width: number; height: number } | null): void =>
+    ipcRenderer.send(Channels.hudPillRect, rect),
+  onHover: (listener: (hovered: boolean) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, hovered: boolean) => listener(hovered);
+    ipcRenderer.on(Channels.hudHover, handler);
+    return () => void ipcRenderer.removeListener(Channels.hudHover, handler);
+  },
   onFeedback: (listener: (feedback: RecordingFeedback) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, feedback: RecordingFeedback) =>
       listener(feedback);

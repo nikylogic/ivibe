@@ -458,12 +458,50 @@ async function pasteLastResult(): Promise<void> {
 }
 let hudExpanded = false;
 
+/** Where the pill is inside its window, as last reported by the HUD. */
+let pillRect: Rectangle | null = null;
+let pointerTimer: ReturnType<typeof setInterval> | undefined;
+const POINTER_POLL_MS = 50;
+
+/** Turns click-through off while the pointer is on the pill, and tells the pill. */
+function setPointerOnPill(on: boolean): void {
+  if (on === pointerOnPill || !hudWindow || hudWindow.isDestroyed()) return;
+  pointerOnPill = on;
+  hudWindow.setIgnoreMouseEvents(!on, { forward: true });
+  hudWindow.webContents.send(Channels.hudHover, on);
+  // The pill doesn't fade out while the pointer is on it.
+  holdHud(on || hudExpanded);
+}
+
+/**
+ * Follows the pointer from here rather than with mouse events in the page: Windows doesn't send
+ * those over a drag region, and the pill flickered between clickable and click-through.
+ */
+function trackPointer(): void {
+  if (pointerTimer) return;
+  pointerTimer = setInterval(() => {
+    if (!hudWindow || hudWindow.isDestroyed() || !hudWindow.isVisible() || !pillRect) {
+      setPointerOnPill(false);
+      return;
+    }
+    const pointer = screen.getCursorScreenPoint();
+    const bounds = hudWindow.getBounds();
+    const x = pointer.x - bounds.x - pillRect.x;
+    const y = pointer.y - bounds.y - pillRect.y;
+    setPointerOnPill(x >= 0 && y >= 0 && x < pillRect.width && y < pillRect.height);
+  }, POINTER_POLL_MS);
+}
+
 /** Hides the pill; its window stays loaded for the next recording. */
 function closeHud(): void {
   clearTimeout(hudHideTimer);
+  clearInterval(pointerTimer);
+  pointerTimer = undefined;
+  pointerOnPill = false;
   if (hudWindow && !hudWindow.isDestroyed()) {
     hudWindow.hide();
     hudWindow.setIgnoreMouseEvents(true, { forward: true });
+    hudWindow.webContents.send(Channels.hudHover, false);
     if (hudExpanded) hudWindow.setBounds({ ...hudWindow.getBounds(), ...HUD_SIZE });
   }
   hudExpanded = false;
@@ -494,6 +532,7 @@ function onStatus(status: RecordingStatus): void {
   // Up as soon as the shortcut is pressed; the mic opening shouldn't hold it back.
   if (status.phase === "starting" || status.phase === "recording") {
     clearTimeout(hudHideTimer);
+    trackPointer();
     if (hudWindow && !hudWindow.isDestroyed() && !hudWindow.isVisible()) {
       hudWindow.showInactive();
       // Windows can drop a hidden window's top-most level, leaving the pill behind full-screen
@@ -585,13 +624,8 @@ function registerIpc(): void {
   ipcMain.handle(Channels.recordingStop, () => recording.stop());
   ipcMain.handle(Channels.recordingCancel, () => recording.cancel());
   ipcMain.handle(Channels.recordingRetry, () => recording.retry());
-  // The pill turns click-through off while the pointer is over the card.
-  ipcMain.on(Channels.hudInteractive, (event, interactive: boolean) => {
-    if (event.sender !== hudWindow?.webContents) return;
-    pointerOnPill = interactive;
-    hudWindow.setIgnoreMouseEvents(!interactive, { forward: true });
-    // The pill doesn't fade out while the pointer is on it.
-    holdHud(interactive || hudExpanded);
+  ipcMain.on(Channels.hudPillRect, (event, rect: Rectangle | null) => {
+    if (event.sender === hudWindow?.webContents) pillRect = rect;
   });
   ipcMain.handle(Channels.hudOpenApp, () => {
     closeHud();
@@ -778,16 +812,12 @@ function runSelfTest(): void {
       void snapshot(hudWindow, "hud");
       void snapshot(uiWindow, "ui-recording");
     }, SELF_TEST_RECORD_MS - 1200);
-    // The pill hovered, as a user reaching for Stop would (React listens for mouseover).
+    // The pill hovered, as a user reaching for Stop would.
     setTimeout(() => {
-      const hover = (type: string) =>
-        hudWindow?.webContents.executeJavaScript(
-          `document.querySelector("[data-pill]")?.dispatchEvent(new MouseEvent(${JSON.stringify(type)}, { bubbles: true, relatedTarget: document.body }))`,
-        );
-      void hover("mouseover")
-        ?.then(() => new Promise((resolve) => setTimeout(resolve, 400)))
+      hudWindow?.webContents.send(Channels.hudHover, true);
+      void new Promise((resolve) => setTimeout(resolve, 400))
         .then(() => snapshot(hudWindow, "hud-hover"))
-        .then(() => hover("mouseout"));
+        .then(() => hudWindow?.webContents.send(Channels.hudHover, false));
     }, SELF_TEST_RECORD_MS - 2600);
     const working = (status: RecordingStatus) => {
       if (status.phase !== "writing") return;

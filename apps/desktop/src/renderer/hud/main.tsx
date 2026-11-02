@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Spinner } from "@astryxdesign/core/Spinner";
@@ -102,6 +102,18 @@ const styles = stylex.create({
     maskImage: "linear-gradient(to bottom, transparent 0, black 22px)",
   },
   captionText: { overflowWrap: "anywhere" },
+  captionButton: {
+    display: "block",
+    width: "100%",
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    color: "inherit",
+    fontFamily: "inherit",
+    textAlign: "start",
+    cursor: "pointer",
+    opacity: { default: 1, ":hover": 0.8 },
+  },
   hint: { color: "#a39e94" },
   warn: { color: "#f5b971" },
   pending: { color: "#a39e94", letterSpacing: "0.1em" },
@@ -192,6 +204,12 @@ const styles = stylex.create({
     whiteSpace: "pre-wrap",
     overflowWrap: "anywhere",
   },
+  textShort: { maxHeight: 220 },
+  said: { maxHeight: 96 },
+  saidTall: { height: 240, maxHeight: 240, boxSizing: "border-box" },
+  saidLabel: { fontSize: 12, fontWeight: 600, color: "#a39e94", marginBottom: -6 },
+  saidLine: { display: "flex", gap: 10 },
+  saidTime: { flexShrink: 0, color: "#a39e94", fontVariantNumeric: "tabular-nums" },
   panelActions: { display: "flex", gap: 8 },
   secondary: {
     display: "flex",
@@ -318,10 +336,72 @@ function Toast({ feedback }: { feedback: RecordingFeedback }) {
   );
 }
 
+/** Everything said so far, one sentence per line, kept scrolled to the newest. */
+function SaidList({ segments, short }: { segments: TranscriptSegment[]; short: boolean }) {
+  const list = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (list.current) list.current.scrollTop = list.current.scrollHeight;
+  }, [segments]);
+  return (
+    <div
+      ref={list}
+      {...stylex.props(styles.text, short ? styles.said : styles.saidTall)}
+      aria-live="polite"
+    >
+      {segments.length === 0 && <span {...stylex.props(styles.hint)}>Nothing yet.</span>}
+      {segments.map((segment) => (
+        <div key={segment.id} {...stylex.props(styles.saidLine)}>
+          <span {...stylex.props(styles.saidTime)}>{formatClock(segment.startMs)}</span>
+          <span>
+            {segment.state === "final" && asSentence(segment.text)}
+            {segment.state === "pending" && <span {...stylex.props(styles.pending)}>···</span>}
+            {segment.state === "failed" && (
+              <span {...stylex.props(styles.failed)}>(couldn’t transcribe)</span>
+            )}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The pill grown to show the whole transcript while recording or writing. */
+function TranscriptPanel({
+  segments,
+  onCollapse,
+}: {
+  segments: TranscriptSegment[];
+  onCollapse: () => void;
+}) {
+  return (
+    <div {...withClass("no-drag", styles.panel)}>
+      <div {...stylex.props(styles.panelHeader)}>
+        <span {...stylex.props(styles.panelTitle)}>What you said</span>
+        <IconButton
+          label="Collapse"
+          variant="ghost"
+          size="sm"
+          icon={<ChevronDown size={16} strokeWidth={2} />}
+          onClick={onCollapse}
+        />
+      </div>
+      <SaidList segments={segments} short={false} />
+    </div>
+  );
+}
+
 const COPIED_MS = 1600;
 
 /** The pill grown into a panel: screenshots, the full text, and what to do next. */
-function ResultPanel({ result, onCollapse }: { result: RecordingResult; onCollapse: () => void }) {
+function ResultPanel({
+  result,
+  segments,
+  onCollapse,
+}: {
+  result: RecordingResult;
+  segments: TranscriptSegment[];
+  onCollapse: () => void;
+}) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -358,7 +438,15 @@ function ResultPanel({ result, onCollapse }: { result: RecordingResult; onCollap
           ))}
         </div>
       )}
-      <pre {...stylex.props(styles.text)}>{result.text}</pre>
+      <pre {...stylex.props(styles.text, segments.length > 0 && styles.textShort)}>
+        {result.text}
+      </pre>
+      {segments.length > 0 && (
+        <>
+          <span {...stylex.props(styles.saidLabel)}>What you said</span>
+          <SaidList segments={segments} short />
+        </>
+      )}
       <div {...stylex.props(styles.panelActions)}>
         <button
           type="button"
@@ -439,7 +527,7 @@ function Controls({
                 : `Copied · press ${isMac ? "⌃⌥V" : "Ctrl+Alt+V"} to paste${proof}`}
           </span>
         </div>
-        <button {...stylex.props(styles.open)} onClick={onToggle}>
+        <button type="button" {...withClass("no-drag", styles.open)} onClick={onToggle}>
           {expanded ? "Hide" : "View"}
         </button>
         <IconButton
@@ -467,7 +555,11 @@ function Controls({
             {hidden > 0 ? ` · ${hidden} secret${hidden === 1 ? "" : "s"} hidden` : ""}
           </span>
         </div>
-        <button {...stylex.props(styles.open)} onClick={() => void window.ivibeHud.openApp()}>
+        <button
+          type="button"
+          {...withClass("no-drag", styles.open)}
+          onClick={() => void window.ivibeHud.openApp()}
+        >
           Open
         </button>
       </div>
@@ -482,7 +574,11 @@ function Controls({
           <span {...stylex.props(styles.statusText)}>{status.error ?? "Recording failed"}</span>
         </div>
         {status.canRetry && (
-          <button {...stylex.props(styles.open)} onClick={() => void window.ivibeHud.retry()}>
+          <button
+            type="button"
+            {...withClass("no-drag", styles.open)}
+            onClick={() => void window.ivibeHud.retry()}
+          >
             <RotateCcw size={13} strokeWidth={2.25} /> Retry
           </button>
         )}
@@ -491,7 +587,7 @@ function Controls({
           variant="ghost"
           size="sm"
           icon={<X size={16} strokeWidth={2} />}
-          onClick={() => void window.ivibeHud.openApp()}
+          onClick={() => void window.ivibeHud.dismiss()}
         />
       </div>
     );
@@ -537,16 +633,35 @@ function Hud() {
   const [hovered, setHovered] = useState(false);
 
   useEffect(() => window.ivibeHud.onState(setStatus), []);
-  // The window is hidden, not closed, between recordings: each one starts un-hovered.
+  useEffect(() => window.ivibeHud.onHover(setHovered), []);
+  // A new recording folds the panel away. Main puts the window back to its normal size.
   useEffect(() => {
-    if (status?.phase === "starting") setHovered(false);
+    if (status?.phase === "starting" || status?.phase === "idle") setExpanded(false);
   }, [status?.phase]);
 
   const result = status?.phase === "review" ? status.result : undefined;
-  // A new recording (or no result) folds the panel away.
+
+  // Main follows the pointer against this, to make the pill clickable under it (main/index.ts).
+  const pill = useRef<HTMLDivElement>(null);
+  const showing = status !== null && status.phase !== "idle";
+  const kind = status?.pill;
   useEffect(() => {
-    if (!result) setExpanded(false);
-  }, [result]);
+    const element = pill.current;
+    if (!showing || !element) return;
+    const report = () => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+      window.ivibeHud.setPillRect({ x, y, width, height });
+    };
+    const observer = new ResizeObserver(report);
+    observer.observe(element);
+    window.addEventListener("resize", report);
+    report();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", report);
+      window.ivibeHud.setPillRect(null);
+    };
+  }, [showing, kind]);
 
   const toggle = () => {
     const next = !expanded;
@@ -556,24 +671,13 @@ function Hud() {
 
   if (!status || status.phase === "idle") return null;
 
-  // Over the pill, the window stops passing clicks through (main/index.ts).
-  const hover = {
-    "data-pill": "",
-    onMouseEnter: () => {
-      setHovered(true);
-      window.ivibeHud.setInteractive(true);
-    },
-    onMouseLeave: () => {
-      setHovered(false);
-      window.ivibeHud.setInteractive(false);
-    },
-  };
+  const segments = status.transcript ?? [];
 
   if (status.pill === "compact") {
     return (
       <div {...stylex.props(styles.frame)}>
         {toast && <Toast feedback={toast} />}
-        <div {...hover}>
+        <div ref={pill}>
           <CompactPill status={status} heardVoice={heardVoice} hovered={hovered} />
         </div>
       </div>
@@ -583,16 +687,25 @@ function Hud() {
   return (
     <div {...stylex.props(styles.frame)}>
       {toast && <Toast feedback={toast} />}
-      {/* The card drags the window; over it, the window stops passing clicks through. */}
-      <div {...withClass("drag-region", styles.card, expanded && styles.cardExpanded)} {...hover}>
+      {/* The card drags the window; its buttons don't (global.css). */}
+      <div ref={pill} {...withClass("drag-region", styles.card, expanded && styles.cardExpanded)}>
         {expanded && result ? (
-          <ResultPanel result={result} onCollapse={toggle} />
+          <ResultPanel result={result} segments={segments} onCollapse={toggle} />
+        ) : expanded ? (
+          <TranscriptPanel segments={segments} onCollapse={toggle} />
+        ) : segments.length > 0 ? (
+          <button
+            type="button"
+            title="Show everything you said"
+            {...stylex.props(styles.captionButton)}
+            onClick={toggle}
+          >
+            <Caption status={status} heardVoice={heardVoice} />
+          </button>
         ) : (
           <Caption status={status} heardVoice={heardVoice} />
         )}
-        <div className="no-drag">
-          <Controls status={status} expanded={expanded} onToggle={toggle} />
-        </div>
+        <Controls status={status} expanded={expanded} onToggle={toggle} />
       </div>
     </div>
   );

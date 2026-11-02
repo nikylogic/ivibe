@@ -64,7 +64,8 @@ textarea,
   -webkit-app-region: drag;
 }
 
-.no-drag {
+.no-drag,
+.drag-region button {
   -webkit-app-region: no-drag;
 }
 

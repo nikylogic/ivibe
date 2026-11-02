@@ -401,7 +401,8 @@ export const Channels = {
   backupSaveKey: "backup.save-key",
   backupDelete: "backup.delete",
   // HUD → main
-  hudInteractive: "hud.interactive",
+  hudPillRect: "hud.pillRect",
+  hudHover: "hud.hover",
   hudOpenApp: "hud.open-app",
   hudExpand: "hud.expand",
   hudDismiss: "hud.dismiss",
