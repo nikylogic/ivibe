@@ -20,7 +20,7 @@
     "onnxruntime-node": "^1.30.0"
   },
   "dependencies": {
-    "onnxruntime-web": "^1.30.0",
+    "onnxruntime-web": "^1.31.1",
     "ppu-paddle-ocr": "^6.6.1"
   }
 }
