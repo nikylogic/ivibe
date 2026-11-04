@@ -243,16 +243,16 @@ Every rule from the [Meta AI Developer Hackathon participant guide](https://cere
 | ✅     | Three-minute demo video of what was built                | Finished, 2:15 long                             |
 | ✅     | The demo only shows features built during the hackathon  | Everything in the film was built from Oct 27 on |
 | ✅     | Video link opens for anyone                              | [Watch the demo](https://youtu.be/BAL_gg1cgf8)  |
-| ⬜     | Submitted on the Cerebral Valley platform, once per team | Not submitted yet                               |
+| ✅     | Submitted on the Cerebral Valley platform, once per team | Submitted Nov 4, 2026                           |
 | ✅     | Representative chosen, and everyone on the team listed   | Solo, Nikhil P is listed on the form            |
 | ✅     | Repository still public at submission                    | Public, rechecked Nov 4                         |
 
 **Optional extras**
 
-| Status | Prize          | Where iVibe stands                     |
-| ------ | -------------- | -------------------------------------- |
-| ⬜     | Most Viral     | Needs an X post linked on the platform |
-| ⬜     | Community Vote | Winner named on Nov 16                 |
+| Status | Prize          | Where iVibe stands                                                             |
+| ------ | -------------- | ------------------------------------------------------------------------------ |
+| ✅     | Most Viral     | Entered with [this X post](https://x.com/hiNikhilP/status/2117854698946580605) |
+| ⬜     | Community Vote | Winner named on Nov 16                                                         |
 
 <details>
 <summary><b>How iVibe lines up with the judging rubric</b></summary>
