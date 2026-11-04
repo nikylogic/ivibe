@@ -195,7 +195,7 @@ const GUIDES: Guide[] = [
               Press a shortcut, talk, and press it again. The result lands where you were typing.
             </P>
             <Items>
-              <li>Claude Code and chat apps get screenshots as pasted images.</li>
+              <li>Claude Code, Muse Code and chat apps get screenshots as pasted images.</li>
               <li>Other terminal agents get them as file paths.</li>
               <li>The text pastes into anything you can type in, Cursor included.</li>
             </Items>

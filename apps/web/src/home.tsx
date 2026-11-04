@@ -26,6 +26,7 @@ import { Roadmap } from "./roadmap.tsx";
 import { SITE, usePageMeta } from "./seo.ts";
 import type { PageMeta } from "./seo.ts";
 import { Pricing } from "./pricing.tsx";
+import { DemoFilm, DEMO_FILM_JSON_LD } from "./demo-film.tsx";
 import { Finale } from "./finale.tsx";
 import { Footer } from "./footer.tsx";
 import { appleIcon, linuxIcon, useRelease, windowsIcon } from "./release-ui.tsx";
@@ -328,7 +329,7 @@ function Hero({ release }: { release: Release }) {
         <VStack gap={1} hAlign="center" xstyle={styles.sub}>
           <Text size="base">Show the bug, say what&apos;s wrong, paste the prompt.</Text>
           <Text size="base" color="secondary" xstyle={styles.subMore}>
-            Screenshots that prove the bug, in Claude Code, Cursor, ChatGPT or any app you type in.
+            Screenshots that prove the bug, in Muse Code, Claude Code, Cursor or any app.
           </Text>
         </VStack>
         <DownloadButtons release={release} />
@@ -378,6 +379,7 @@ const HOME_META: PageMeta = {
       email: "business@ivibe.tech",
       sameAs: [`https://github.com/${REPO}`],
     },
+    DEMO_FILM_JSON_LD,
     {
       "@context": "https://schema.org",
       "@type": "FAQPage",
@@ -422,6 +424,7 @@ export function Home({
         <Pricing />
         <Faq />
         <Roadmap />
+        <DemoFilm />
         <Finale>
           <DownloadButtons release={release} />
         </Finale>

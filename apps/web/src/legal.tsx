@@ -16,7 +16,7 @@ import { ivibeTheme } from "./theme.ts";
 /** The promises the site makes, in plain words, one short page each. */
 
 const CONTACT = "business@ivibe.tech";
-const UPDATED = "November 1, 2026";
+const UPDATED = "November 4, 2026";
 
 export type LegalPageName = "privacy" | "terms" | "refunds";
 
@@ -57,7 +57,7 @@ const PAGES: Record<
           "We email you when you first sign in and when you start Pro, using the address on your GitHub account. We don't send marketing without asking first.",
           "Buying on this site sets one cookie that keeps you signed in for 30 days, only so you can buy or manage Pro. It doesn't track you, and signing out removes it.",
           "Pro backups are encrypted on your computer with a recovery key only you hold, so iVibe can't read them. They are kept while Pro is active and for 90 days after it ends, or deleted sooner if you ask.",
-          "Server logs last a few days and contain no transcripts, screen text or images. The app and this site have no analytics.",
+          "Server logs last a few days and contain no transcripts, screen text or images. The app and this site have no analytics. The demo film on the home page loads from YouTube only when you press play, and YouTube may then set its own cookies.",
         ],
       },
       {

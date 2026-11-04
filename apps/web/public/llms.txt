@@ -23,6 +23,7 @@ It needs the internet, because speech and cleanup run on Meta's models. It's fre
 
 ## Optional
 
+- [Demo film](https://youtu.be/BAL_gg1cgf8)
 - [Source code](https://github.com/nikylogic/ivibe)
 - [How iVibe hides your secrets](https://ivibe.tech/blog/how-ivibe-hides-your-secrets)
 - [From "it's broken" to proof](https://ivibe.tech/blog/from-its-broken-to-proof)

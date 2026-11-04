@@ -461,9 +461,9 @@ const POSTS: Post[] = [
         <H2>Paste it where you were</H2>
         <P>
           The result goes back into the app you started in, with each screenshot right after the
-          sentence about it. Chat apps and Claude Code get real images, and other terminal agents
-          get file paths. If you switched apps while it worked, the result waits on your clipboard
-          rather than landing in the wrong window.
+          sentence about it. Chat apps, Claude Code and Muse Code get real images, and other
+          terminal agents get file paths. If you switched apps while it worked, the result waits on
+          your clipboard rather than landing in the wrong window.
         </P>
         <P>
           In our tests the whole trip took about 13 seconds with the standard model, and about 23 to

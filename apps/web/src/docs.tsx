@@ -718,7 +718,7 @@ const PAGES: DocPage[] = [
         heading: "Screenshots",
         body: (
           <Items>
-            <li>Chat apps and Claude Code get them as pasted images.</li>
+            <li>Chat apps, Claude Code and Muse Code get them as pasted images.</li>
             <li>Other terminal agents get them as file paths.</li>
             <li>
               Turn them off with <strong>Attach screenshots as proof</strong> in Settings.

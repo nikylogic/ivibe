@@ -28,13 +28,15 @@ const RELEASES = [
   { tag: "v0.1.1", date: "Oct 29", line: "Clearer errors, no more dead recordings" },
   { tag: "v0.1.2", date: "Oct 29", line: "Faster Dictate: pastes in about two seconds" },
   { tag: "v0.1.3", date: "Oct 31", line: "Dependable pill, one-step Mac install" },
+  { tag: "v0.1.4", date: "Nov 2", line: "Big pill buttons, full transcript" },
+  { tag: "v0.1.5", date: "Nov 3", line: "Screenshots paste into Muse Code" },
 ];
 const COLUMNS = RELEASES.length + 1;
 const DRAW_MS = 1100;
 /** The cards start just before the mascot arrives, so nothing waits on a finished line. */
 const CARDS_MS = 800;
 const SERIF = '"Instrument Serif", Georgia, serif';
-const NARROW = "(max-width: 760px)";
+const NARROW = "(max-width: 960px)";
 const HAIRLINE = "color-mix(in srgb, var(--color-text-primary) 26%, transparent)";
 
 const pulse = stylex.keyframes({

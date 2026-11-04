@@ -102,6 +102,9 @@ export function Footer({
           <Link href={home ? "#pricing" : "/#pricing"} size="sm">
             Pricing
           </Link>
+          <Link href={home ? "#film" : "/#film"} size="sm">
+            Demo film
+          </Link>
           <Link href="/docs" size="sm">
             Docs
           </Link>
