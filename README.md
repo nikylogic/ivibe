@@ -15,6 +15,7 @@
 <p>
   <a href="https://github.com/nikylogic/ivibe/releases/latest"><b>Download</b></a> ·
   <a href="https://ivibe.tech"><b>Website</b></a> ·
+  <a href="https://youtu.be/BAL_gg1cgf8"><b>Demo video</b></a> ·
   <a href="#how-it-works"><b>How it works</b></a> ·
   <a href="#meta-hackathon-checklist"><b>Hackathon checklist</b></a> ·
   <a href="docs/architecture.md"><b>Architecture</b></a> ·
@@ -26,6 +27,12 @@
 **Show the bug and talk it through. iVibe writes the fix prompt, with annotated screenshots as proof, and pastes it straight into Claude Code, Cursor or ChatGPT.**
 
 Press a shortcut, show what's wrong while you explain it, and press it again. iVibe hides secrets on your device, works out what you meant, and pastes the result into the app you were typing in. No report window, no copy-paste.
+
+<div align="center">
+  <a href="https://youtu.be/BAL_gg1cgf8"><img src="https://i.ytimg.com/vi/BAL_gg1cgf8/maxresdefault.jpg" alt="Watch the iVibe demo video on YouTube" width="100%"></a>
+  <br>
+  <sub><b><a href="https://youtu.be/BAL_gg1cgf8">Watch the demo film (2:15)</a></b>: the real app, making live Meta model calls.</sub>
+</div>
 
 <div align="center">
   <img src="docs/readme/demo.webp" alt="The ivibe.tech demo playing through Fix, Prompt and Dictate" width="100%">
@@ -189,6 +196,8 @@ flowchart LR
 4. **Prove.** SAM 3.1 snaps each highlight to the exact button or error; the screenshots are annotated on your device.
 5. **Paste.** iVibe pastes into the app you were in, each screenshot after the sentence about it, and keeps a copy in History.
 
+Fix results were accurate in my hands-on testing. A full Fix prompt with marked screenshots takes about 14 seconds on average.
+
 ## Built on Meta's models
 
 | Job                                                             | Model                 |
@@ -198,6 +207,8 @@ flowchart LR
 | Snap proof highlights to the UI element                         | SAM 3.1               |
 
 All of this runs on the Meta Model API, and Muse Spark calls are sent with `store: false`. Runs on your own key and on Pro use `muse-spark-1.3`. Free trial runs use `muse-spark-1.3-contributor`, and Meta may use those requests to improve its models; iVibe tells you this when the trial starts. Muse Spark Open (an open-weight engine for iVibe Cloud) and Muse Wonder (optional deep analysis) are planned, not shipped.
+
+I also used Muse Code to build iVibe, for coding, planning and automated testing. See the [Muse Code log](docs/muse-code-log.md). iVibe also pastes into Muse Code directly, with screenshots as real images.
 
 ## Privacy
 
@@ -209,7 +220,7 @@ All of this runs on the Meta Model API, and Muse Spark calls are sent with `stor
 
 ## Meta hackathon checklist
 
-Every rule from the [Meta AI Developer Hackathon participant guide](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details), and where iVibe stands. Checked **Nov 2, 2026**. Unticked boxes aren't done yet.
+Every rule from the [Meta AI Developer Hackathon participant guide](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details), and where iVibe stands. Checked **Nov 4, 2026**. Unticked boxes aren't done yet.
 
 **The build**
 
@@ -227,14 +238,14 @@ Every rule from the [Meta AI Developer Hackathon participant guide](https://cere
 
 **The submission** (due Nov 4, 2026, 9:00 PM EST, which is Nov 5, 7:30 AM IST)
 
-| Status | Rule                                                     | Where iVibe stands                       |
-| ------ | -------------------------------------------------------- | ---------------------------------------- |
-| ⬜     | Three-minute demo video of what was built                | Not finished                             |
-| ⬜     | The demo only shows features built during the hackathon  | Depends on the final video               |
-| ⬜     | Video link opens for anyone                              | Waiting on the video                     |
-| ⬜     | Submitted on the Cerebral Valley platform, once per team | Not submitted yet                        |
-| ⬜     | Representative chosen, and everyone on the team listed   | Solo, to be confirmed on the form        |
-| ⬜     | Repository still public at submission                    | Public today, to be rechecked on the day |
+| Status | Rule                                                     | Where iVibe stands                              |
+| ------ | -------------------------------------------------------- | ----------------------------------------------- |
+| ✅     | Three-minute demo video of what was built                | Finished, 2:15 long                             |
+| ✅     | The demo only shows features built during the hackathon  | Everything in the film was built from Oct 27 on |
+| ✅     | Video link opens for anyone                              | [Watch the demo](https://youtu.be/BAL_gg1cgf8)  |
+| ⬜     | Submitted on the Cerebral Valley platform, once per team | Not submitted yet                               |
+| ✅     | Representative chosen, and everyone on the team listed   | Solo, Nikhil P is listed on the form            |
+| ✅     | Repository still public at submission                    | Public, rechecked Nov 4                         |
 
 **Optional extras**
 
@@ -247,12 +258,12 @@ Every rule from the [Meta AI Developer Hackathon participant guide](https://cere
 <summary><b>How iVibe lines up with the judging rubric</b></summary>
 <br>
 
-| Criterion                     | Weight | What to look at                                                                                                                                        |
-| ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Impact                        | 30%    | A real, installable app for three operating systems ([releases](https://github.com/nikylogic/ivibe/releases)), with a free plan                        |
-| Use of Meta AI tooling        | 25%    | Three Meta models in one pipeline, each doing a different job: voice, writing and vision ([how it works](#how-it-works))                               |
-| Technical depth and execution | 20%    | On-device OCR and redaction, proof screenshots, encrypted backups and automatic updates. Decisions are in [docs/architecture.md](docs/architecture.md) |
-| Demo                          | 25%    | The [interactive demo](https://ivibe.tech) is live. The three-minute video is still to come                                                            |
+| Criterion                     | Weight | What to look at                                                                                                                                                                                                        |
+| ----------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Impact                        | 30%    | A real, installable app for three operating systems ([releases](https://github.com/nikylogic/ivibe/releases)), with a free plan                                                                                        |
+| Use of Meta AI tooling        | 25%    | Three Meta models in one pipeline, each doing a different job: voice, writing and vision ([how it works](#how-it-works)). Muse Code was used for coding, planning and automated testing ([log](docs/muse-code-log.md)) |
+| Technical depth and execution | 20%    | On-device OCR and redaction, proof screenshots, encrypted backups and automatic updates. Decisions are in [docs/architecture.md](docs/architecture.md)                                                                 |
+| Demo                          | 25%    | The [interactive demo](https://ivibe.tech) is live, and the [2:15 demo film](https://youtu.be/BAL_gg1cgf8) shows the real app making live Meta calls                                                                   |
 
 </details>
 
@@ -272,7 +283,7 @@ Every rule from the [Meta AI Developer Hackathon participant guide](https://cere
 
 ## Status
 
-Updated **Nov 3, 2026**. The latest release is [0.1.5](https://github.com/nikylogic/ivibe/releases/latest). iVibe is being built in public for the [Meta AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details) (Oct 27 – Nov 4, 2026). The full breakdown is in [docs/architecture.md](docs/architecture.md).
+Updated **Nov 4, 2026**. The latest release is [0.1.5](https://github.com/nikylogic/ivibe/releases/latest). iVibe is being built in public for the [Meta AI Developer Hackathon](https://cerebralvalley.ai/e/meta-ai-developer-hackathon/details) (Oct 27 – Nov 4, 2026). The full breakdown is in [docs/architecture.md](docs/architecture.md).
 
 **Shipped**
 
@@ -290,7 +301,7 @@ Updated **Nov 3, 2026**. The latest release is [0.1.5](https://github.com/nikylo
 
 **Next**
 
-- [ ] Evaluation suite: voice cases and a set of 20 recorded bugs
+- [ ] A repeatable evaluation suite with published numbers
 - [ ] Code signing for Windows and macOS
 - [ ] After the hackathon: Vibes, where everything is a vibe, even Fix, Prompt and Dictate, and you can describe a new one instead of coding it ([plan](docs/vibes-and-prompts.md))
 - [ ] Then: the note taker, built as a vibe
