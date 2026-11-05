@@ -30,7 +30,23 @@ const ORIGIN = `http://localhost:${PORT}`;
 const SITE = "https://ivibe.tech";
 const MISSING = "/__not-a-page__";
 /** Pages nothing links to, but which still need their own file. */
-const START = ["/", "/welcome", MISSING];
+const START = [
+  "/",
+  "/welcome",
+  MISSING,
+  // Where sign-in and billing land (apps/api/src/moments.ts).
+  "/account/sign-in",
+  "/account/signed-in",
+  "/account/pro",
+  "/account/all-set",
+  "/account/payment-failed",
+  "/account/checkout-failed",
+  "/account/sign-in-expired",
+  "/account/sign-in-failed",
+  "/account/google-unavailable",
+  "/account/pro-coming-soon",
+  "/account/open-from-app",
+];
 const MAX_DESCRIPTION = 165;
 
 const HEAD_TAGS =

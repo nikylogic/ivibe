@@ -228,12 +228,14 @@ export interface ByokStatus {
   encryptionAvailable: boolean;
 }
 
+export type SignInProvider = "github" | "google";
+
 /** iVibe Cloud account, as the UI sees it (never the token). */
 export interface CloudStatus {
   signedIn: boolean;
-  /** GitHub login. */
+  /** GitHub login, or the email address of a Google account. */
   login?: string;
-  /** GitHub display name, when the profile has one. */
+  /** Display name, when the account has one. */
   name?: string;
   /** The sidebar badge, decided by the server: pro | trial | free. */
   tier?: "pro" | "trial" | "free";
@@ -246,7 +248,7 @@ export interface CloudStatus {
   trial?: string;
   /** Credits the free trial gives. */
   trialCredits?: number;
-  /** Waiting for the browser to come back from GitHub. */
+  /** Waiting for the browser to come back from sign-in. */
   pending?: boolean;
   /** About the last sign-in: the free trial, or why it failed. */
   message?: string;

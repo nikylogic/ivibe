@@ -52,9 +52,9 @@ const PAGES: Record<
       {
         heading: "What iVibe keeps",
         body: [
-          "If you sign in: your GitHub ID, username, name and email, your credit balance, and a record of each run (its type, cost and time). To limit abuse of free credits, we also keep hashed identifiers of your computer and network.",
+          "If you sign in: your GitHub or Google ID, your GitHub username if you use GitHub, your name and email, your credit balance, and a record of each run (its type, cost and time). To limit abuse of free credits, we also keep hashed identifiers of your computer and network.",
           "Payments are handled by Dodo Payments, the merchant of record. iVibe never sees your card details.",
-          "We email you when you first sign in and when you start Pro, using the address on your GitHub account. We don't send marketing without asking first.",
+          "We email you when you first sign in and when you start Pro, using the address on the account you sign in with. If you sign in with GitHub and Google using the same verified address, both open one iVibe account. We don't send marketing without asking first.",
           "Buying on this site sets one cookie that keeps you signed in for 30 days, only so you can buy or manage Pro. It doesn't track you, and signing out removes it.",
           "Pro backups are encrypted on your computer with a recovery key only you hold, so iVibe can't read them. They are kept while Pro is active and for 90 days after it ends, or deleted sooner if you ask.",
           "Server logs last a few days and contain no transcripts, screen text or images. The app and this site have no analytics. The demo film on the home page loads from YouTube only when you press play, and YouTube may then set its own cookies.",
@@ -63,7 +63,7 @@ const PAGES: Record<
       {
         heading: "Who else is involved",
         body: [
-          "Meta (models), Cloudflare (hosting, storage and forwarding mail to us), Dodo Payments (payments), GitHub (sign-in and downloads) and Resend (sending email).",
+          "Meta (models), Cloudflare (hosting, storage and forwarding mail to us), Dodo Payments (payments), GitHub (sign-in and downloads), Google (sign-in) and Resend (sending email).",
         ],
       },
       {

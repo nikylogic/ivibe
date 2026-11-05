@@ -2,9 +2,10 @@
 
 import type { Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
-import { githubAuthorizeUrl, page } from "./auth.ts";
+import { githubAuthorizeUrl, googleAuthorizeUrl } from "./auth.ts";
 import { planOf, purchaseLink, SUBSCRIBED } from "./billing.ts";
 import type { AppEnv } from "./env.ts";
+import { moment } from "./moments.ts";
 import { now, randomToken, sha256 } from "./util.ts";
 
 /**
@@ -13,7 +14,7 @@ import { now, randomToken, sha256 } from "./util.ts";
  *   GET auth.ivibe.tech/buy
  *     signed in, no plan → Dodo checkout
  *     signed in, on Pro  → Dodo's portal, so nobody pays twice
- *     signed out         → GitHub, then back here and on to one of the above
+ *     signed out         → GitHub or Google, then back here and on to one of the above
  *
  * A web session is a cookie only this host can read, kept apart from the app's sessions, and it can
  * only buy or manage a plan: requireSession never accepts it, so it can't run or spend anything.
@@ -36,18 +37,23 @@ async function webUser(c: Ctx): Promise<{ userId: string; login: string | null }
   const token = getCookie(c, WEB_COOKIE);
   if (!token?.startsWith("ivw_")) return null;
   const row = await c.env.DB.prepare(
-    `SELECT w.user_id, w.expires_at, u.github_login FROM web_sessions w
+    `SELECT w.user_id, w.expires_at, COALESCE(u.github_login, u.email) AS login FROM web_sessions w
      JOIN users u ON u.id = w.user_id WHERE w.token_hash = ?`,
   )
     .bind(await sha256(token))
-    .first<{ user_id: string; expires_at: number; github_login: string | null }>();
+    .first<{ user_id: string; expires_at: number; login: string | null }>();
   if (!row || row.expires_at < now()) return null;
-  return { userId: row.user_id, login: row.github_login };
+  return { userId: row.user_id, login: row.login };
 }
 
 export async function buyRoute(c: Ctx): Promise<Response> {
   const user = await webUser(c);
   if (!user) {
+    const provider = c.req.query("with");
+    // Pro lands on the account they sign in with here, so it has to be the one they use in the app.
+    if (c.env.GOOGLE_CLIENT_ID && provider !== "google" && provider !== "github") {
+      return moment(c, "sign-in");
+    }
     const state = randomToken();
     await c.env.DB.prepare(
       "INSERT INTO oauth_states (state, challenge, created_at, purpose) VALUES (?, '', ?, 'web')",
@@ -57,21 +63,19 @@ export async function buyRoute(c: Ctx): Promise<Response> {
     // Ties the sign-in to this browser, so nobody can send a buyer a link that signs them in as
     // someone else and has them pay for that account.
     setCookie(c, STATE_COOKIE, state, { ...cookieOptions, maxAge: 600 });
-    return c.redirect(githubAuthorizeUrl(c, state));
+    return c.redirect(
+      c.env.GOOGLE_CLIENT_ID && provider === "google"
+        ? googleAuthorizeUrl(c, state)
+        : githubAuthorizeUrl(c, state),
+    );
   }
   try {
     const link = await purchaseLink(c.env, user.userId, "web");
     if (link) return c.redirect(link.url);
-    return c.html(
-      page("iVibe Pro is coming soon", "Until then, add your own Meta key to use iVibe for free."),
-      503,
-    );
+    return moment(c, "pro-coming-soon");
   } catch (error) {
     console.error(error);
-    return c.html(
-      page("Checkout didn't open", "You weren't charged. Please try again in a moment."),
-      502,
-    );
+    return moment(c, "checkout-failed");
   }
 }
 

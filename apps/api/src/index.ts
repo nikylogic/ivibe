@@ -12,7 +12,16 @@ import {
   expireBackups,
 } from "./backup.ts";
 import { checkoutRoute, planOffer, portalRoute, returnPage, webhookRoute } from "./billing.ts";
-import { exchangeToken, githubCallback, githubStart, me, requireSession, signOut } from "./auth.ts";
+import {
+  exchangeToken,
+  githubCallback,
+  githubStart,
+  googleCallback,
+  googleStart,
+  me,
+  requireSession,
+  signOut,
+} from "./auth.ts";
 import type { AppEnv, Env } from "./env.ts";
 import { closeRecordingRoute, composeRoute, openRecordingRoute, transcribeRoute } from "./runs.ts";
 import { loadSettings } from "./settings.ts";
@@ -24,11 +33,15 @@ import { sendQueuedEmails } from "./email.ts";
 
 /** iVibe Cloud (docs/architecture.md §6). */
 
-/** auth.ivibe.tech: GitHub sign-in for the desktop app, and buying Pro from the website. */
+/** auth.ivibe.tech: GitHub and Google sign-in for the desktop app, and buying Pro from the website. */
 const auth = new Hono<AppEnv>();
 auth.get("/", (c) => c.redirect("https://ivibe.tech"));
+// The website answers an unknown address with its own page and a real 404.
+auth.notFound((c) => c.redirect(`${c.env.SITE_URL}/not-found`));
 auth.get("/github", githubStart);
 auth.get("/github/callback", githubCallback);
+auth.get("/google", googleStart);
+auth.get("/google/callback", googleCallback);
 auth.post("/token", exchangeToken);
 auth.post("/sign-out", signOut);
 auth.get("/buy", buyRoute);

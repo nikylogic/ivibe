@@ -14,6 +14,9 @@ export interface Env {
   META_API_KEY: string;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
+  /** Unset: the Google route says it isn't available, and the website goes straight to GitHub. */
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
   /** Salts every stored device and network hash, so they can't be reversed or matched elsewhere. */
   HASH_SALT: string;
   /** https://test.dodopayments.com or https://live.dodopayments.com */

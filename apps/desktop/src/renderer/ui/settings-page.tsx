@@ -12,6 +12,7 @@ import { Switch } from "@astryxdesign/core/Switch";
 import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { SignInButtons } from "./sign-in-buttons.tsx";
 import {
   Cloud,
   CreditCard,
@@ -182,17 +183,10 @@ function ProPlan({ cloud }: { cloud: CloudState }) {
     return (
       <>
         <Text color="secondary">
-          iVibe Pro is part of iVibe Cloud. Sign in with GitHub first; you'll get free credits to
-          try it before you pay anything.
+          iVibe Pro is part of iVibe Cloud. Sign in first; you'll get free credits to try it before
+          you pay anything.
         </Text>
-        <div>
-          <Button
-            label={status.pending ? "Waiting for the browser…" : "Sign in with GitHub"}
-            variant="primary"
-            isLoading={status.pending}
-            onClick={cloud.signIn}
-          />
-        </div>
+        <SignInButtons cloud={cloud} />
       </>
     );
   }
@@ -369,22 +363,15 @@ function CloudAccount({ cloud, byok }: { cloud: CloudState; byok: ByokState }) {
     return (
       <>
         <Text color="secondary">
-          Sign in with GitHub to get {status.trialCredits ?? 50} free credits. No API key needed. 1
-          credit is 1 cent of AI usage: about 10 Fix runs or 100 dictations. They start with your
-          first recording.
+          Sign in to get {status.trialCredits ?? 50} free credits. No API key needed. 1 credit is 1
+          cent of AI usage: about 10 Fix runs or 100 dictations. They start with your first
+          recording.
         </Text>
         <Text color="secondary" size="sm">
           {TRIAL_MODEL_NOTE}
         </Text>
         {message}
-        <div>
-          <Button
-            label={status.pending ? "Waiting for the browser…" : "Sign in with GitHub"}
-            variant="primary"
-            isLoading={status.pending}
-            onClick={cloud.signIn}
-          />
-        </div>
+        <SignInButtons cloud={cloud} />
       </>
     );
   }

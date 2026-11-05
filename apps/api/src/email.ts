@@ -123,7 +123,7 @@ export function messageFor(kind: EmailKind, site: string, login: string | null):
       "You get 400 credits a month and encrypted backups, with no API key to manage.",
       login
         ? `Sign in to the app with GitHub as @${login} and Pro is ready.`
-        : "Sign in to the app with the same GitHub account and Pro is ready.",
+        : "Sign in to the app with the same account and Pro is ready.",
     ],
     button: { label: "Get started", href: `${site}/welcome` },
     footnote: "You can cancel anytime from the billing portal. Questions? Just reply.",
@@ -159,7 +159,7 @@ export async function sendQueuedEmails(env: Env): Promise<number> {
   let sent = 0;
   for (const row of results) {
     if (!row.email) {
-      // GitHub gave us no address for this account, so there's nowhere to send it.
+      // The provider gave us no address for this account, so there's nowhere to send it.
       await db
         .prepare("UPDATE email_outbox SET status = 'skipped' WHERE id = ?")
         .bind(row.id)

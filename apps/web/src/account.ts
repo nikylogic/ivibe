@@ -5,13 +5,21 @@
  * is no login page: Buy signs someone in on the way to checkout, and this only asks who they are.
  */
 
-const AUTH_URL = import.meta.env.DEV ? "http://localhost:8787/auth" : "https://auth.ivibe.tech";
+export const AUTH_URL = import.meta.env.DEV
+  ? "http://localhost:8787/auth"
+  : "https://auth.ivibe.tech";
 
 /** Signs in if needed, then opens checkout, or the billing portal for someone already on Pro. */
 export const BUY_URL = `${AUTH_URL}/buy`;
 
 /** Opens the app on its billing screen, so it picks up the new plan straight away. */
 export const OPEN_APP_URL = "tech.ivibe.app://billing";
+
+/** Brings the app forward without asking it to do anything. */
+export const BACK_TO_APP_URL = "tech.ivibe.app://open";
+
+/** Finishes a sign-in in the app; the login code goes on the end. */
+export const SIGN_IN_APP_URL = "tech.ivibe.app://auth?code=";
 
 export type WebAccount =
   { signedIn: false } | { signedIn: true; login: string | null; pro: boolean };

@@ -173,7 +173,7 @@ Fix and Prompt record for up to 60 seconds, and Dictate for up to 5 minutes. In 
 | Plan                  | What you get                                                                                                          | Price      |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------- |
 | **Your own Meta key** | Everything. Recordings go from your device straight to Meta, billed to your Meta account.                             | Free       |
-| **iVibe Cloud trial** | Sign in with GitHub and get 50 free credits, no key needed.                                                           | Free       |
+| **iVibe Cloud trial** | Sign in with Google or GitHub and get 50 free credits, no key needed.                                                 | Free       |
 | **iVibe Pro**         | 400 credits a month, no key needed, plus end-to-end encrypted backups of your history. Credits reset at each renewal. | $8 / month |
 
 A credit is one cent of Meta usage. A dictation costs a fraction of a credit and a Fix report a few credits.
@@ -291,7 +291,7 @@ Updated **Nov 4, 2026**. The latest release is [0.1.5](https://github.com/nikylo
 - [x] On-device OCR and secret redaction, annotated proof screenshots with SAM 3.1
 - [x] Paste into the app you were in, click-to-paste and History
 - [x] Installers for Windows, macOS and Linux, with automatic updates
-- [x] iVibe Cloud: GitHub sign-in, free trial credits, iVibe Pro and encrypted backups
+- [x] iVibe Cloud: Google and GitHub sign-in, free trial credits, iVibe Pro and encrypted backups
 - [x] [ivibe.tech](https://ivibe.tech): website, docs and an interactive demo for desktop and phone
 
 **Being verified by hand**
@@ -316,7 +316,8 @@ cd ivibe
 pnpm install
 pnpm ocr:fetch    # download the on-device OCR models (13 MB, hash-checked)
 pnpm check        # lint, format check, typecheck, tests and the dependency license check
-pnpm --filter @ivibe/desktop dev   # run the desktop app
+pnpm --filter @ivibe/desktop dev   # run the desktop app, with its own profile; F12 opens DevTools
+pnpm --filter @ivibe/desktop lab   # every screen and state in a browser, with pretend data
 ```
 
 Add your Meta Model API key in the app under **Settings → Meta API key**. The experiments in [`spikes/`](spikes/) read it from `.env` instead: copy `.env.example` to `.env`, set `META_API_KEY`, then for example:

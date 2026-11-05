@@ -1,6 +1,6 @@
 {
   "name": "@ivibe/desktop",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "iVibe desktop app: record a bug with your screen and voice, get the root cause, proof images and a fix prompt.",
   "license": "AGPL-3.0-only",
@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "mascot": "vite mascot-lab --port 5199 --open",
+    "lab": "vite lab --open",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.json",

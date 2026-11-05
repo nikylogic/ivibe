@@ -400,7 +400,7 @@ export function Pricing() {
       </div>
       <div {...stylex.props(styles.after)}>
         <Text color="secondary">
-          Free credits need a GitHub sign-in. Pro credits reset monthly.
+          Free credits need a Google or GitHub sign-in. Pro credits reset monthly.
         </Text>
         <Text size="sm" color="secondary">
           By buying you agree to the <Link href="/terms">Terms</Link> and{" "}
@@ -408,7 +408,9 @@ export function Pricing() {
         </Text>
         {account?.signedIn && (
           <Text size="sm" color="secondary">
-            {account.login ? `Signed in as @${account.login} · ` : ""}
+            {account.login
+              ? `Signed in as ${account.login.includes("@") ? "" : "@"}${account.login} · `
+              : ""}
             <Link
               onClick={() => {
                 void signOutOfWeb().then((done) => {

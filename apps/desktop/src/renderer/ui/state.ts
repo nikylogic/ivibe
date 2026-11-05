@@ -11,6 +11,7 @@ import type {
   Settings,
   ShortcutStatus,
   UpdateStatus,
+  SignInProvider,
 } from "../../shared/ipc.ts";
 
 declare global {
@@ -123,7 +124,7 @@ export function formatBytes(bytes: number): string {
 
 export interface CloudState {
   status: CloudStatus | null;
-  signIn: () => void;
+  signIn: (provider: SignInProvider) => void;
   signOut: () => void;
   /** Opens Pro checkout or the subscription portal in the browser. */
   billing: (page: "checkout" | "portal") => void;
@@ -135,7 +136,10 @@ export function useCloud(): CloudState {
     void window.ivibe.cloud.status().then(setStatus);
     return window.ivibe.cloud.onChange(setStatus);
   }, []);
-  const signIn = useCallback(() => void window.ivibe.cloud.signIn(), []);
+  const signIn = useCallback(
+    (provider: SignInProvider) => void window.ivibe.cloud.signIn(provider),
+    [],
+  );
   const signOut = useCallback(() => void window.ivibe.cloud.signOut().then(setStatus), []);
   const billing = useCallback(
     (page: "checkout" | "portal") => void window.ivibe.cloud.billing(page),

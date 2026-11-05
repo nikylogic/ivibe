@@ -5,17 +5,18 @@ import { planOf, planOffer, tierOf } from "./billing.ts";
 import type { AppEnv, Env } from "./env.ts";
 import { apiError } from "./runs.ts";
 import { loadSettings } from "./settings.ts";
+import { moment } from "./moments.ts";
 import { now, pkceChallenge, randomToken, sha256, toCredits } from "./util.ts";
 import { finishWebSignIn, startedHere } from "./web.ts";
 import { queueEmail, sendSoon } from "./email.ts";
 import { balanceOf, trialOnly, trialState } from "./wallet.ts";
 
 /**
- * Desktop sign-in with GitHub (docs/architecture.md §6.2), PKCE-protected:
+ * Desktop sign-in with GitHub or Google (docs/architecture.md §6.2), PKCE-protected:
  *
- * 1. The app opens auth.ivibe.tech/github?challenge=… in the system browser.
- * 2. GitHub sends the user back to /github/callback; we create the account and hand the app a
- *    one-time code through the tech.ivibe.app:// link.
+ * 1. The app opens auth.ivibe.tech/github (or /google)?challenge=… in the system browser.
+ * 2. The provider sends the user back to /github/callback (or /google/callback); we create the
+ *    account and hand the app a one-time code through the tech.ivibe.app:// link.
  * 3. The app posts the code, its PKCE verifier and its device hash to /token and gets a
  *    session token, which it keeps in the OS keychain. The device is bound to the session here.
  *
@@ -31,14 +32,25 @@ const SESSION_TTL_MS = 90 * 86_400_000;
 const isChallenge = (value: string | undefined): value is string =>
   !!value && /^[A-Za-z0-9_-]{43}$/.test(value);
 
-export async function githubStart(c: Ctx): Promise<Response> {
-  const challenge = c.req.query("challenge");
-  if (!isChallenge(challenge)) return c.text("Open this page from the iVibe app.", 400);
+async function appSignInState(c: Ctx, challenge: string): Promise<string> {
   const state = randomToken();
   await c.env.DB.prepare("INSERT INTO oauth_states (state, challenge, created_at) VALUES (?, ?, ?)")
     .bind(state, challenge, now())
     .run();
-  return c.redirect(githubAuthorizeUrl(c, state));
+  return state;
+}
+
+export async function githubStart(c: Ctx): Promise<Response> {
+  const challenge = c.req.query("challenge");
+  if (!isChallenge(challenge)) return moment(c, "open-from-app");
+  return c.redirect(githubAuthorizeUrl(c, await appSignInState(c, challenge)));
+}
+
+export async function googleStart(c: Ctx): Promise<Response> {
+  const challenge = c.req.query("challenge");
+  if (!isChallenge(challenge)) return moment(c, "open-from-app");
+  if (!c.env.GOOGLE_CLIENT_ID) return moment(c, "google-unavailable");
+  return c.redirect(googleAuthorizeUrl(c, await appSignInState(c, challenge)));
 }
 
 /** GitHub's sign-in page, for the app and the website alike. */
@@ -51,12 +63,33 @@ export function githubAuthorizeUrl(c: Ctx, state: string): string {
   return url.toString();
 }
 
+/** Google's sign-in page, for the app and the website alike. */
+export function googleAuthorizeUrl(c: Ctx, state: string): string {
+  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  url.searchParams.set("client_id", c.env.GOOGLE_CLIENT_ID ?? "");
+  url.searchParams.set("redirect_uri", `${c.env.AUTH_URL}/google/callback`);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", "openid email profile");
+  url.searchParams.set("state", state);
+  // People often have several Google accounts, and this one holds their credits and plan.
+  url.searchParams.set("prompt", "select_account");
+  return url.toString();
+}
+
 interface GitHubUser {
   id: number;
   login: string;
   name: string | null;
   email: string | null;
+  /** Primary address, only when GitHub says it's verified: the one safe to match accounts on. */
+  verifiedEmail: string | null;
   created_at: string;
+}
+
+interface GoogleUser {
+  sub: string;
+  email: string;
+  name: string | null;
 }
 
 async function githubUser(c: Ctx, code: string): Promise<GitHubUser | null> {
@@ -82,8 +115,39 @@ async function githubUser(c: Ctx, code: string): Promise<GitHubUser | null> {
   if (!userResponse.ok) return null;
   const user = (await userResponse.json()) as GitHubUser;
   // Most people keep their address private on their profile; this is what the user:email scope is for.
-  if (!user.email) user.email = await privateEmail(token.access_token);
+  user.verifiedEmail = await privateEmail(token.access_token);
+  if (!user.email) user.email = user.verifiedEmail;
   return user;
+}
+
+async function googleUser(c: Ctx, code: string): Promise<GoogleUser | null> {
+  if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET) return null;
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: c.env.GOOGLE_CLIENT_ID,
+      client_secret: c.env.GOOGLE_CLIENT_SECRET,
+      code,
+      grant_type: "authorization_code",
+      redirect_uri: `${c.env.AUTH_URL}/google/callback`,
+    }),
+  });
+  const token = (await tokenResponse.json()) as { access_token?: string };
+  if (!token.access_token) return null;
+  const userResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+    headers: { Authorization: `Bearer ${token.access_token}` },
+  });
+  if (!userResponse.ok) return null;
+  const user = (await userResponse.json()) as {
+    sub?: string;
+    email?: string;
+    email_verified?: boolean;
+    name?: string;
+  };
+  // An address Google hasn't verified can't be trusted to name an account.
+  if (!user.sub || !user.email || user.email_verified !== true) return null;
+  return { sub: user.sub, email: user.email, name: user.name ?? null };
 }
 
 async function privateEmail(token: string): Promise<string | null> {
@@ -104,6 +168,16 @@ async function privateEmail(token: string): Promise<string | null> {
   return emails.find((item) => item.primary && item.verified)?.email ?? null;
 }
 
+/** The account a provider's verified address belongs to, if it isn't linked to that provider yet. */
+const unlinkedByEmail = (db: D1Database, column: "github_id" | "google_id", email: string) =>
+  db
+    .prepare(
+      `SELECT id FROM users WHERE lower(email) = lower(?) AND ${column} IS NULL
+       ORDER BY created_at LIMIT 1`,
+    )
+    .bind(email)
+    .first<{ id: string }>();
+
 /** Finds or creates the account (with an empty wallet) for a GitHub user. */
 async function upsertUser(db: D1Database, user: GitHubUser): Promise<string> {
   const existing = await db
@@ -119,9 +193,28 @@ async function upsertUser(db: D1Database, user: GitHubUser): Promise<string> {
       .run();
     return existing.id;
   }
+  const githubCreatedAt = Date.parse(user.created_at);
+  const sameEmail = user.verifiedEmail
+    ? await unlinkedByEmail(db, "github_id", user.verifiedEmail)
+    : null;
+  if (sameEmail) {
+    await db
+      .prepare(
+        `UPDATE users SET github_id = ?, github_login = ?, name = COALESCE(name, ?),
+         github_created_at = ? WHERE id = ?`,
+      )
+      .bind(
+        String(user.id),
+        user.login,
+        user.name,
+        Number.isNaN(githubCreatedAt) ? null : githubCreatedAt,
+        sameEmail.id,
+      )
+      .run();
+    return sameEmail.id;
+  }
   const id = crypto.randomUUID();
   const at = now();
-  const githubCreatedAt = Date.parse(user.created_at);
   await db.batch([
     db
       .prepare(
@@ -145,14 +238,58 @@ async function upsertUser(db: D1Database, user: GitHubUser): Promise<string> {
   return id;
 }
 
-export const page = (title: string, body: string, appLink?: string) =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title} · iVibe</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0b1a;color:#e8e6f5;font:16px/1.5 system-ui,sans-serif;text-align:center}
-main{max-width:420px;padding:24px}h1{font-size:24px;margin:0 0 8px}a{display:inline-block;margin-top:20px;padding:10px 22px;border-radius:999px;background:#7c5cff;color:#fff;text-decoration:none;font-weight:600}</style>
-</head><body><main><h1>${title}</h1><p>${body}</p>${appLink ? `<a href="${appLink}">Open iVibe</a><script>location.href=${JSON.stringify(appLink)}</script>` : ""}</main></body></html>`;
+/** Finds or creates the account (with an empty wallet) for a Google user. */
+async function upsertGoogleUser(db: D1Database, user: GoogleUser): Promise<string> {
+  const existing = await db
+    .prepare("SELECT id FROM users WHERE google_id = ?")
+    .bind(user.sub)
+    .first<{ id: string }>();
+  if (existing) {
+    await db
+      .prepare("UPDATE users SET email = ?, name = COALESCE(?, name) WHERE id = ?")
+      .bind(user.email, user.name, existing.id)
+      .run();
+    return existing.id;
+  }
+  const sameEmail = await unlinkedByEmail(db, "google_id", user.email);
+  if (sameEmail) {
+    await db
+      .prepare("UPDATE users SET google_id = ?, name = COALESCE(name, ?) WHERE id = ?")
+      .bind(user.sub, user.name, sameEmail.id)
+      .run();
+    return sameEmail.id;
+  }
+  const id = crypto.randomUUID();
+  const at = now();
+  await db.batch([
+    db
+      .prepare("INSERT INTO users (id, google_id, email, name, created_at) VALUES (?, ?, ?, ?, ?)")
+      .bind(id, user.sub, user.email, user.name, at),
+    db
+      .prepare("INSERT INTO wallets (user_id, balance, held, updated_at) VALUES (?, 0, 0, ?)")
+      .bind(id, at),
+    queueEmail(db, id, "welcome"),
+  ]);
+  return id;
+}
 
-export async function githubCallback(c: Ctx): Promise<Response> {
+/** Confirms the sign-in with the provider. Returns the account and what to call it, or null. */
+type ProviderSignIn = (c: Ctx, code: string) => Promise<{ userId: string; label: string } | null>;
+
+const signInWithGitHub: ProviderSignIn = async (c, code) => {
+  const user = await githubUser(c, code);
+  return user && { userId: await upsertUser(c.env.DB, user), label: user.login };
+};
+
+const signInWithGoogle: ProviderSignIn = async (c, code) => {
+  const user = await googleUser(c, code);
+  return user && { userId: await upsertGoogleUser(c.env.DB, user), label: user.email };
+};
+
+export const githubCallback = (c: Ctx) => finishSignIn(c, "GitHub", signInWithGitHub);
+export const googleCallback = (c: Ctx) => finishSignIn(c, "Google", signInWithGoogle);
+
+async function finishSignIn(c: Ctx, provider: string, signIn: ProviderSignIn): Promise<Response> {
   const db = c.env.DB;
   const state = c.req.query("state") ?? "";
   const code = c.req.query("code");
@@ -167,17 +304,13 @@ export async function githubCallback(c: Ctx): Promise<Response> {
     return backToPricing();
   }
   if (!saved || !code || now() - saved.created_at > STATE_TTL_MS) {
-    return c.html(page("Sign-in expired", "Start again from the iVibe app."), 400);
+    return moment(c, "sign-in-expired");
   }
-  const user = await githubUser(c, code);
+  const user = await signIn(c, code);
   if (!user && web) return backToPricing();
-  if (!user)
-    return c.html(
-      page("Sign-in failed", "GitHub didn't confirm the sign-in. Try again from the iVibe app."),
-      400,
-    );
+  if (!user) return moment(c, "sign-in-failed", { provider });
 
-  const userId = await upsertUser(db, user);
+  const { userId, label } = user;
   sendSoon(c);
   if (web) return finishWebSignIn(c, userId);
   const loginCode = randomToken();
@@ -187,8 +320,7 @@ export async function githubCallback(c: Ctx): Promise<Response> {
     )
     .bind(await sha256(loginCode), userId, saved.challenge, now() + CODE_TTL_MS)
     .run();
-  const appLink = `${c.env.APP_SCHEME}://auth?code=${encodeURIComponent(loginCode)}`;
-  return c.html(page(`Signed in as ${user.login}`, "You can go back to iVibe now.", appLink));
+  return moment(c, "signed-in", { code: loginCode, name: label });
 }
 
 /** POST auth.ivibe.tech/token { code, verifier, device } → a session token. */
@@ -236,9 +368,9 @@ export async function exchangeToken(c: Ctx): Promise<Response> {
 async function account(env: Env, userId: string) {
   const db = env.DB;
   const user = await db
-    .prepare("SELECT github_login, name FROM users WHERE id = ?")
+    .prepare("SELECT github_login, email, name FROM users WHERE id = ?")
     .bind(userId)
-    .first<{ github_login: string; name: string | null }>();
+    .first<{ github_login: string | null; email: string | null; name: string | null }>();
   const [settings, available, trial, plan, trialOnlyAccount] = await Promise.all([
     loadSettings(db),
     balanceOf(db, userId),
@@ -247,7 +379,8 @@ async function account(env: Env, userId: string) {
     trialOnly(db, userId),
   ]);
   return {
-    user: { login: user?.github_login, name: user?.name },
+    // A Google account has no username, so its address stands in.
+    user: { login: user?.github_login ?? user?.email, name: user?.name },
     credits: toCredits(available),
     // available (starts on the first recording) | granted | device_limit | network_limit | account_too_new
     trial,

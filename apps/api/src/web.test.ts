@@ -137,8 +137,7 @@ describe("the Buy link", () => {
       vi.fn(async () => new Response("no", { status: 500 })),
     );
     const response = await request("/buy", { headers: { cookie } });
-    expect(response.status).toBe(502);
-    expect(await response.text()).toContain("You weren't charged");
+    expect(response.headers.get("location")).toBe(`${SITE}/account/checkout-failed`);
   });
 
   it("refuses a sign-in link that started in someone else's browser", async () => {
@@ -210,6 +209,10 @@ describe("coming back from Dodo", () => {
 
   it("still sends the app's buyers back to the app", async () => {
     const paid = await request("/return?status=active");
-    expect(await paid.text()).toContain("tech.ivibe.app://billing");
+    expect(paid.headers.get("location")).toBe(`${SITE}/account/pro#open=1`);
+    const declined = await request("/return?status=failed");
+    expect(declined.headers.get("location")).toBe(`${SITE}/account/payment-failed`);
+    const portal = await request("/return?from=portal");
+    expect(portal.headers.get("location")).toBe(`${SITE}/account/all-set#open=1`);
   });
 });

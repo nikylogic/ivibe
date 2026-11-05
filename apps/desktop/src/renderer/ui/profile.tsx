@@ -220,12 +220,10 @@ export function ProfileFooter({
           type: "section",
           items: [
             {
-              label: "Sign in with GitHub",
+              label: "Sign in",
               icon: icon(LogIn),
-              onClick: () => {
-                cloud.signIn();
-                onOpen("cloud");
-              },
+              // The Cloud page has both sign-in buttons.
+              onClick: () => onOpen("cloud"),
             },
             {
               label: hasKey ? "Meta API key" : "Use my own Meta key",
@@ -289,7 +287,7 @@ export function ProfileFooter({
                   {signedIn
                     ? paymentTrouble
                       ? "Payment failed · update in Billing"
-                      : `${badge.label} plan${status.login ? ` · @${status.login}` : ""}`
+                      : `${badge.label} plan${status.login ? ` · ${status.login.includes("@") ? "" : "@"}${status.login}` : ""}`
                     : hasKey
                       ? "Free · your own key"
                       : "Free · not signed in"}

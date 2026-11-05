@@ -23,6 +23,10 @@ async function loadPage(): Promise<PageComponent> {
   if (path === "") return (await import("./home.tsx")).Home;
   if (path === "/download") return (await import("./download.tsx")).DownloadPage;
   if (path === "/welcome") return (await import("./welcome.tsx")).WelcomePage;
+  if (path.startsWith("/account/")) {
+    const { AccountPage, hasAccountPage } = await import("./account-pages.tsx");
+    return hasAccountPage(path) ? AccountPage : notFound();
+  }
   if (path === "/docs" || path.startsWith("/docs/")) {
     const { DocsPage, hasDocsPage } = await import("./docs.tsx");
     return hasDocsPage(path) ? DocsPage : notFound();

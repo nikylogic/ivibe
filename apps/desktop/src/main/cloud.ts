@@ -14,10 +14,10 @@ import type {
   TranscriptLine,
   WriterContext,
 } from "@ivibe/engine";
-import type { CloudPlan, CloudStatus, CloudUsage } from "../shared/ipc.ts";
+import type { CloudPlan, CloudStatus, CloudUsage, SignInProvider } from "../shared/ipc.ts";
 
 /**
- * iVibe Cloud (apps/api): sign in with GitHub, get free trial credits, and run Meta calls on
+ * iVibe Cloud (apps/api): sign in with GitHub or Google, get free trial credits, and run Meta calls on
  * iVibe's key instead of the user's own. Recordings are redacted on the device before anything
  * is sent, exactly as in BYOK mode. The session token lives in the OS keychain (safeStorage) and
  * never reaches a renderer.
@@ -229,17 +229,17 @@ export async function refreshCloud(): Promise<CloudStatus> {
   }
 }
 
-/** Opens GitHub sign-in in the browser; the result comes back through handleAuthLink. */
-export async function signIn(): Promise<void> {
+/** Opens sign-in in the browser; the result comes back through handleAppLink. */
+export async function signIn(provider: SignInProvider): Promise<void> {
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   pending = { verifier, at: Date.now() };
   update({ pending: true, message: undefined });
-  await shell.openExternal(`${AUTH_URL}/github?challenge=${challenge}`);
+  await shell.openExternal(`${AUTH_URL}/${provider}?challenge=${challenge}`);
 }
 
 /**
- * Handles links back from the browser: tech.ivibe.app://auth?code=… after GitHub sign-in, and
+ * Handles links back from the browser: tech.ivibe.app://auth?code=… after sign-in, and
  * tech.ivibe.app://billing after Pro checkout or the subscription portal.
  */
 export async function handleAppLink(link: string): Promise<void> {

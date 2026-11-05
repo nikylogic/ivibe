@@ -15,6 +15,7 @@ import type {
   ShortcutKey,
   ShortcutStatus,
   UpdateStatus,
+  SignInProvider,
 } from "../shared/ipc.ts";
 
 function subscribe<T>(channel: string, listener: (value: T) => void): () => void {
@@ -52,8 +53,9 @@ const api = {
   },
   cloud: {
     status: (): Promise<CloudStatus> => ipcRenderer.invoke(Channels.cloudStatus),
-    /** Opens GitHub sign-in in the browser; the result arrives through onChange. */
-    signIn: (): Promise<void> => ipcRenderer.invoke(Channels.cloudSignIn),
+    /** Opens sign-in in the browser; the result arrives through onChange. */
+    signIn: (provider: SignInProvider): Promise<void> =>
+      ipcRenderer.invoke(Channels.cloudSignIn, provider),
     signOut: (): Promise<CloudStatus> => ipcRenderer.invoke(Channels.cloudSignOut),
     /** Opens Pro checkout, or the subscription portal, in the browser. */
     billing: (page: "checkout" | "portal"): Promise<void> =>

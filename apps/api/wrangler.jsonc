@@ -1,9 +1,10 @@
 // iVibe Cloud (docs/architecture.md §6). Workers Free plan.
-// One Worker serves api.ivibe.tech (the app's calls) and auth.ivibe.tech (GitHub sign-in).
+// One Worker serves api.ivibe.tech (the app's calls) and auth.ivibe.tech (GitHub and Google sign-in).
 // Wrangler is run with npx (pinned in package.json scripts), so its local simulator's native
 // dependencies stay out of the workspace and its license check (§12.1). `pnpm dev` serves the
 // API on localhost:8787 and auth on localhost:8787/auth.
-// Secrets (wrangler secret put …): META_API_KEY, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, HASH_SALT,
+// Secrets (wrangler secret put …): META_API_KEY, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_ID,
+// GOOGLE_CLIENT_SECRET, HASH_SALT,
 // and for iVibe Pro DODO_API_KEY and DODO_WEBHOOK_SECRET.
 {
   "name": "ivibe-api",

@@ -121,7 +121,11 @@ if (BACKUP_TEST) {
   rmSync(profile, { recursive: true, force: true });
   app.setPath("userData", profile);
 } else if (SELF_TEST) app.setPath("userData", join(app.getPath("temp"), "ivibe-selftest"));
-else if (!app.requestSingleInstanceLock()) app.quit();
+else {
+  // `pnpm dev` has its own profile, so it can't touch the installed app's sign-in, keys or history.
+  if (process.env.ELECTRON_RENDERER_URL) app.setPath("userData", `${app.getPath("userData")}-dev`);
+  if (!app.requestSingleInstanceLock()) app.quit();
+}
 
 // Sign-in comes back as tech.ivibe.app://auth?code=… (iVibe Cloud, cloud.ts).
 if (!SELF_TEST) {
@@ -656,7 +660,9 @@ function registerIpc(): void {
   });
   ipcMain.handle(Channels.byokClear, () => clearByokKey());
   ipcMain.handle(Channels.cloudStatus, () => cloudStatus());
-  ipcMain.handle(Channels.cloudSignIn, () => signIn());
+  ipcMain.handle(Channels.cloudSignIn, (_event, provider: unknown) =>
+    signIn(provider === "google" ? "google" : "github"),
+  );
   ipcMain.handle(Channels.cloudSignOut, () => signOut());
   ipcMain.handle(Channels.cloudUsage, () => cloudUsage());
   ipcMain.handle(Channels.cloudBilling, (_event, page: unknown) =>

@@ -20,6 +20,13 @@ export function pageUrl(page: "ui" | "hud" | "recorder"): string {
 
 function harden(window: BrowserWindow): void {
   const contents = window.webContents;
+  // `pnpm dev` only: F12 inspects the window.
+  if (process.env.ELECTRON_RENDERER_URL) {
+    contents.on("before-input-event", (_event, input) => {
+      if (input.type === "keyDown" && input.key === "F12")
+        contents.openDevTools({ mode: "detach" });
+    });
+  }
   contents.setWindowOpenHandler(({ url }) => {
     if (/^https:\/\/(ivibe\.tech|github\.com|dev\.meta\.ai)\//.test(url))
       void shell.openExternal(url);

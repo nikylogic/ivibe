@@ -2,7 +2,7 @@
 
 import { queueEmail, sendSoon } from "./email.ts";
 import type { Context } from "hono";
-import { page } from "./auth.ts";
+import { moment } from "./moments.ts";
 import type { AppEnv, Env } from "./env.ts";
 import { apiError } from "./runs.ts";
 import { loadSettings } from "./settings.ts";
@@ -179,7 +179,6 @@ export async function portalRoute(c: Ctx): Promise<Response> {
 
 /** Where Dodo sends the browser after checkout (`?status=active|failed|…`) or the portal. */
 export function returnPage(c: Ctx): Response {
-  const appLink = `${c.env.APP_SCHEME}://billing`;
   const from = c.req.query("from");
   if (from === "web-portal") return c.redirect(`${c.env.SITE_URL}/#pricing`);
   if (from === "web") {
@@ -189,21 +188,13 @@ export function returnPage(c: Ctx): Response {
       : c.redirect(`${c.env.SITE_URL}/welcome`);
   }
   if (from === "portal") {
-    return c.html(page("All set", "You can go back to iVibe now.", appLink));
+    return moment(c, "all-set", { open: "1" });
   }
   const status = c.req.query("status");
   if (status && status !== "active" && status !== "succeeded") {
-    return c.html(
-      page("Payment didn't go through", "Nothing was charged. You can try again from iVibe."),
-    );
+    return moment(c, "payment-failed");
   }
-  return c.html(
-    page(
-      "Welcome to iVibe Pro",
-      "Your credits will appear in the app within a few seconds. You can go back to iVibe now.",
-      appLink,
-    ),
-  );
+  return moment(c, "pro", { open: "1" });
 }
 
 const fromBase64 = (value: string) => Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
