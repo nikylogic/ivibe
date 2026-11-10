@@ -1,0 +1,68 @@
+{
+  "$schema": "https://fundingjson.org/schema/v1.1.0.json",
+  "version": "v1.1.0",
+  "entity": {
+    "type": "individual",
+    "role": "owner",
+    "name": "Nikhil P",
+    "email": "business@ivibe.tech",
+    "description": "I'm a solo developer in Bengaluru, India, building iVibe full time. I designed, built and shipped it alone, with six public releases since October 29, 2026.",
+    "webpageUrl": {
+      "url": "https://ivibe.tech",
+      "wellKnown": "https://ivibe.tech/.well-known/funding-manifest-urls"
+    }
+  },
+  "projects": [
+    {
+      "guid": "ivibe",
+      "name": "iVibe",
+      "description": "iVibe is an open-source voice layer for your computer, for Windows, macOS and Linux. Press one shortcut, show your screen and talk. Fix turns a spoken bug report into a prompt with marked-up screenshots for your coding agent. Prompt turns rambling into a clear prompt. Dictate writes clean text in any app. On-device OCR and secret redaction run before anything leaves the computer. Next are Vibes, modes that users make themselves by choosing what a mode can see and where the result goes, and a note taker built the same way.",
+      "webpageUrl": {
+        "url": "https://ivibe.tech",
+        "wellKnown": "https://ivibe.tech/.well-known/funding-manifest-urls"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/nikylogic/ivibe"
+      },
+      "licenses": ["spdx:AGPL-3.0-only"],
+      "tags": ["voice", "speech-to-text", "dictation", "developer-tools", "ai", "productivity", "desktop", "privacy", "accessibility", "electron"]
+    }
+  ],
+  "funding": {
+    "channels": [
+      {
+        "guid": "github-sponsors",
+        "type": "payment-provider",
+        "address": "https://github.com/sponsors/nikylogic",
+        "description": "GitHub Sponsors, for monthly or one-time support."
+      },
+      {
+        "guid": "bank",
+        "type": "bank",
+        "description": "Direct bank transfer for grants and larger amounts. Write to business@ivibe.tech for details."
+      }
+    ],
+    "plans": [
+      {
+        "guid": "full-time",
+        "status": "active",
+        "name": "Full-time development",
+        "description": "Lets me keep building iVibe full time: living costs, a coding-agent plan, and a Mac to test and sign the macOS build. The next work is Vibes and the note taker.",
+        "amount": 2000,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": ["bank", "github-sponsors"]
+      },
+      {
+        "guid": "supporter",
+        "status": "active",
+        "name": "Supporter",
+        "description": "Any amount, once or monthly.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": ["github-sponsors", "bank"]
+      }
+    ]
+  }
+}
