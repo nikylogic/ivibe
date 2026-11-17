@@ -448,8 +448,8 @@ importers:
         specifier: ^1.30.0
         version: 1.30.0
       ppu-paddle-ocr:
-        specifier: ^6.6.1
-        version: 6.6.1(onnxruntime-node@1.30.0)(onnxruntime-web@1.30.0)
+        specifier: ^6.7.1
+        version: 6.7.1(onnxruntime-node@1.30.0)(onnxruntime-web@1.30.0)
     devDependencies:
       '@ivibe/config':
         specifier: workspace:*
@@ -2582,16 +2582,16 @@ packages:
     engines: {node: '>=14.0.0'}
     hasBin: true
 
-  ppu-ocv@4.0.0:
-    resolution: {integrity: sha512-ol+S9/KLZ0aTV0xbC8+ZB0iM+FYux8ujoULeQoYY2IDBZj4LAuujJUkzHzUA2O3KzHs17KuuIzV/w4/htPdn3w==}
+  ppu-ocv@4.0.1:
+    resolution: {integrity: sha512-vULFg0CUALPxs+OYMQZl7GQwAY8cGuWUxeJ2Xvg5nYac2fnEvp1jJp5093MXQj3VFfDBCzpGHQkbyeHLvl+S6g==}
     peerDependencies:
       '@shopify/react-native-skia': '>=1.0.0'
     peerDependenciesMeta:
       '@shopify/react-native-skia':
         optional: true
 
-  ppu-paddle-ocr@6.6.1:
-    resolution: {integrity: sha512-ekFaLWQU6QC0IWPDshnV5U0RRGmQpJNriD1JBLJi0jwFS7MVMOXG14kPRySiGsNjNq0EQoeb+rmSKn/KHwHLLw==}
+  ppu-paddle-ocr@6.7.1:
+    resolution: {integrity: sha512-upmZzvKgNLShP3PcdqbC4/dgQZNI0gE/E7C3TY7T98thBJOQDCJaXh369sSVNJUOQabXaIXYCaRCwf/GO03Kuw==}
     hasBin: true
     peerDependencies:
       '@shopify/react-native-skia': '>=1.0.0'
@@ -4786,7 +4786,7 @@ snapshots:
       es6-error: 4.1.1
       matcher: 3.0.0
       roarr: 2.15.4
-      semver: 7.8.5
+      semver: 7.7.4
       serialize-error: 7.0.1
     optional: true
 
@@ -5130,11 +5130,11 @@ snapshots:
 
   node-abi@4.40.0:
     dependencies:
-      semver: 7.8.5
+      semver: 7.7.4
 
   node-api-version@0.2.1:
     dependencies:
-      semver: 7.8.5
+      semver: 7.7.4
 
   node-gyp@12.4.0:
     dependencies:
@@ -5143,7 +5143,7 @@ snapshots:
       graceful-fs: 4.2.11
       nopt: 9.0.0
       proc-log: 6.1.0
-      semver: 7.8.5
+      semver: 7.7.4
       tar: 7.5.22
       tinyglobby: 0.2.17
       undici: 6.29.1
@@ -5249,14 +5249,14 @@ snapshots:
       commander: 9.5.0
     optional: true
 
-  ppu-ocv@4.0.0:
+  ppu-ocv@4.0.1:
     dependencies:
       '@napi-rs/canvas': 1.0.13
       '@techstark/opencv-js': 5.0.0-release.1
 
-  ppu-paddle-ocr@6.6.1(onnxruntime-node@1.30.0)(onnxruntime-web@1.30.0):
+  ppu-paddle-ocr@6.7.1(onnxruntime-node@1.30.0)(onnxruntime-web@1.30.0):
     dependencies:
-      ppu-ocv: 4.0.0
+      ppu-ocv: 4.0.1
     optionalDependencies:
       onnxruntime-node: 1.30.0
       onnxruntime-web: 1.30.0

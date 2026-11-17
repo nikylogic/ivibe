@@ -21,6 +21,6 @@
   },
   "dependencies": {
     "onnxruntime-web": "^1.30.0",
-    "ppu-paddle-ocr": "^6.6.1"
+    "ppu-paddle-ocr": "^6.7.1"
   }
 }
